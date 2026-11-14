@@ -1,0 +1,14 @@
+# Cloudflare 캐시 규칙
+# 코드 파일 이름이 바뀌지 않으니(빌드 없음) 페이지와 코드는 매번 새로 확인한다: 새로 배포하면 바로 새 버전
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/style.css
+  Cache-Control: no-cache
+/src/*
+  Cache-Control: no-cache
+
+# 사진은 잘 안 바뀌니 하루 동안 캐시
+/assets/*
+  Cache-Control: public, max-age=86400

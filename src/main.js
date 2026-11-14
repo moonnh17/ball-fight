@@ -1,0 +1,956 @@
+// 씬 관리: 타이틀 → 캐릭터 선택(개인전/팀전) → 전투 → 결과
+(function () {
+  var W = CONFIG.W, H = CONFIG.H;
+  var canvas = document.getElementById('game'), ctx = canvas.getContext('2d');
+  canvas.width = W; canvas.height = H;
+  function fit() {
+    var s = Math.min(window.innerWidth / W, window.innerHeight / H);
+    canvas.style.width = W * s + 'px'; canvas.style.height = H * s + 'px';
+  }
+  window.addEventListener('resize', fit); fit();
+  Assets.load();
+
+  var IDS = Object.keys(CHARACTERS), TEAMS = Battle.TEAMS;
+  // 이름이 같은 캐릭터(이격)는 한 그룹: 선택창에선 카드 하나 + 모습 탭
+  var GROUPS = [];
+  IDS.forEach(function (id) {
+    var n = CHARACTERS[id].name, g = GROUPS.filter(function (q) { return q.name === n; })[0];
+    if (!g) GROUPS.push(g = { name: n, ids: [] });
+    g.ids.push(id);
+  });
+  function groupOf(id) { return GROUPS.filter(function (q) { return q.ids.indexOf(id) >= 0; })[0]; }
+  function shortSub(id) { return CHARACTERS[id].sub.replace(/의 모습$/, ''); }
+  function idOfName(n) { var g = GROUPS.filter(function (q) { return q.name === n; })[0]; return g ? g.ids[0] : null; }
+  var G = window.Game = {
+    scene: 'title', record: false, mode: 'ffa', pick: {}, speedIdx: CONFIG.speeds.indexOf(1), roster: [], curTeam: 0, tourSeed: 'manual', swapSel: null, tour: null, focus: IDS[0], battle: null,
+    phase: '', pt: 0, time: 0, fps: 60, hits: [], titleBalls: [],
+  };
+  var roundRect = Battle.roundRect, outlined = FX.outlined;
+
+  // ---------- 입력 ----------
+  // G.hitClip: 스크롤 영역 안에서 그릴 때 (dy만큼 밀고, 보이는 부분만 누를 수 있게)
+  function hit(x, y, w, h, fn) {
+    var c = G.hitClip;
+    if (c) {
+      y += c.dy;
+      var y0 = Math.max(y, c.top), y1 = Math.min(y + h, c.bottom);
+      if (y1 <= y0) return;
+      y = y0; h = y1 - y0;
+    }
+    G.hits.push({ x: x, y: y, w: w, h: h, fn: fn });
+  }
+  function button(x, y, w, h, label, fn, o) {
+    o = o || {};
+    if (G.record) return;   // 녹화 모드에선 버튼 숨김
+    var enabled = o.enabled !== false, col = o.color || '#ff2bd6';
+    ctx.save();
+    ctx.globalAlpha = enabled ? 1 : 0.35;
+    ctx.shadowColor = col; ctx.shadowBlur = enabled ? 25 : 0;
+    var g = ctx.createLinearGradient(x, y, x + w, y + h); g.addColorStop(0, col); g.addColorStop(1, o.color2 || '#7a5cff');
+    ctx.fillStyle = g; roundRect(ctx, x, y, w, h, Math.min(36, h / 2)); ctx.fill();
+    ctx.shadowBlur = 0; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.stroke();
+    outlined(ctx, label, x + w / 2, y + h / 2 + 2, o.size || 50, '#ffffff');
+    ctx.restore();
+    if (enabled) hit(x, y, w, h, function () { FX.sfx('click'); fn(); });
+  }
+  function scrolly() { return G.scene === 'dex' || G.scene === 'records'; }   // 끌어서/휠로 스크롤하는 화면
+  // 클릭은 손을 뗄 때 판정 (도감에서 끌어서 스크롤한 경우는 클릭 아님)
+  function toGame(e) { var r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }; }
+  var drag = null;
+  canvas.addEventListener('pointerdown', function (e) {
+    FX.initAudio();
+    var p = toGame(e);
+    drag = { x: p.x, y: p.y, s: G.dexScroll || 0, moved: false };
+    if (canvas.setPointerCapture) try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    var p = toGame(e);
+    if (Math.abs(p.y - drag.y) > 18) drag.moved = true;
+    if (drag.moved && scrolly()) G.dexScroll = drag.s - (p.y - drag.y);
+  });
+  canvas.addEventListener('pointerup', function () {
+    var d = drag; drag = null;
+    if (!d || (d.moved && scrolly())) return;
+    for (var i = G.hits.length - 1; i >= 0; i--) {
+      var h = G.hits[i];
+      if (d.x >= h.x && d.x <= h.x + h.w && d.y >= h.y && d.y <= h.y + h.h) { h.fn(); return; }
+    }
+  });
+  canvas.addEventListener('pointercancel', function () { drag = null; });
+  canvas.addEventListener('wheel', function (e) {
+    if (!scrolly()) return;
+    e.preventDefault();
+    G.dexScroll = (G.dexScroll || 0) + e.deltaY * (e.deltaMode === 1 ? 40 : 1) * 1.5;
+  }, { passive: false });
+  window.addEventListener('keydown', function (e) {
+    FX.initAudio();
+    var k = e.key.toLowerCase();
+    if (k === 'h') G.record = !G.record;
+    else if (k === 'm') FX.setMuted(!FX.muted);
+    else if (k.length === 1 && k >= '1' && k <= String(CONFIG.speeds.length)) G.speedIdx = +k - 1;
+    else if (k === 'r') {
+      if ((G.scene === 'battle' || G.scene === 'result') && canStart()) startBattle();
+      else if (G.scene !== 'select' && G.scene !== 'bracket') go('title');
+    }
+    else if (scrolly() && (k === 'arrowdown' || k === 'arrowup' || k === 'pagedown' || k === 'pageup')) {
+      e.preventDefault();
+      G.dexScroll = (G.dexScroll || 0) + ({ arrowdown: 120, arrowup: -120, pagedown: 1200, pageup: -1200 })[k];
+    }
+    else if ((k === ' ' || k === 'enter') && G.mode === 'tour') {
+      e.preventDefault();
+      if (G.scene === 'bracket' && !G.tour.champion) startMatch(tourNext());
+      else if ((G.scene === 'result' || G.scene === 'stats') && G.tour && G.tour.cur) tourAdvance();
+    }
+  });
+
+  function go(scene) { G.scene = scene; FX.reset(); }
+  function speed() { return CONFIG.speeds[G.speedIdx] || 1; }
+  function speedLabel() { return 'x' + speed(); }
+
+  function teamsInRoster() {
+    var t = [];
+    G.roster.forEach(function (e) { if (t.indexOf(e.team) < 0) t.push(e.team); });
+    return t.sort();
+  }
+  function canStart() {
+    return G.mode === 'team' ? teamsInRoster().length >= 2 : G.roster.length >= 2;
+  }
+  function startBattle() {
+    if (G.mode === 'tour') {   // 토너먼트: 진행 중인 경기가 있으면 그 경기 재시작, 아니면 새 대진
+      if (G.tour && G.tour.cur && (G.scene === 'battle' || G.scene === 'result' || G.scene === 'stats')) return startMatch(G.tour.cur);
+      return startTournament();
+    }
+    if (!canStart()) return;
+    FX.reset();
+    G.battle = new Battle(G.roster.map(function (e) { return { id: e.id, team: e.team }; }), G.mode);
+    G.scene = 'battle'; G.phase = 'intro'; G.pt = 0; G.lastCount = -1;
+    G.battle.synergies.forEach(function (s, i) {
+      FX.banner(s.name, { color: '#ffe14d', sub: TEAMS[s.team % TEAMS.length].label + '팀 시너지', size: 100, life: 2.2, y: 560 + i * 170 });
+    });
+  }
+  G.start = startBattle;   // 콘솔 디버그용: Game.roster=[{id:'baton',team:0},{id:'ibi',team:1}]; Game.start()
+
+  // ---------- 공통 배경 ----------
+  function background() {
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#120a2a'); g.addColorStop(1, '#05030c');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+
+  // ---------- 타이틀 ----------
+  function initTitleBalls() {
+    G.titleBalls = IDS.concat(IDS).map(function (id, i) {
+      var a = Math.random() * Math.PI * 2;
+      return { def: CHARACTERS[id], x: 150 + Math.random() * 780, y: 300 + Math.random() * 1300, vx: Math.cos(a) * 90, vy: Math.sin(a) * 90,
+        r: 70 + (i % 3) * 25, rot: 0 };
+    });
+  }
+  initTitleBalls();
+  function titleScene(dt) {
+    background();
+    G.titleBalls.forEach(function (b) {
+      b.x += b.vx * dt; b.y += b.vy * dt; b.rot += b.vx * dt / b.r * 0.3;
+      if (b.x < b.r || b.x > W - b.r) b.vx *= -1;
+      if (b.y < b.r || b.y > H - b.r) b.vy *= -1;
+      var col = CONFIG.chars[b.def.id].color;
+      ctx.save(); ctx.globalAlpha = 0.35; ctx.shadowColor = col; ctx.shadowBlur = 40;
+      Assets.drawBall(ctx, b.def, 'base', b.x, b.y, b.r, b.rot, col);
+      ctx.lineWidth = 6; ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    });
+    ctx.fillStyle = 'rgba(5,3,12,0.45)'; ctx.fillRect(0, 0, W, H);
+    var s = 1 + Math.sin(G.time * 3) * 0.03;
+    ctx.save(); ctx.translate(W / 2, 640); ctx.scale(s, s); ctx.rotate(-0.06);
+    outlined(ctx, '볼 파이트', 0, 0, 190, '#ffd400', '#ff2bd6');
+    outlined(ctx, 'WEAPON BALL FIGHT', 0, 150, 64, '#00f0ff', '#00f0ff');
+    ctx.restore();
+    var names = GROUPS.map(function (q) { return q.name; }), half = Math.ceil(names.length / 2);
+    outlined(ctx, names.slice(0, half).join(' · '), W / 2, 940, 42, '#ffffff');
+    if (names.length > half) outlined(ctx, names.slice(half).join(' · '), W / 2, 1010, 42, '#ffffff');
+    button(W / 2 - 260, 1250, 520, 150, '시작', function () { go('select'); }, { size: 72 });
+    button(W / 2 - 420, 1440, 400, 110, '📖 도감', function () { openDex(IDS[0]); }, { size: 50, color: '#7a5cff', color2: '#2f9bff' });
+    button(W / 2 + 20, 1440, 400, 110, '📊 통계', openRecords, { size: 50, color: '#ffb000', color2: '#ff2b6a' });
+    hint();
+  }
+
+  // ---------- 선택 ----------
+  function chip(x, y, w, h, label, active, color, fn) {
+    ctx.save();
+    ctx.fillStyle = active ? color : 'rgba(255,255,255,0.08)';
+    ctx.shadowColor = color; ctx.shadowBlur = active ? 25 : 0;
+    roundRect(ctx, x, y, w, h, h / 2); ctx.fill();
+    ctx.shadowBlur = 0; ctx.lineWidth = 3; ctx.strokeStyle = active ? '#ffffff' : color; ctx.stroke();
+    outlined(ctx, label, x + w / 2, y + h / 2 + 2, Math.round(h * 0.5), active ? '#ffffff' : color);
+    ctx.restore();
+    hit(x, y, w, h, function () { FX.sfx('click'); fn(); });
+  }
+  var synCache = { key: '', list: [] };
+  function previewSynergies() {
+    if (G.mode !== 'team' || !G.roster.length) return [];
+    var key = JSON.stringify(G.roster);
+    if (synCache.key !== key) { synCache.key = key; synCache.list = new Battle(G.roster, 'team').synergies; }
+    return synCache.list;
+  }
+
+  function selectScene() {
+    background();
+    outlined(ctx, '캐릭터 선택', W / 2, 74, 76, '#ffffff', '#ff2bd6');
+
+    // 모드
+    chip(40, 128, 320, 76, '개인전', G.mode === 'ffa', '#00c2ff', function () { G.mode = 'ffa'; G.swapSel = null; });
+    chip(380, 128, 320, 76, '팀전', G.mode === 'team', '#ff2b6a', function () { G.mode = 'team'; G.swapSel = null; });
+    chip(720, 128, 320, 76, '토너먼트', G.mode === 'tour', '#ffd400', function () { G.mode = 'tour'; G.swapSel = null; });
+
+    // 캐릭터 카드(사람 단위): 누를 때마다 지금 보이는 모습으로 참가자 추가 (중복 가능)
+    // 이격이 있으면 카드 아래 모습 탭으로 바꿈
+    var n = GROUPS.length, rows = n > 5 ? 2 : 1, per = Math.ceil(n / rows), gap = 12;
+    var cw = (W - 60 - gap * (per - 1)) / per, ch = (415 - gap * (rows - 1)) / rows, cy0 = 226, tall = rows === 1;
+    var pr = Math.min(84, cw * 0.38, ch * (tall ? 0.3 : 0.25)), ns = Math.min(44, cw * 0.2);
+    GROUPS.forEach(function (g, i) {
+      var id = G.pick[g.name] || g.ids[0], def = CHARACTERS[id], c = CONFIG.chars[id];
+      var x = 30 + (i % per) * (cw + gap), y = cy0 + Math.floor(i / per) * (ch + gap), mx = x + cw / 2, multi = g.ids.length > 1;
+      var cnt = G.roster.filter(function (e) { return g.ids.indexOf(e.id) >= 0; }).length, foc = g.ids.indexOf(G.focus) >= 0;
+      ctx.save();
+      ctx.shadowColor = c.color; ctx.shadowBlur = cnt ? 35 : 0;
+      ctx.fillStyle = cnt ? 'rgba(40,24,70,0.95)' : 'rgba(22,14,42,0.9)';
+      roundRect(ctx, x, y, cw, ch, 22); ctx.fill();
+      ctx.shadowBlur = 0; ctx.lineWidth = foc ? 6 : 3; ctx.strokeStyle = foc || cnt ? c.color : 'rgba(255,255,255,0.25)'; ctx.stroke();
+      ctx.restore();
+      Assets.drawBall(ctx, def, 'base', mx, y + 20 + pr, pr, 0, c.color);
+      ctx.lineWidth = 6; ctx.strokeStyle = c.color; ctx.beginPath(); ctx.arc(mx, y + 20 + pr, pr, 0, Math.PI * 2); ctx.stroke();
+      var ty0 = y + 30 + pr * 2;
+      if (tall) {
+        ty0 += 14;
+        outlined(ctx, def.name, mx, ty0 + ns * 0.5, ns, c.color);
+        outlined(ctx, def.sub, mx, ty0 + ns + 22, 19, '#dddddd');
+        outlined(ctx, '❤ ' + c.hp, mx, ty0 + ns + 60, 28, '#ff6b8a');
+      } else {
+        outlined(ctx, def.name, mx, ty0 + 8, Math.min(32, cw * 0.16), c.color);
+        if (!multi) outlined(ctx, shortSub(id) + ' · ❤' + c.hp, mx, ty0 + 34, Math.min(17, cw * 0.12), '#dddddd');
+      }
+      if (cnt) {
+        ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(x + cw - 24, y + 24, 22, 0, Math.PI * 2); ctx.fill();
+        outlined(ctx, 'x' + cnt, x + cw - 24, y + 26, 22, '#ffffff');
+      }
+      if (multi) outlined(ctx, '이격', x + 30, y + 22, 16, '#ffe14d');
+      hit(x, y, cw, ch, function () {
+        FX.sfx('click'); G.focus = id;
+        G.roster.push({ id: id, team: G.mode === 'team' ? G.curTeam : 0 });
+      });
+      if (multi) {   // 모습 탭: 누르면 모습만 바꿈 (추가 안 함)
+        var tw = (cw - 12) / g.ids.length, th = 30, tyy = y + ch - th - 8;
+        g.ids.forEach(function (vid, k) {
+          var on = vid === id, vc = CONFIG.chars[vid].color, tx = x + 6 + k * tw;
+          ctx.fillStyle = on ? vc : 'rgba(255,255,255,0.08)'; roundRect(ctx, tx + 2, tyy, tw - 4, th, th / 2); ctx.fill();
+          ctx.lineWidth = 2; ctx.strokeStyle = vc; ctx.stroke();
+          ctx.font = '700 ' + Math.round(Math.min(16, tw * 0.17)) + 'px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillStyle = on ? '#111' : vc; ctx.fillText(shortSub(vid), tx + tw / 2, tyy + th / 2 + 1, tw - 8);
+          hit(tx, tyy - 4, tw, th + 8, function () { FX.sfx('click'); G.pick[g.name] = vid; G.focus = vid; });
+        });
+      }
+    });
+
+    // 팀 고르기 / 안내
+    var ty = 665;
+    if (G.mode === 'team') {
+      outlined(ctx, '추가할 팀', 130, ty + 36, 32, '#ffffff');
+      TEAMS.forEach(function (T, i) {
+        chip(240 + i * 205, ty, 185, 70, T.label + '팀', G.curTeam === i, T.color, function () { G.curTeam = i; });
+      });
+    } else if (G.mode === 'tour') {
+      outlined(ctx, '대진', 110, ty + 36, 32, '#ffffff');
+      chip(190, ty, 280, 70, '직접 배치', G.tourSeed === 'manual', '#ffd400', function () { G.tourSeed = 'manual'; });
+      chip(490, ty, 280, 70, '랜덤 배치', G.tourSeed === 'random', '#ff8c42', function () { G.tourSeed = 'random'; G.swapSel = null; });
+      outlined(ctx, G.tourSeed === 'manual' ? '두 명 눌러 자리 바꾸기' : '시작할 때 섞음', 910, ty + 36, 22, '#bbbbbb');
+    } else {
+      outlined(ctx, '카드를 누를 때마다 참가자 추가 (같은 캐릭터 중복 가능, 인원 무제한)', W / 2, ty + 36, 27, '#bbbbbb');
+    }
+
+    // 참가자 명단: 누르면 제외
+    var py = 753, ph = 300;
+    ctx.fillStyle = 'rgba(18,10,36,0.95)'; roundRect(ctx, 30, py, W - 60, ph, 24); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.font = '700 28px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff';
+    var modeTxt = G.mode === 'team' ? '팀전 · ' + teamsInRoster().length + '팀' : G.mode === 'tour' ? '토너먼트 1:1' : '개인전';
+    var helpTxt = G.mode === 'tour' && G.tourSeed === 'manual' ? '(같은 사람 두 번 누르면 제외)' : '(누르면 제외)';
+    ctx.fillText('참가자 ' + G.roster.length + '명 · ' + modeTxt + '   ' + helpTxt, 60, py + 44);
+    function portrait(e, idx, x, y, r) {
+      var c = CONFIG.chars[e.id];
+      Assets.drawBall(ctx, CHARACTERS[e.id], 'base', x, y, r, 0, c.color);
+      ctx.lineWidth = 4; ctx.strokeStyle = G.mode === 'team' ? TEAMS[e.team].color : c.color;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+      hit(x - r, y - r, r * 2, r * 2, function () { FX.sfx('click'); G.roster.splice(idx, 1); });
+    }
+    if (G.mode === 'tour') {
+      // 1라운드 대진: 순서대로 두 명씩. 직접 배치에선 두 명을 눌러 자리 교체
+      var pairs = Math.max(1, Math.ceil(G.roster.length / 2)), cols = 3, pcw = (W - 100) / cols;
+      var prow = Math.ceil(pairs / cols), prh = Math.min(84, 220 / prow), pr = Math.min(30, prh * 0.38);
+      for (var q = 0; q < pairs && G.roster.length; q++) {
+        var pcx = 50 + pcw * (q % cols) + pcw / 2, pcy = py + 104 + Math.floor(q / cols) * prh;
+        outlined(ctx, String(q + 1), pcx - pcw / 2 + 22, pcy, 22, '#888888');
+        [0, 1].forEach(function (side) {
+          var idx = q * 2 + side, x = pcx + (side ? 52 : -52), e = G.roster[idx];
+          if (!e) { outlined(ctx, '부전승', x, pcy, 20, '#777777'); return; }
+          var c = CONFIG.chars[e.id];
+          Assets.drawBall(ctx, CHARACTERS[e.id], 'base', x, pcy, pr, 0, c.color);
+          ctx.lineWidth = G.swapSel === idx ? 7 : 4; ctx.strokeStyle = G.swapSel === idx ? '#ffffff' : c.color;
+          ctx.beginPath(); ctx.arc(x, pcy, pr + (G.swapSel === idx ? 3 : 0), 0, Math.PI * 2); ctx.stroke();
+          hit(x - pr, pcy - pr, pr * 2, pr * 2, function () { FX.sfx('click'); tourTap(idx); });
+        });
+        outlined(ctx, 'vs', pcx, pcy, 22, '#ffd400');
+      }
+    } else if (G.mode === 'team') {
+      var rowH = 58;
+      TEAMS.forEach(function (T, t) {
+        var ry = py + 66 + t * rowH, mem = [];
+        G.roster.forEach(function (e, idx) { if (e.team === t) mem.push([e, idx]); });
+        ctx.fillStyle = t === G.curTeam ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0)';
+        roundRect(ctx, 46, ry, W - 92, rowH - 8, 16); ctx.fill();
+        outlined(ctx, T.label, 82, ry + rowH / 2 - 2, 40, T.color);
+        var step = Math.min(66, (W - 220) / Math.max(1, mem.length)), r = Math.min(28, step / 2 - 2);
+        mem.forEach(function (m, k) { portrait(m[0], m[1], 150 + k * step, ry + rowH / 2 - 4, r); });
+      });
+    } else {
+      var per = 10, step = (W - 120) / per, cnt = G.roster.length, r = 36;
+      if (cnt > per * 3) { per = Math.ceil(cnt / 3); step = (W - 120) / per; r = Math.min(40, step / 2 - 2); }
+      G.roster.forEach(function (e, idx) {
+        portrait(e, idx, 60 + step / 2 + (idx % per) * step, py + 106 + Math.floor(idx / per) * 84, r);
+      });
+    }
+
+    // 시너지 미리보기
+    var syn = previewSynergies();
+    if (G.mode === 'team') {
+      var st = syn.length ? '✦ ' + syn.map(function (s) { return TEAMS[s.team].label + '팀 ' + s.name; }).join('  ✦ ') : '시너지 ' + SYNERGIES.length + '종 · 조건은 도감 → 시너지 (이격 포함)';
+      outlined(ctx, st, W / 2, py + ph + 34, syn.length ? 30 : 22, syn.length ? '#ffe14d' : '#999999');
+    }
+
+    // 캐릭터 설명 (마지막으로 누른 카드): 소개 · 스킬 · 패시브 · 시너지
+    var f = CHARACTERS[G.focus], fc = CONFIG.chars[G.focus], dy = 1105, dh = 505;
+    ctx.fillStyle = 'rgba(18,10,36,0.95)'; roundRect(ctx, 30, dy, W - 60, dh, 24); ctx.fill();
+    ctx.strokeStyle = fc.color; ctx.lineWidth = 4; ctx.stroke();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.font = '700 32px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.fillStyle = fc.color;
+    ctx.fillText(f.name + ' (' + f.sub + ')  ·  체력 ' + fc.hp + ' · ' + f.blurb, 56, dy + 46);
+    ctx.save(); roundRect(ctx, 30, dy, W - 60, dh - 8, 24); ctx.clip();
+    drawDetail(G.focus, 56, dy + 86, W - 112, 0.82);
+    ctx.restore();
+    outlined(ctx, '전체 설명·스탯은 도감에서', W - 200, dy + dh - 18, 20, '#888888');
+
+    button(40, 1625, 300, 120, '랜덤', randomRoster, { color: '#00c2ff', color2: '#7a5cff' });
+    button(360, 1625, 300, 120, '비우기', function () { G.roster = []; }, { color: '#555577', color2: '#333355', enabled: G.roster.length > 0 });
+    button(680, 1625, 360, 120, G.mode === 'tour' ? '토너먼트 시작' : '전투 시작', startBattle, { enabled: canStart(), color: '#ff2b6a', color2: '#ffb000', size: G.mode === 'tour' ? 42 : 50 });
+    button(40, 1780, 200, 90, '◀ 뒤로', function () { go('title'); }, { size: 36, color: '#555577', color2: '#333355' });
+    button(260, 1780, 220, 90, '📖 도감', function () { openDex(G.focus); }, { size: 36, color: '#7a5cff', color2: '#333355' });
+    button(500, 1780, 220, 90, '📊 통계', openRecords, { size: 36, color: '#ffb000', color2: '#333355' });
+    hint();
+  }
+  function tourTap(idx) {
+    if (G.tourSeed !== 'manual') { G.roster.splice(idx, 1); return; }
+    if (G.swapSel === null) { G.swapSel = idx; return; }
+    if (G.swapSel === idx) { G.roster.splice(idx, 1); G.swapSel = null; return; }
+    var t = G.roster[idx]; G.roster[idx] = G.roster[G.swapSel]; G.roster[G.swapSel] = t; G.swapSel = null;
+  }
+
+  // ---------- 토너먼트 (싱글 엘리미네이션 1:1) ----------
+  // rounds[0] = 1라운드 자리(빈 자리는 null = 부전승), rounds[r+1][i] = rounds[r]의 (2i, 2i+1) 경기 승자 (undefined = 아직)
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function startTournament() {
+    if (G.roster.length < 2) return;
+    var counts = {}, seen = {};
+    G.roster.forEach(function (e) { counts[e.id] = (counts[e.id] || 0) + 1; });
+    var entries = G.roster.map(function (e) {
+      var name = CHARACTERS[e.id].name;
+      if (counts[e.id] > 1) { seen[e.id] = (seen[e.id] || 0) + 1; name += seen[e.id]; }
+      return { id: e.id, name: name };
+    });
+    if (G.tourSeed === 'random') shuffle(entries);
+    var size = 2;
+    while (size < entries.length) size *= 2;
+    while (entries.length < size) entries.push(null);
+    G.tour = { rounds: [entries], cur: null, champion: null };
+    tourResolve();
+    FX.reset(); G.scene = 'bracket'; G.pt = 0;
+  }
+  function tourResolve() {
+    var R = G.tour.rounds;
+    for (var r = 0; R[r].length > 1; r++) {
+      if (!R[r + 1]) R[r + 1] = new Array(R[r].length / 2);
+      for (var i = 0; i < R[r + 1].length; i++) {
+        var a = R[r][2 * i], b = R[r][2 * i + 1];
+        if (R[r + 1][i] !== undefined || a === undefined || b === undefined) continue;
+        if (a === null) R[r + 1][i] = b;        // 부전승 (둘 다 빈 자리면 빈 자리)
+        else if (b === null) R[r + 1][i] = a;
+      }
+    }
+    var last = R[R.length - 1][0];
+    G.tour.champion = last || null;
+  }
+  function tourNext() {
+    var R = G.tour.rounds;
+    for (var r = 0; r < R.length - 1; r++)
+      for (var i = 0; i < R[r + 1].length; i++)
+        if (R[r + 1][i] === undefined && R[r][2 * i] && R[r][2 * i + 1]) return { r: r, i: i };
+    return null;
+  }
+  function roundName(r) { var n = G.tour.rounds[r].length; return n === 2 ? '결승' : n === 4 ? '준결승' : n + '강'; }
+  function startMatch(m) {
+    if (!m) return;
+    var R = G.tour.rounds, a = R[m.r][2 * m.i], b = R[m.r][2 * m.i + 1];
+    G.tour.cur = m;
+    FX.reset();
+    G.battle = new Battle([a.id, b.id]);
+    G.battle.balls[0].name = a.name; G.battle.balls[1].name = b.name;
+    G.battle.balls.forEach(function (x) { var m = /(\d+)$/.exec(x.name); if (x.dupNo && m) x.dupNo = +m[1]; });   // 번호 배지를 대진표 이름과 맞춤
+    G.battle.tourEntries = [a, b];
+    G.scene = 'battle'; G.phase = 'intro'; G.pt = 0; G.lastCount = -1;
+    FX.banner(roundName(m.r), { color: '#ffd400', sub: a.name + ' vs ' + b.name, size: 130, life: 2.0, y: 560 });
+  }
+  function tourAdvance() {
+    var bt = G.battle, m = G.tour.cur;
+    var w = bt.winner ? bt.tourEntries[bt.winner.id] : bt.tourEntries[Math.floor(Math.random() * 2)];   // 동시 탈락이면 랜덤
+    G.tour.rounds[m.r + 1][m.i] = w;
+    G.tour.cur = null;
+    tourResolve();
+    FX.reset(); G.scene = 'bracket'; G.pt = 0;
+    if (G.tour.champion) {
+      FX.sfx('win');
+      if (!G.tour.recorded) {   // 우승 = 결승 승자, 준우승 = 결승 상대 (부전승으로 결승이 없으면 없음)
+        G.tour.recorded = true;
+        var fin = G.tour.rounds[G.tour.rounds.length - 2] || [], ch = G.tour.champion;
+        var ru = fin.filter(function (e) { return e && e !== ch; })[0];
+        Records.tournament(ch.id, ru ? ru.id : null);
+      }
+    }
+  }
+  G.tourState = function () { return G.tour; };   // 디버그용
+
+  function bracketScene(dt) {
+    var T = G.tour, R = T.rounds, cols = R.length, next = T.champion ? null : tourNext();
+    G.pt += dt;
+    background();
+    outlined(ctx, '토너먼트', W / 2, 74, 76, '#ffd400', '#ff2bd6');
+    var sub = T.champion ? '🏆 우승: ' + T.champion.name
+      : next ? '다음: ' + roundName(next.r) + ' · ' + R[next.r][2 * next.i].name + ' vs ' + R[next.r][2 * next.i + 1].name : '';
+    outlined(ctx, sub, W / 2, 140, 34, T.champion ? '#ffd400' : '#ffffff');
+    // 대진표: 왼쪽부터 라운드, 오른쪽 끝이 우승자
+    var top = 190, bottom = 1720, colW = (W - 80) / cols;
+    var posOf = function (r, j) { var n = R[r].length, sp = (bottom - top) / n; return { x: 40 + colW * r + colW / 2, y: top + sp * (j + 0.5), sp: sp }; };
+    ctx.lineWidth = 4;
+    for (var r = 0; r < cols - 1; r++) {
+      for (var i = 0; i < R[r + 1].length; i++) {
+        var a = posOf(r, 2 * i), b = posOf(r, 2 * i + 1), c = posOf(r + 1, i), mx = (a.x + c.x) / 2;
+        var live = next && next.r === r && next.i === i;
+        ctx.strokeStyle = live ? '#ffd400' : R[r + 1][i] ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.18)';
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(mx, a.y); ctx.lineTo(mx, b.y); ctx.lineTo(b.x, b.y);
+        ctx.moveTo(mx, c.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+      }
+    }
+    for (var r2 = 0; r2 < cols; r2++) {
+      if (r2 < cols - 1) outlined(ctx, roundName(r2), 40 + colW * r2 + colW / 2, top - 10, 22, '#aaaaaa');
+      R[r2].forEach(function (e, j) {
+        var p = posOf(r2, j), rad = Math.min(r2 === cols - 1 ? 90 : 46, p.sp * 0.36, colW * 0.36);
+        if (e === undefined) {
+          ctx.save(); ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(p.x, p.y, rad, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+          outlined(ctx, '?', p.x, p.y, rad, '#666666');
+          return;
+        }
+        if (e === null) { outlined(ctx, '부전승', p.x, p.y, Math.min(22, rad * 0.6), '#555555'); return; }
+        var parent = r2 < cols - 1 ? R[r2 + 1][Math.floor(j / 2)] : e, lost = parent && parent !== e;
+        var live = next && next.r === r2 && Math.floor(j / 2) === next.i, col = CONFIG.chars[e.id].color;
+        ctx.save(); ctx.globalAlpha = lost ? 0.3 : 1;
+        if (r2 === cols - 1) { ctx.shadowColor = '#ffd400'; ctx.shadowBlur = 50; }
+        Assets.drawBall(ctx, CHARACTERS[e.id], 'base', p.x, p.y, rad, 0, col);
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = live ? 6 + Math.sin(G.time * 8) * 2 : 4; ctx.strokeStyle = live ? '#ffd400' : r2 === cols - 1 ? '#ffd400' : col;
+        ctx.beginPath(); ctx.arc(p.x, p.y, rad, 0, Math.PI * 2); ctx.stroke();
+        if (p.sp > 70) outlined(ctx, e.name, p.x, p.y + rad + 16, Math.min(22, rad * 0.5), lost ? '#888888' : '#ffffff');
+        ctx.restore();
+        if (r2 === cols - 1) outlined(ctx, '👑', p.x, p.y - rad - 30, 60, '#ffd400');
+      });
+    }
+    if (T.champion && Math.random() < dt * 40) {
+      var cs = ['#ffd400', '#ff2bd6', '#00f0ff', '#ffffff'];
+      FX.particle({ x: Math.random() * W, y: -20, vx: (Math.random() - 0.5) * 200, vy: 200 + Math.random() * 300, g: 200, life: 4, size: 16, color: cs[Math.floor(Math.random() * cs.length)], shape: 'square', vr: 8, drag: 0.99 });
+    }
+    FX.drawWorld(ctx);
+    if (T.champion) {
+      button(40, 1760, 480, 120, '새 토너먼트', startTournament, { color: '#ff2b6a', color2: '#ffb000', size: 44 });
+      button(560, 1760, 480, 120, '캐릭터 다시 고르기', function () { go('select'); }, { color: '#00c2ff', color2: '#7a5cff', size: 36 });
+    } else {
+      button(40, 1760, 300, 120, '◀ 선택', function () { go('select'); }, { color: '#555577', color2: '#333355', size: 40 });
+      button(360, 1760, 680, 120, '▶ ' + (next ? roundName(next.r) + ' 시작' : '다음 경기'), function () { startMatch(next); }, { color: '#ffd400', color2: '#ff2b6a', size: 48 });
+    }
+    hint();
+  }
+
+  function randomRoster() {
+    var n = 2 + Math.floor(Math.random() * 5), pick = function () { return IDS[Math.floor(Math.random() * IDS.length)]; };
+    if (G.mode === 'tour') n = [4, 8][Math.floor(Math.random() * 2)];
+    G.roster = []; G.swapSel = null;
+    for (var i = 0; i < n; i++) G.roster.push({ id: pick(), team: G.mode === 'team' ? i % 2 : 0 });
+    G.focus = G.roster[0].id;
+  }
+
+  // ---------- 통계 (누적 전적) ----------
+  function openRecords() { G.recBack = G.scene; G.dexScroll = 0; G.recSort = G.recSort || 'base'; G.recReset = 0; Records.load(); go('records'); }
+  function pctOf(w, l) { return w + l ? w / (w + l) : -1; }
+  function recordsScene() {
+    background();
+    outlined(ctx, '통계', W / 2, 74, 80, '#ffffff', '#ffb000');
+    outlined(ctx, '기록을 시작한 뒤의 누적 전적 · 이 브라우저에 저장', W / 2, 138, 24, '#999999');
+    var sorts = [['base', '기본'], ['duel', '1:1'], ['ffa', '개인전'], ['champ', '우승'], ['team', '팀전']];
+    sorts.forEach(function (s, i) {
+      chip(36 + i * 204, 168, 192, 62, s[1], G.recSort === s[0], '#ffb000', function () { G.recSort = s[0]; G.dexScroll = 0; });
+    });
+    // 표 머리
+    var hy = 270;
+    ctx.font = '700 22px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#bbbbbb'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText('캐릭터', 150, hy); ctx.fillText('1:1', 383, hy); ctx.fillText('개인전 (3인+)', 578, hy); ctx.fillText('토너먼트', 750, hy); ctx.fillText('팀전', 928, hy);
+    ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(30, hy + 12, W - 60, 2);
+    // 정렬
+    var order = [].concat.apply([], GROUPS.map(function (q) { return q.ids; }));
+    var rows = order.map(function (id, i) { return { id: id, i: i, r: Records.get(id) }; });
+    var key = {
+      duel: function (x) { return pctOf(x.r.duelW, x.r.duelL) * 1e4 + x.r.duelW; },
+      ffa: function (x) { return pctOf(x.r.ffaW, x.r.ffaL) * 1e4 + x.r.ffaW; },
+      champ: function (x) { return x.r.champ * 1e4 + x.r.runner; },
+      team: function (x) { return pctOf(x.r.teamW, x.r.teamL) * 1e4 + x.r.teamW; },
+    }[G.recSort];
+    if (key) rows.sort(function (a, b) { return key(b) - key(a) || a.i - b.i; });
+    // 스크롤 영역
+    var top = hy + 20, bot = 1770, rh = 118, maxS = Math.max(0, top + rows.length * rh - bot + 10);
+    G.dexScroll = Math.max(0, Math.min(maxS, G.dexScroll || 0));
+    ctx.save(); ctx.beginPath(); ctx.rect(0, top, W, bot - top); ctx.clip(); ctx.translate(0, -G.dexScroll);
+    rows.forEach(function (row, k) {
+      var id = row.id, r = row.r, def = CHARACTERS[id], c = CONFIG.chars[id], y = top + k * rh, cy = y + rh / 2;
+      if (y + rh < top + G.dexScroll || y > bot + G.dexScroll) return;
+      ctx.fillStyle = k % 2 ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.07)'; roundRect(ctx, 30, y + 6, W - 60, rh - 12, 18); ctx.fill();
+      Assets.drawBall(ctx, def, 'base', 92, cy, 40, 0, c.color);
+      ctx.lineWidth = 5; ctx.strokeStyle = c.color; ctx.beginPath(); ctx.arc(92, cy, 40, 0, Math.PI * 2); ctx.stroke();
+      ctx.textAlign = 'left';
+      ctx.font = '700 28px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.fillStyle = c.color; ctx.fillText(def.name, 148, cy - 4);
+      ctx.font = '500 19px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#aaaaaa'; ctx.fillText(shortSub(id), 148, cy + 26);
+      // 1:1 / 팀전: 승패 + 승률 막대
+      // 개인전(3인+)은 1등 횟수 / 참가 판수
+      [[r.duelW, r.duelL, 300, '#00c2ff', 0], [r.ffaW, r.ffaL, 492, '#7dff9a', 1], [r.teamW, r.teamL, 842, '#ff2b6a', 0]].forEach(function (q) {
+        var w = q[0], l = q[1], p = pctOf(w, l), x = q[2], bw = 172;
+        ctx.textAlign = 'left'; ctx.font = '700 21px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff';
+        ctx.fillText(q[4] ? '1등 ' + w + '/' + (w + l) + '판' : w + '승 ' + l + '패', x, cy - 8);
+        ctx.textAlign = 'right'; ctx.fillStyle = p < 0 ? '#666666' : q[3];
+        ctx.fillText(p < 0 ? '-' : Math.round(p * 100) + '%', x + bw, cy - 8);
+        ctx.fillStyle = '#1b1530'; roundRect(ctx, x, cy + 6, bw, 14, 7); ctx.fill();
+        if (p > 0) { ctx.fillStyle = q[3]; roundRect(ctx, x, cy + 6, bw * p, 14, 7); ctx.fill(); }
+      });
+      // 토너먼트
+      ctx.textAlign = 'center'; ctx.font = '700 28px "Malgun Gothic",sans-serif';
+      ctx.fillStyle = r.champ ? '#ffd400' : '#666666'; ctx.fillText('🏆 ' + r.champ, 712, cy + 10);
+      ctx.fillStyle = r.runner ? '#dddddd' : '#666666'; ctx.fillText('🥈 ' + r.runner, 795, cy + 10);
+    });
+    ctx.restore();
+    if (maxS > 0) {
+      var th = (bot - top) * (bot - top) / (bot - top + maxS), sy = top + (bot - top - th) * G.dexScroll / maxS;
+      ctx.fillStyle = 'rgba(255,255,255,0.12)'; roundRect(ctx, W - 22, top, 10, bot - top, 5); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.6)'; roundRect(ctx, W - 22, sy, 10, th, 5); ctx.fill();
+    }
+    button(40, 1800, 220, 90, '◀ 뒤로', function () { go(G.recBack && G.recBack !== 'records' ? G.recBack : 'title'); }, { size: 36, color: '#555577', color2: '#333355' });
+    // 초기화: 두 번 눌러야 지워짐 (3초 안에)
+    var arm = G.recReset && G.time - G.recReset < 3;
+    button(W - 380, 1800, 340, 90, arm ? '정말 지울까요? 한 번 더' : '기록 초기화', function () {
+      if (arm) { Records.reset(); G.recReset = 0; FX.sfx('ko'); } else G.recReset = G.time;
+    }, { size: arm ? 26 : 34, color: arm ? '#ff2b2b' : '#555577', color2: '#333355' });
+    hint();
+  }
+
+  // ---------- 캐릭터 상세 (설명창 · 도감 공용) ----------
+  function txt(d) { return typeof d === 'function' ? d() : d; }
+  function section(label, x, y, w, color) {
+    ctx.font = '700 24px "Malgun Gothic",sans-serif'; ctx.fillStyle = color; ctx.textAlign = 'left';
+    ctx.fillText(label, x, y);
+    var lw = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(x + lw + 12, y - 8, w - lw - 12, 2);
+    return y + 36;
+  }
+  function tag(label, x, y, color) {
+    ctx.font = '700 18px "Malgun Gothic",sans-serif';
+    var w = ctx.measureText(label).width + 16;
+    ctx.fillStyle = color; roundRect(ctx, x, y - 19, w, 26, 13); ctx.fill();
+    ctx.fillStyle = '#111'; ctx.textAlign = 'left'; ctx.fillText(label, x + 8, y);
+    return x + w + 8;
+  }
+  // 소개 → 스킬(패시브/페이즈 표시) → 캐릭터 패시브 → 시너지
+  // flavor: true면 소개 바로 밑에 플레이버 텍스트(회색 이탤릭) — 도감 전용
+  function drawDetail(id, x, y, w, k, flavor) {
+    var f = CHARACTERS[id], fc = CONFIG.chars[id], ly = y, lh = Math.round(34 * k);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.font = '500 ' + Math.round(25 * k) + 'px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff';
+    ly = wrap(f.intro || '', x, ly, w, lh) + 8;
+    if (flavor && f.flavor) {
+      ctx.font = 'italic 500 ' + Math.round(24 * k) + 'px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#9a9aa8';
+      ly = wrap(f.flavor, x, ly, w, lh) + 8;
+    }
+    ly = section('스킬', x, ly, w, '#00f0ff');
+    f.skills.forEach(function (sk, n) {
+      ctx.font = '700 ' + Math.round(27 * k) + 'px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff'; ctx.textAlign = 'left';
+      var head = (n + 1) + '. ' + sk.name;
+      ctx.fillText(head, x, ly);
+      var tx = x + ctx.measureText(head).width + 12;
+      if (sk.passive) tx = tag('패시브', tx, ly - 2, '#c6ff00');
+      tx = tag(n ? 'PHASE 2' : 'PHASE 1', tx, ly - 2, n ? fc.phase2Color : '#bbbbbb');
+      var cd = sk.cd(fc);
+      if (cd < 999) tag(sk.passive ? cd + '초마다' : '쿨 ' + cd + '초', tx, ly - 2, '#ffd36b');
+      ly += lh;
+      ctx.font = '500 ' + Math.round(23 * k) + 'px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#cfc6e6';
+      ly = wrap(sk.desc, x + 20, ly, w - 20, lh - 2) + 4;
+    });
+    if (id === 'samsik') {
+      ctx.font = '700 ' + Math.round(22 * k) + 'px "Malgun Gothic",sans-serif';
+      var dx = x + 20;
+      Object.keys(DYES).forEach(function (q) {
+        var t = DYES[q].label + ' ' + CONFIG.dyeChances[q] + '%';
+        ctx.fillStyle = DYES[q].glow || DYES[q].color; ctx.fillText(t, dx, ly); dx += ctx.measureText(t).width + 20;
+      });
+      ly += lh;
+    }
+    var ps = f.passives || [];
+    if (ps.length) {
+      ly = section('캐릭터 패시브', x, ly + 4, w, '#c6ff00');
+      ps.forEach(function (p) {
+        ctx.font = '700 ' + Math.round(23 * k) + 'px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff';
+        ly = wrap('· ' + p.name + ' — ' + txt(p.desc), x, ly, w, lh - 2) + 2;
+      });
+    }
+    var sy = synergiesOf(id);
+    if (sy.length) {
+      ly = section('시너지 (팀전)', x, ly + 4, w, '#ffe14d');
+      sy.forEach(function (q) {
+        var mem = q.solo ? q.solo.join(' 또는 ') + ' 혼자' : q.members().join('+');
+        ctx.font = '700 ' + Math.round(23 * k) + 'px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffe14d';
+        ly = wrap('✦ ' + q.name + '  [' + mem + ']', x, ly, w, lh - 2);
+        ctx.font = '500 ' + Math.round(22 * k) + 'px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#e8dfa8';
+        ly = wrap(q.desc(), x + 20, ly, w - 20, lh - 4) + 2;
+      });
+    }
+    return ly;
+  }
+
+  // ---------- 도감 ----------
+  function openDex(id) { G.dexBack = G.scene; G.dexId = id || IDS[0]; G.dexTab = G.dexTab || 'char'; G.dexScroll = 0; go('dex'); }
+  function statMax(key) { return Math.max.apply(null, IDS.map(function (id) { return CONFIG.chars[id][key] || CONFIG.battle.contactDamage; })); }
+  function dexScene() {
+    background();
+    outlined(ctx, '도감', W / 2, 74, 80, '#ffffff', '#7a5cff');
+    chip(W / 2 - 330, 124, 310, 70, '캐릭터', G.dexTab === 'char', '#00c2ff', function () { G.dexTab = 'char'; G.dexScroll = 0; });
+    chip(W / 2 + 20, 124, 310, 70, '시너지', G.dexTab === 'syn', '#ffe14d', function () { G.dexTab = 'syn'; G.dexScroll = 0; });
+    // 스크롤 영역: 탭 아래 ~ 뒤로 버튼 위. 내용 높이는 지난 프레임에 그린 결과로 계산
+    var top = 205, bot = 1785, maxS = Math.max(0, (G.dexContentH || 0) - bot + 20);
+    G.dexScroll = Math.max(0, Math.min(maxS, G.dexScroll || 0));
+    ctx.save(); ctx.beginPath(); ctx.rect(0, top, W, bot - top); ctx.clip(); ctx.translate(0, -G.dexScroll);
+    G.hitClip = { dy: -G.dexScroll, top: top, bottom: bot };
+    G.dexContentH = G.dexTab === 'char' ? dexChars() : dexSynergies();
+    G.hitClip = null;
+    ctx.restore();
+    if (maxS > 0) {   // 스크롤바
+      var th = (bot - top) * (bot - top) / (bot - top + maxS), ty = top + (bot - top - th) * G.dexScroll / maxS;
+      ctx.fillStyle = 'rgba(255,255,255,0.12)'; roundRect(ctx, W - 22, top, 10, bot - top, 5); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.6)'; roundRect(ctx, W - 22, ty, 10, th, 5); ctx.fill();
+      if (G.dexScroll < maxS - 5) outlined(ctx, '▼ 스크롤', W / 2, bot - 8, 22, 'rgba(255,255,255,0.6)');
+    }
+    button(40, 1800, 220, 90, '◀ 뒤로', function () { go(G.dexBack === 'dex' ? 'title' : G.dexBack || 'title'); }, { size: 36, color: '#555577', color2: '#333355' });
+    hint();
+  }
+  function dexChars() {
+    // 캐릭터 고르기
+    var order = [].concat.apply([], GROUPS.map(function (q) { return q.ids; }));   // 이격끼리 붙여서
+    var per = 5, gx = (W - 80) / per, rr = 50, rowH = 160;
+    order.forEach(function (id, i) {
+      var c = CONFIG.chars[id], x = 40 + gx * (i % per) + gx / 2, y = 280 + Math.floor(i / per) * rowH, sel = G.dexId === id;
+      Assets.drawBall(ctx, CHARACTERS[id], 'base', x, y, rr, 0, c.color);
+      ctx.lineWidth = sel ? 7 : 4; ctx.strokeStyle = sel ? '#ffffff' : c.color;
+      ctx.beginPath(); ctx.arc(x, y, sel ? rr + 4 : rr, 0, Math.PI * 2); ctx.stroke();
+      outlined(ctx, CHARACTERS[id].name, x, y + rr + 22, 24, sel ? '#ffffff' : c.color);
+      outlined(ctx, shortSub(id), x, y + rr + 50, 18, sel ? '#ffffff' : '#999999');
+      hit(x - gx / 2, y - rr - 6, gx, rowH, function () { FX.sfx('click'); G.dexId = id; });
+    });
+    // 캐릭터 수만큼 그리드 줄이 늘면 상세 패널도 아래로, 패널 높이는 지난 프레임 설명 길이에 맞춤
+    var id = G.dexId, f = CHARACTERS[id], c = CONFIG.chars[id], py = 280 + (Math.ceil(order.length / per) - 1) * rowH + 130;
+    var ph = Math.max(900, (G.dexDetailEnd || 0) - py + 30);
+    ctx.fillStyle = 'rgba(18,10,36,0.95)'; roundRect(ctx, 30, py, W - 60, ph, 26); ctx.fill();
+    ctx.strokeStyle = c.color; ctx.lineWidth = 5; ctx.stroke();
+    Assets.drawBall(ctx, f, 'base', 170, py + 150, 115, 0, c.color);
+    ctx.lineWidth = 10; ctx.strokeStyle = c.color; ctx.beginPath(); ctx.arc(170, py + 150, 115, 0, Math.PI * 2); ctx.stroke();
+    ctx.textAlign = 'left';
+    ctx.save(); ctx.textAlign = 'left';
+    ctx.font = '700 62px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.fillStyle = c.color; ctx.fillText(f.name, 320, py + 80);
+    ctx.font = '700 28px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#dddddd'; ctx.fillText(f.sub + ' · ' + f.blurb, 322, py + 122);
+    var sib = groupOf(id).ids.filter(function (q) { return q !== id; });
+    if (sib.length) { ctx.font = '700 22px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffe14d'; ctx.fillText('이격: ' + sib.map(function (q) { return CHARACTERS[q].sub; }).join(', '), 322, py + 154); }
+    ctx.restore();
+    // 스탯 막대
+    var stats = [['체력', c.hp, statMax('hp'), '#ff6b8a'], ['이동속도', c.speed, statMax('speed'), '#00f0ff'],
+      ['크기', c.radius, statMax('radius'), '#c6ff00'], ['박치기', c.contactDamage || CONFIG.battle.contactDamage, statMax('contactDamage'), '#ffb36b']];
+    stats.forEach(function (st, i) {
+      var y = py + 172 + i * 40;
+      ctx.font = '700 22px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff'; ctx.textAlign = 'left';
+      ctx.fillText(st[0], 322, y + 18);
+      ctx.fillStyle = '#1b1530'; roundRect(ctx, 440, y, 480, 24, 12); ctx.fill();
+      ctx.fillStyle = st[3]; roundRect(ctx, 440, y, 480 * st[1] / st[2], 24, 12); ctx.fill();
+      ctx.fillStyle = '#ffffff'; ctx.textAlign = 'right'; ctx.fillText(String(st[1]), 1010, y + 19);
+    });
+    G.dexDetailEnd = drawDetail(id, 60, py + 360, W - 120, 1, true);
+    return py + ph;
+  }
+  function dexSynergies() {
+    // 카드는 큰 크기 그대로, 넘치면 스크롤
+    var y = 230;
+    outlined(ctx, '팀전에서만 발동 · 조건이 맞는 팀의 팀원 전체에 적용 · 같은 이름의 이격도 포함', W / 2, y, 24, '#bbbbbb');
+    y += 40;
+    SYNERGIES.forEach(function (q) {
+      var mem = q.solo || q.members(), need = q.needIds ? q.needIds() : [];
+      ctx.font = '500 25px "Malgun Gothic",sans-serif';
+      var lines = Math.max(1, Math.ceil(ctx.measureText(q.desc()).width / (W - 120)) + 1), ch = 300 + lines * 34;
+      ctx.fillStyle = 'rgba(18,10,36,0.95)'; roundRect(ctx, 30, y, W - 60, ch, 24); ctx.fill();
+      ctx.strokeStyle = '#ffe14d'; ctx.lineWidth = 4; ctx.stroke();
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.font = '700 44px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffe14d';
+      ctx.fillText('✦ ' + q.name, 60, y + 60);
+      ctx.font = '700 24px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#bbbbbb';
+      ctx.fillText(q.solo ? '조건: ' + q.solo.join(' 또는 ') + '가 팀에 혼자 (모습 상관없음)'
+        : '조건: 아래 ' + mem.length + '명이 모두 같은 팀' + (q.note ? ' (' + q.note + ')' : ' (모습 상관없음)'), 60, y + 100);
+      var step = Math.min(150, (W - 160) / mem.length);
+      mem.forEach(function (nm, k) {
+        var id = need.filter(function (q2) { return CHARACTERS[q2].name === nm; })[0] || idOfName(nm);
+        var x = 110 + k * step, c = CONFIG.chars[id], vs = groupOf(id).ids.length;
+        Assets.drawBall(ctx, CHARACTERS[id], 'base', x, y + 175, 48, 0, c.color);
+        ctx.lineWidth = 5; ctx.strokeStyle = c.color; ctx.beginPath(); ctx.arc(x, y + 175, 48, 0, Math.PI * 2); ctx.stroke();
+        outlined(ctx, nm + (vs > 1 && need.indexOf(id) < 0 ? ' (이격 ' + vs + ')' : ''), x, y + 245, 22, c.color);
+        hit(x - 50, y + 125, 100, 130, function () { G.dexId = id; G.dexTab = 'char'; G.dexScroll = 0; });
+      });
+      ctx.textAlign = 'left'; ctx.font = '500 25px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff';
+      wrap(q.desc(), 60, y + 300, W - 120, 34);
+      y += ch + 20;
+    });
+    return y;
+  }
+
+  function wrap(text, x, y, maxW, lh) {
+    var line = '';
+    for (var i = 0; i < text.length; i++) {
+      var test = line + text[i];
+      if (ctx.measureText(test).width > maxW && line) { ctx.fillText(line, x, y); line = text[i]; y += lh; }
+      else line = test;
+    }
+    ctx.fillText(line, x, y);
+    return y + lh;
+  }
+
+  // ---------- 전투 ----------
+  function introPer(bt) { return Math.min(CONFIG.battle.introPerChar, 3.2 / bt.balls.length); }
+  function battleScene(dt) {
+    var bt = G.battle, B = CONFIG.battle;
+    var introDur = bt.balls.length * introPer(bt);
+    if (G.phase === 'intro') {
+      G.pt += dt;
+      var c = G.pt - introDur;
+      if (c >= 0) {
+        var n = Math.floor(c);
+        if (n !== G.lastCount) {
+          G.lastCount = n;
+          if (n < B.countdown) { FX.sfx('count'); }
+          else { FX.sfx('go'); FX.banner('FIGHT!', { color: '#ff2b6a', size: 190, life: 1.0 }); FX.shake(20); G.phase = 'fight'; }
+        }
+      }
+    } else if (G.phase === 'fight') {
+      // 배속: 0.05초씩 나눠서 진행 (3배속에서도 충돌·판정 간격은 그대로)
+      for (var left = dt * speed(); left > 1e-9 && !bt.over; left -= 0.05) bt.update(Math.min(0.05, left));
+      if (bt.over) { G.phase = 'ko'; G.pt = 0; Records.battle(bt); }
+    } else if (G.phase === 'ko') {
+      G.pt += dt;
+      if (G.pt > 2.0) { G.scene = 'result'; G.pt = 0; FX.sfx('win'); }
+    }
+
+    background();
+    ctx.save(); ctx.translate(FX.ox, FX.oy);
+    bt.draw(ctx, G.time);
+    FX.drawWorld(ctx);
+    FX.drawNums(ctx);
+    ctx.restore();
+    bt.drawHUD(ctx, G.time);
+
+    // 남은 시간
+    var left = Math.max(0, B.maxTime - bt.time);
+    outlined(ctx, Math.ceil(left) + '', W / 2, CONFIG.arena.y + CONFIG.arena.h + 52, 56, left < 10 ? '#ff2b6a' : '#ffffff');
+    if (speed() !== 1 && !G.record) outlined(ctx, '⏩ ' + speedLabel(), W / 2 + 150, CONFIG.arena.y + CONFIG.arena.h + 52, 36, '#ff8c42');
+
+    if (G.phase === 'intro') drawIntro(introDur);
+    FX.drawScreen(ctx);
+    if (!G.record) {
+      button(40, H - 86, 170, 70, FX.muted ? '🔇 음소거' : '🔊 소리', function () { FX.setMuted(!FX.muted); }, { size: 28, color: '#444466', color2: '#222244' });
+      button(W / 2 + 110, H - 86, 180, 70, '⏩ ' + speedLabel(), function () { G.speedIdx = (G.speedIdx + 1) % CONFIG.speeds.length; }, { size: 28, color: speed() === 1 ? '#444466' : '#ff8c42', color2: '#222244' });
+      button(W / 2 - 290, H - 86, 200, 70, '⌂ 처음으로', function () { go('title'); }, { size: 28, color: '#444466', color2: '#222244' });
+      button(W - 210, H - 86, 170, 70, '↺ 재시작', startBattle, { size: 28, color: '#444466', color2: '#222244' });
+    }
+    hint();
+  }
+
+  function drawIntro(introDur) {
+    var bt = G.battle, B = CONFIG.battle, per = introPer(bt);
+    if (G.pt < introDur) {
+      var i = Math.floor(G.pt / per), t = (G.pt % per) / per;
+      var b = bt.balls[i], col = b.color();
+      var slide = t < 0.2 ? (1 - t / 0.2) * W : t > 0.85 ? -(t - 0.85) / 0.15 * W : 0;
+      ctx.fillStyle = 'rgba(5,3,12,0.65)'; ctx.fillRect(0, 0, W, H);
+      ctx.save(); ctx.translate(slide, 0);
+      var band = bt.mode === 'team' ? TEAMS[b.team % TEAMS.length].color : col;
+      ctx.fillStyle = band; ctx.globalAlpha = 0.9; ctx.fillRect(0, 760, W, 400); ctx.globalAlpha = 1;
+      ctx.fillStyle = '#0a0612'; ctx.fillRect(0, 775, W, 370);
+      Assets.drawBall(ctx, b.def, b.def.portrait(b), 280, 960, 150, 0, col);
+      ctx.lineWidth = 10; ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(280, 960, 150, 0, Math.PI * 2); ctx.stroke();
+      ctx.textAlign = 'left';
+      outlined(ctx, b.name, 690, 890, 100, col, col);
+      outlined(ctx, b.def.sub, 690, 985, 38, '#ffffff');
+      outlined(ctx, 'HP ' + Math.round(b.maxHp), 690, 1045, 38, '#ff6b8a');
+      if (bt.mode === 'team') outlined(ctx, TEAMS[b.team % TEAMS.length].label + '팀', 690, 1105, 40, band);
+      ctx.restore();
+      // 해당 공 하이라이트
+      FX.ring(b.x, b.y, b.r, b.r * 1.5, 0.15, col, 6);
+    } else {
+      var c = G.pt - introDur, n = B.countdown - Math.floor(c);
+      if (n >= 1) {
+        var f = c % 1, s = 1.6 - f * 0.6;
+        ctx.save(); ctx.globalAlpha = 1 - f * 0.7; ctx.translate(W / 2, CONFIG.arena.y + CONFIG.arena.h / 2); ctx.scale(s, s);
+        outlined(ctx, String(n), 0, 0, 260, '#ffd400', '#ff2bd6'); ctx.restore();
+      }
+    }
+  }
+
+  // ---------- 결과 ----------
+  function resultScene(dt) {
+    var bt = G.battle, w = bt.winner, team = bt.mode === 'team' && bt.winnerTeam != null;
+    G.pt += dt;
+    background();
+    bt.draw(ctx, G.time);
+    ctx.fillStyle = 'rgba(5,3,12,0.78)'; ctx.fillRect(0, 0, W, H);
+    var col = team ? TEAMS[bt.winnerTeam % TEAMS.length].color : w ? w.color() : '#ffffff', cx = W / 2, cy = 820;
+    // 회전 광선
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(G.time * 0.4);
+    for (var i = 0; i < 14; i++) {
+      ctx.rotate(Math.PI * 2 / 14);
+      ctx.fillStyle = i % 2 ? col + '33' : 'rgba(255,255,255,0.08)';
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-90, -1100); ctx.lineTo(90, -1100); ctx.fill();
+    }
+    ctx.restore();
+    if (Math.random() < dt * 40) {
+      var cs = ['#ffd400', '#ff2bd6', '#00f0ff', '#ffffff', col];
+      FX.particle({ x: Math.random() * W, y: -20, vx: (Math.random() - 0.5) * 200, vy: 200 + Math.random() * 300, g: 200, life: 4, size: 18, color: cs[Math.floor(Math.random() * cs.length)], shape: 'square', vr: 8, drag: 0.99 });
+    }
+    FX.drawWorld(ctx);
+    var s = Math.min(1, G.pt * 3), pul = 1 + Math.sin(G.time * 5) * 0.04;
+    if (w) {
+      ctx.save(); ctx.translate(cx, 400); ctx.scale(pul * s, pul * s); ctx.rotate(-0.05);
+      outlined(ctx, 'WINNER', 0, 0, 200, '#ffd400', '#ff2bd6'); ctx.restore();
+      if (team) {
+        // 이긴 팀 전원 (탈락한 팀원은 흐리게)
+        var mem = bt.balls.filter(function (b) { return b.team === bt.winnerTeam; });
+        var r = Math.min(170, 920 / (mem.length * 2.2)), step = Math.min(r * 2.4, 960 / mem.length);
+        mem.forEach(function (b, k) {
+          var x = cx + (k - (mem.length - 1) / 2) * step;
+          ctx.save(); ctx.globalAlpha = b.alive ? 1 : 0.35;
+          Assets.drawBall(ctx, b.def, b.def.portrait(b), x, cy, r * s, 0, b.color());
+          ctx.lineWidth = 10; ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(x, cy, r * s, 0, Math.PI * 2); ctx.stroke();
+          outlined(ctx, b.name, x, cy + r + 40, Math.min(44, r * 0.5), '#ffffff');
+          ctx.restore();
+        });
+        outlined(ctx, TEAMS[bt.winnerTeam % TEAMS.length].label + '팀 승리', cx, 1180, 120, col, col);
+      } else {
+        ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = 80; ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(cx, cy, 260 * s, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        Assets.drawBall(ctx, w.def, w.def.portrait(w), cx, cy, 260 * s, 0, col);
+        ctx.lineWidth = 16; ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(cx, cy, 260 * s, 0, Math.PI * 2); ctx.stroke();
+        outlined(ctx, w.name, cx, 1180, 120, col, col);
+      }
+      outlined(ctx, bt.timeUp ? '시간 종료 · 판정승' : 'K.O. 승리', cx, 1290, 48, '#ffffff');
+    } else {
+      outlined(ctx, 'DRAW', cx, 700, 200, '#ffffff', '#00f0ff');
+    }
+    if (G.mode === 'tour' && G.tour && G.tour.cur) button(W / 2 - 330, 1460, 660, 140, '🏆 대진표로', tourAdvance, { color: '#ffd400', color2: '#ff2b6a', size: 56 });
+    else button(W / 2 - 330, 1460, 660, 140, '다시 하기', startBattle, { color: '#ff2b6a', color2: '#ffb000', size: 60 });
+    button(W / 2 - 330, 1640, 660, 120, '캐릭터 다시 고르기', function () { go('select'); }, { color: '#00c2ff', color2: '#7a5cff', size: 48 });
+    button(W / 2 - 330, 1790, 660, 100, '📊 전투 기록', function () { G.scene = 'stats'; G.pt = 0; }, { color: '#ffb000', color2: '#ff2b6a', size: 42 });
+    hint();
+  }
+
+  // ---------- 전투 기록: 준 피해 / 받은 피해 / 회복량 ----------
+  var STAT_BARS = [['dealt', '준 피해', '#ff4d6d'], ['taken', '받은 피해', '#4dabff'], ['healed', '회복량', '#4dff88']];
+  function statsScene(dt) {
+    var bt = G.battle;
+    G.pt += dt;
+    background();
+    outlined(ctx, '전투 기록', W / 2, 80, 80, '#ffffff', '#ff2bd6');
+    var lx = W / 2 - 330;
+    STAT_BARS.forEach(function (sb) {
+      ctx.fillStyle = sb[2]; roundRect(ctx, lx, 140, 30, 30, 8); ctx.fill();
+      ctx.font = '700 28px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(sb[1], lx + 40, 166); lx += 240;
+    });
+    var rows = bt.balls.slice().sort(function (a, b) { return b.stats.dealt - a.stats.dealt; });
+    var maxV = 1;
+    rows.forEach(function (b) { STAT_BARS.forEach(function (sb) { maxV = Math.max(maxV, b.stats[sb[0]]); }); });
+    var top = 200, rh = Math.min(175, (1760 - top) / rows.length), grow = Math.min(1, G.pt * 1.5);
+    var bx = 290, bw = 620;
+    rows.forEach(function (b, i) {
+      var y = top + i * rh, col = b.color(), pr = Math.min(48, rh * 0.3), bh = Math.max(8, Math.min(30, rh * 0.18));
+      ctx.fillStyle = i % 2 ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)'; roundRect(ctx, 24, y + 4, W - 48, rh - 8, 18); ctx.fill();
+      ctx.save(); ctx.globalAlpha = b.alive ? 1 : 0.5;
+      Assets.drawBall(ctx, b.def, b.def.portrait(b), 100, y + rh * 0.42, pr, 0, col);
+      ctx.lineWidth = 5; ctx.strokeStyle = bt.mode === 'team' ? Battle.TEAMS[b.team % Battle.TEAMS.length].color : col;
+      ctx.beginPath(); ctx.arc(100, y + rh * 0.42, pr, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+      outlined(ctx, b.name + (b.alive ? '' : ' ✝'), 100, y + rh * 0.42 + pr + Math.min(26, rh * 0.15), Math.min(28, rh * 0.17), col);
+      if (i === 0 && b.stats.dealt > 0) outlined(ctx, '👑 MVP', 205, y + rh * 0.2, Math.min(26, rh * 0.15), '#ffd400');
+      STAT_BARS.forEach(function (sb, k) {
+        var v = b.stats[sb[0]], by = y + rh * 0.5 + (k - 1) * (bh + Math.max(4, rh * 0.06)) - bh / 2;
+        ctx.fillStyle = 'rgba(255,255,255,0.08)'; roundRect(ctx, bx, by, bw, bh, bh / 2); ctx.fill();
+        ctx.fillStyle = sb[2]; roundRect(ctx, bx, by, Math.max(bh, bw * v / maxV * grow), bh, bh / 2); ctx.fill();
+        ctx.font = '700 ' + Math.round(Math.min(26, bh * 0.95)) + 'px "Malgun Gothic",sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = '#ffffff';
+        ctx.fillText(String(Math.round(v * grow)), bx + bw + 14, by + bh * 0.85);
+      });
+    });
+    button(40, 1790, 300, 100, '◀ 결과', function () { G.scene = 'result'; }, { size: 40, color: '#555577', color2: '#333355' });
+    if (G.mode === 'tour' && G.tour && G.tour.cur) button(W - 340, 1790, 300, 100, '대진표로', tourAdvance, { size: 40, color: '#ffd400', color2: '#ff2b6a' });
+    else button(W - 340, 1790, 300, 100, '다시 하기', startBattle, { size: 40, color: '#ff2b6a', color2: '#ffb000' });
+    hint();
+  }
+
+  function hint() {
+    if (G.record) return;
+    ctx.font = '500 22px "Malgun Gothic",sans-serif'; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.fillText('H 녹화모드 · R 재시작 · M 음소거 · 1~' + CONFIG.speeds.length + ' 배속' + (G.mode === 'tour' ? ' · Space 다음 경기' : '') + ' · ' + Math.round(G.fps) + 'fps', W - 20, H - 12);
+  }
+
+  // ---------- 메인 루프 ----------
+  var last = performance.now();
+  function frame(now) {
+    var raw = (now - last) / 1000; last = now;
+    var dt = Math.min(0.05, raw);
+    G.fps += (1 / Math.max(raw, 1e-3) - G.fps) * 0.05;
+    G.time += dt;
+    G.hits = [];
+    var fxScale = G.scene === 'battle' && G.phase === 'ko' ? 0.35 : G.scene === 'battle' && G.phase === 'fight' ? speed() : 1;
+    FX.update(dt * fxScale);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (G.scene === 'title') titleScene(dt);
+    else if (G.scene === 'select') selectScene(dt);
+    else if (G.scene === 'battle') battleScene(dt);
+    else if (G.scene === 'result') resultScene(dt);
+    else if (G.scene === 'dex') dexScene(dt);
+    else if (G.scene === 'stats') statsScene(dt);
+    else if (G.scene === 'bracket') bracketScene(dt);
+    else if (G.scene === 'records') recordsScene(dt);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();

@@ -1,0 +1,9 @@
+// Cloudflare 정적 사이트 배포: 빌드 없이 이 폴더를 그대로 올린다 (서버 코드 없음)
+// 올리지 않을 파일은 .assetsignore, 캐시 규칙은 _headers
+{
+  "name": "ball-fight",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./"
+  }
+}
