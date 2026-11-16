@@ -80,7 +80,7 @@ var CONFIG = {
   synergy: {
     uninvited: { hp: 3, damage: 3, speed: 3 },                     // 초대받지 못한 손님: 팀에 유재후 또는 ???가 혼자일 때 배율 (2스킬 끼야아아악은 피해 배율 없이 확정 2연타)
     izk: { members: ['한규성', '김선율', '조우연', '조하람'], damage: 1.2, taken: 0.9 }, // IZK 1기: 네 명이 같은 팀이면 주는 피해 +20%, 받는 피해 -10%
-    ssabang: { members: ['문남휘', '진형권', '한규성', '유재운'], hp: 1.2, heal: 1.15 }, // 싸방: 문남휘·진형권·한규성·유재운이 같은 팀이면 체력 +20%, 받는 회복 +15%
+    ssabang: { members: ['문남휘', '진형권', '한규성', '유재운'], hp: 1.2, damage: 1.1, cdr: 1.053 }, // 싸방: 문남휘·진형권·한규성·유재운이 같은 팀이면 체력 +20%, 주는 피해 +10%, 스킬 쿨타임 5% 감소
     hwajeong: { members: ['유재후', '한규성'], needIds: ['predator'], damage: 1.2, hp: 1.15 },   // 화정듀오: 유재후 + 한규성(포식자의 모습)
     // 정발산: IZK 넷 + 유재후. 이동속도 x speed, 주는 피해 x decayDamage에서 decayTime초에 걸쳐 1까지 감소. IZK는 긴급소집 효과만 남음
     jeongbalsan: { members: ['한규성', '김선율', '조우연', '조하람', '유재후'], speed: 1.4, decayDamage: 1.3, decayTime: 120 },
@@ -144,7 +144,8 @@ var CONFIG = {
       // 1스킬 밸런스 패치(패시브): 닿을 때마다 상대 스탯 x(1-rate), 본인 x(1+rate). 최대 maxStacks회까지 중첩
       patch: { rate: 0.05, maxStacks: 15 },
       // 2스킬 치트: charge초 조준 후 fire초 동안 굵은 레이저
-      cheat: { cd: 9, charge: 0.6, fire: 0.35, width: 70, damage: 18, shake: 26 },
+      // damage x (1 + perPatch x 패치 횟수): 0회 7 → 15회 약 31 (공격력 배율은 따로)
+      cheat: { cd: 9, charge: 0.6, fire: 0.35, width: 70, damage: 7, perPatch: 0.23, shake: 26 },
     },
     rock: {  // 유재운
       hp: 175, speed: 440, radius: 70, color: '#ff8c42', phase2Color: '#9acd32',
@@ -188,17 +189,17 @@ var CONFIG = {
       drool: { every: 0.18, r: 46, life: 3.5, dps: 4, slowMul: 0.6 },
       // 2스킬 물기: 가까운 적에게 돌격(dashSpeed, 최대 dashTime초) → 물면 hold초 동안 매달림
       //   물 때 damage, 매달린 동안 tick초마다 tickDamage + 큰 침(bigR) 퍼뜨림
-      bite: { cd: 3.5, dashSpeed: 1500, dashTime: 0.45, damage: 9, hold: 1.0, tick: 0.25, tickDamage: 3, bigR: 95, holdSlow: 0.25 },
+      bite: { cd: 3.5, dashSpeed: 1500, dashTime: 0.45, damage: 13, hold: 1.0, tick: 0.25, tickDamage: 4, bigR: 95, holdSlow: 0.25 },
     },
     seyu: {   // 차승민 (세유의 모습)
       hp: 180, speed: 430, radius: 70, color: '#ffcc00', phase2Color: '#ff3030',
       contactDamage: 8,
-      chase: 1.5,          // 캐릭터 패시브: 상대에게 다가갈 때 이동속도 배율
+      chase: 1.9,          // 캐릭터 패시브: 상대에게 다가갈 때 이동속도 배율
       // 1스킬 정신나간 세트(패시브): 닿으면 delay초 뒤 한 번 더 때림 (박치기 데미지 x mult)
       set: { delay: 0.22, mult: 1.5 },
       // 2스킬 강펀치: 쿨이 차면 준비 → 상대가 범위에 들어오면 charge초 기 모으고 타격. 위력 = base + 받은 피해 x perTaken (최대 max)
       //   가운데일수록 x centerMul, 가장자리일수록 x edgeMul. center: 정타 줄 폭(비율)
-      punch: { cd: 6, base: 12, perTaken: 0.8, max: 55, length: 420, near: 130, far: 400, grow: 0.6, charge: 0.35, fade: 0.4, centerMul: 1.35, edgeMul: 0.6, center: 0.3 },
+      punch: { cd: 8.5, base: 18, perTaken: 1.0, max: 70, length: 420, near: 130, far: 400, grow: 0.6, charge: 0.35, fade: 0.4, centerMul: 1.35, edgeMul: 0.6, center: 0.3 },
     },
     hau: {    // 최휘 (사랑하우의 모습)
       hp: 190, speed: 450, radius: 70, color: '#57d36b', contactDamage: 7, phase2Color: '#ff3b3b',

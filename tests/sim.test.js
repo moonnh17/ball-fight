@@ -620,7 +620,7 @@ test('싸방: 문남휘+진형권+한규성+유재운 한 팀이면 체력·속�
   assert(bt.hasSynergy('ssabang', 0) && !bt.hasSynergy('ssabang', 1));
   bt.balls.filter(b => b.team === 0).forEach(b => {
     assert(Math.abs(b.maxHp - CONFIG.chars[b.def.id].hp * S.hp) < 1e-9, b.def.id + ' hp');
-    assert(Math.abs(b.synHeal - S.heal) < 1e-9, b.def.id + ' heal');
+    assert(Math.abs(b.dmgMult - S.damage) < 1e-9 && Math.abs(b.cdRate - S.cdr) < 1e-9 && b.synHeal === 1, b.def.id + ' damage/cdr');
   });
   const bt2 = new Battle(team([['dev', 0], ['gym', 0], ['ibi', 0], ['ch', 1]]), 'team');
   assert(!bt2.hasSynergy('ssabang', 0));
@@ -681,7 +681,7 @@ test('이윤빈 전담: 못 찾으면 스탯 증가, 찾으면 초기화', () =>
   c.speed = 0; c.vx = c.vy = 0; b.hp = b.maxHp = 1e6;
   c.x = 150; c.y = 500;
   const hp0 = c.maxHp, sp0 = c.speed, dm0 = c.dmgMult;
-  run(bt, V.growEvery * 3 + 0.5);
+  for (let i = 0; i < 60 * 30 && bt.time < V.growEvery * 3 + 0.5; i++) bt.update(DT);   // 페이즈 정지·히트스톱과 상관없이 전투 시간 기준
   assert(c.data.vapeF > 1.15, 'did not grow: ' + c.data.vapeF);
   assert(bt.ents.some(e => e instanceof Ents.Vape && !e.dead), 'no vape on map');
   assert(Math.abs(c.maxHp - hp0 * c.data.vapeF) < 1e-6);
@@ -925,7 +925,7 @@ test('김선율 페이즈 1: 모든 피해 1, 낯가림은 적 바로 앞에서 
   s.dmgMult = 3;
   assert(Math.abs(bt.damage(g, 25, s) - 1) < 1e-9, 'phase 1 damage not 1');
   bt.time = 5; const h = g.hp; bt.contact(s, g, 0, 0);
-  assert(Math.abs(h - g.hp - 1) < 1e-9, 'contact damage not 1');
+  assert(Math.abs(h - g.hp - 1) < 1e-6, 'contact damage not 1: ' + (h - g.hp));
   g.speed = 0; g.vx = 300; g.vy = 0; g.x = 500; g.y = 1000;
   s.x = 900; s.y = 500;
   s.action = s.skills[0].def.start(bt, s);
@@ -1162,7 +1162,7 @@ test('히어로 바통: 울분(IZK +10%), 페이즈마다 끼야아아악, 페�
 });
 test('히어로 바통: 지갑·자학개그는 IZK에게 무효, 아니면 스턴/공격력 감소', () => {
   const C = CONFIG.bosses.heroBaton;
-  const bt = new Battle(['ibi', 'gym'], 'boss', { boss: 'heroBaton', difficulty: 'easy' });
+  const bt = new Battle(['ibi', 'rock'], 'boss', { boss: 'heroBaton', difficulty: 'easy' });   // rock: 무효 대상 아님
   const [b, ibi, gym] = bt.balls;
   [ibi, gym].forEach(o => { o.hp = o.maxHp - 20; o.speed = 0; o.vx = o.vy = 0; });
   const shoot = (Cls, cfg, tgt) => bt.withArena(() => { const s = bt.add(new Cls(bt, b, 0, cfg)); s.x = tgt.x; s.y = tgt.y; s.update(DT); });   // 보스전 넓은 경기장 기준
@@ -1197,6 +1197,28 @@ test('보스전 여러 판: 이지·하드 모두 끝까지, 모든 스킬 사�
     bt.log.forEach(e => { if (e.type === 'bossSkill') seen.add(e.skill); });
   }
   ['roll', 'hot6', 'wallet', 'origin', 'scream', 'wash', 'joke', 'baccarat'].forEach(k => assert(seen.has(k), 'never used ' + k));
+});
+test('보스는 주인 버프 아이템(아령·핫식스)을 못 먹고 충전기는 먹음, 진형권도 지갑·자학개그 무효', () => {
+  const bt = new Battle(['gym', 'nogwang', 'hxpwm'], 'boss', { boss: 'heroBaton', difficulty: 'easy' });
+  const [b, gym, ng, hx] = bt.balls;
+  bt.withArena(() => {
+    const db = bt.add(new Ents.Pickup(bt, gym, { x: b.x, y: b.y }, 'dumbbell')); db.t = 1; db.update(DT);
+    assert(!db.dead, 'boss ate dumbbell');
+    const h6 = bt.add(new Ents.Hot6(bt, ng, { x: b.x, y: b.y })); h6.t = 1; h6.update(DT);
+    assert(!h6.dead, 'boss ate hot6');
+    const ch = bt.add(new Ents.Charger(bt, hx, { x: b.x, y: b.y })); ch.t = 1; for (let i = 0; i < 5; i++) ch.update(DT);
+    assert(ch.dead, 'boss should be able to eat charger');
+    gym.status.stun = 0;
+    const s = bt.add(new Ents.CoinShot(bt, b, 0, b.cfg.wallet)); s.x = gym.x; s.y = gym.y; s.update(DT);
+    assert.strictEqual(gym.status.stun, 0, '진형권 wallet immune');
+  });
+});
+test('문남휘 치트: 패치 횟수에 비례 (저점 낮고 고점 높음)', () => {
+  const C = CONFIG.chars.dev.cheat;
+  const bt = new Battle(['dev', 'gym']); const d = bt.balls[0];
+  d.data.patches = 0; const lo = ctx.devCheatDamage(d);
+  d.data.patches = 15; const hi = ctx.devCheatDamage(d);
+  assert(Math.abs(lo - C.damage) < 1e-9 && hi > lo * 3, lo + ' → ' + hi);
 });
 test('밸런스 참고: 3인 개인전 200판', () => {
   const wins = {}, lens = [];

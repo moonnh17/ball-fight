@@ -61,6 +61,8 @@ function bossConfig(id, diff, players) {
 // ---------- 공용 ----------
 function _bPlayers(bt, b) { return bt.enemies(b).filter(function (o) { return o.targetable; }); }
 function _bPick(bt, b) { var ps = _bPlayers(bt, b); return ps.length ? ps[Math.floor(Math.random() * ps.length)] : null; }
+// 지갑전사·자학개그가 안 통하는 사람: IZK 1기 + 진형권
+function _bossImmune(o) { return _isIzk(o) || o.def.name === '진형권'; }
 function _bClamp(v, a, z) { return v < a ? a : v > z ? z : v; }
 function bossCast(bt, b, name, color) {
   b.data.cast = name; b.data.castT = 2.2;
@@ -153,7 +155,7 @@ class CoinShot {
     var e = _bPlayers(bt, this.owner).find(function (q) { return !q.air && _dist(q, self) < q.r + 20; });
     if (!e) return;
     this.dead = true;
-    if (_isIzk(e)) { FX.text(e.x, e.y - e.r - 40, '안 받아!', '#00e5ff', 40, 0.8); bt.emit('walletImmune', { who: e.def.id }); return; }
+    if (_bossImmune(e)) { FX.text(e.x, e.y - e.r - 40, '안 받아!', '#00e5ff', 40, 0.8); bt.emit('walletImmune', { who: e.def.id }); return; }
     bt.heal(e, c.heal);
     e.status.stun = Math.max(e.status.stun, c.stun);
     FX.text(e.x, e.y - e.r - 50, '돈이다…!', '#9be59b', 44, 1.0); FX.sfx('coin');
@@ -192,7 +194,7 @@ class JokeShot {
     var e = _bPlayers(bt, this.owner).find(function (q) { return !q.air && _dist(q, self) < q.r + 30; });
     if (!e) return;
     this.dead = true;
-    if (_isIzk(e)) { FX.text(e.x, e.y - e.r - 40, '안 웃겨', '#00e5ff', 40, 0.8); bt.emit('jokeImmune', { who: e.def.id }); return; }
+    if (_bossImmune(e)) { FX.text(e.x, e.y - e.r - 40, '안 웃겨', '#00e5ff', 40, 0.8); bt.emit('jokeImmune', { who: e.def.id }); return; }
     bt.damage(e, c.damage, this.owner, { color: '#ffd400', kind: 'batonJoke' });
     e.status.atk = c.time; e.status.atkMul = c.atkMul;
     bfx(bt, 'pow', e.x, e.y - 10, { scale: 0.9 });
@@ -609,9 +611,9 @@ var BOSSES = {
       skills: [
         { key: 'roll', phase: 1, name: '끝까지 구르기', desc: function (c) { return '예고 화살표 방향으로 굴러 부딪힌 도전자에게 피해, 멈추면 쿵! 연속 ' + c.roll.rolls + '번'; } },
         { key: 'hot6', phase: 1, name: '핫식스 한 박스 쟁여놓기', desc: function (c) { return '핫식스 한 박스를 깜. 보스가 먹으면 이속·공격력 상승, 도전자가 먹으면 터지며 탄막 ' + c.hot6.bullets + '발'; } },
-        { key: 'wallet', phase: 2, name: '지갑전사 바통', desc: function (c) { return '지폐 ' + c.wallet.coins + '장을 뿌림. 맞으면 체력이 조금 차지만 ' + c.wallet.stun + '초 동안 아무것도 못 함 (IZK 무효, 최휘는 잔고 +' + c.wallet.money + ')'; } },
+        { key: 'wallet', phase: 2, name: '지갑전사 바통', desc: function (c) { return '지폐 ' + c.wallet.coins + '장을 뿌림. 맞으면 체력이 조금 차지만 ' + c.wallet.stun + '초 동안 아무것도 못 함 (IZK·진형권 무효, 최휘는 잔고 +' + c.wallet.money + ')'; } },
         { key: 'origin', phase: 2, name: '바통의 근원', desc: function (c) { return '맵 밖으로 나갔다가 예고된 차선으로 킥보드를 타고 소주를 마시며 돌격. 맞으면 피해와 넉백' + (c.origin.passes > 1 ? ' (' + c.origin.passes + '번 왕복)' : ''); } },
-        { key: 'joke', phase: 3, name: '자학개그', desc: function (c) { return '자학개그 ' + c.joke.count + '개를 날림. 맞으면 공격력 ' + Math.round((1 - c.joke.atkMul) * 100) + '% 감소 (IZK 무효)'; } },
+        { key: 'joke', phase: 3, name: '자학개그', desc: function (c) { return '자학개그 ' + c.joke.count + '개를 날림. 맞으면 공격력 ' + Math.round((1 - c.joke.atkMul) * 100) + '% 감소 (IZK·진형권 무효)'; } },
         { key: 'baccarat', phase: 3, name: '바지 강림', desc: function (c) { return '바카라! 플(파랑)이면 주위 전체 ' + c.baccarat.playerDamage + ' 피해, 뱅(빨강)이면 한 명을 끝까지 쫓는 번개 ' + c.baccarat.bankerDamage + ' 피해'; } },
       ],
       hard: { key: 'song', name: '노광석의 힘', desc: function (c) { return '체력 ' + Math.round(c.song.at * 100) + '% 이하에서 맵 맨 위로 올라가 노래. 맵 전체에 파장, 틈으로 피할 수 있음'; } },

@@ -726,7 +726,7 @@ class Laser {
       this.bt.enemies(o).forEach(function (e) {
         if (self.hit.has(e) || !e.targetable || e.air || _segDist(e.x, e.y, sg) > c.width / 2 + e.r) return;
         self.hit.add(e);
-        self.bt.damage(e, c.damage, o, { color: '#e6ff7a' });
+        self.bt.damage(e, devCheatDamage(o), o, { color: '#e6ff7a' });
         FX.burst(e.x, e.y, '#c6ff00', 24, 1000, 8, 0.5, 'spark');
         self.bt.emit('laserHit', { who: e.def.id });
       });
@@ -757,6 +757,8 @@ class Laser {
   }
   light() { var o = this.owner; return { x: o.x + Math.cos(this.ang) * 300, y: o.y + Math.sin(this.ang) * 300, r: 400 }; }
 }
+// 치트 피해: 밸런스 패치를 많이 할수록 강해짐 (저점 낮고 고점 높음, 공격력 배율은 따로 곱해짐)
+function devCheatDamage(b) { var c = b.cfg.cheat; return c.damage * (1 + c.perPatch * (b.data.patches || 0)); }
 function devLaser(bt, b) {
   var c = b.cfg.cheat, t0 = bt.nearest(b), p = t0 ? bt.aim(b, t0.x, t0.y) : bt.randomPoint();
   var track = t0 && !p.miss ? t0 : null, keep = { vx: b.vx, vy: b.vy }, t = 0;
@@ -827,7 +829,7 @@ class Pickup {
     if (!o.alive || !_is(o, 'gym')) { this.dead = true; FX.burst(this.x, this.y, '#cccccc', 10, 300, 6, 0.4); return; }
     if (this.t < 0.4) return;
     var eater = bt.balls.find(function (b) {
-      return b.alive && !b.hidden && !b.air && (self.kind === 'protein' || b === o || b.team !== o.team) && Math.hypot(b.x - self.x, b.y - self.y) < b.r + self.r;
+      return b.alive && !b.hidden && !b.air && !b.isBoss && (self.kind === 'protein' || b === o || b.team !== o.team) && Math.hypot(b.x - self.x, b.y - self.y) < b.r + self.r;   // 보스는 못 먹음
     });
     if (!eater) return;
     this.dead = true;
@@ -1339,7 +1341,7 @@ class Hot6 {
     this.t += dt;
     if (!o.alive || !_is(o, 'nogwang')) { this.dead = true; FX.burst(this.x, this.y, '#9b5cff', 10, 300, 6, 0.4); return; }
     if (this.t < 0.4) return;
-    var e = bt.balls.find(function (b) { return b.alive && !b.hidden && !b.air && Math.hypot(b.x - self.x, b.y - self.y) < b.r + self.r; });
+    var e = bt.balls.find(function (b) { return b.alive && !b.hidden && !b.air && !b.isBoss && Math.hypot(b.x - self.x, b.y - self.y) < b.r + self.r; });   // 보스는 못 먹음
     if (!e) return;
     this.dead = true;
     var h = e.hot6 || (e.hot6 = { up: 0, down: 0 });
@@ -2354,7 +2356,7 @@ var CHARACTERS = {
         start: function () {},
       },
       {
-        key: 'cheat', name: '치트', desc: '상대를 조준한 뒤 굵은 레이저 발사 (경로의 모든 적 관통)',
+        key: 'cheat', name: '치트', desc: '상대를 조준한 뒤 굵은 레이저 발사 (경로의 모든 적 관통). 밸런스 패치를 많이 했을수록 강해짐',
         cd: function (c) { return c.cheat.cd; },
         start: function (bt, b) { return devLaser(bt, b); },
       },
@@ -2363,7 +2365,7 @@ var CHARACTERS = {
     onContact: function (bt, s, t) { if (!s.hidden && bt.canEffect(s, t)) devPatch(bt, s, t); },
     gauge: function (b, k) {
       if (k === 0) return { fill: b.data.patches / b.cfg.patch.maxStacks, label: '밸런스 패치 ' + b.data.patches + '/' + b.cfg.patch.maxStacks + ' · x' + b.data.patchF.toFixed(2), color: '#c6ff00' };
-      return null;
+      return { label: '치트 · 위력 ' + Math.round(devCheatDamage(b) * b.dmgMult) };
     },
   },
 
@@ -2999,7 +3001,7 @@ var SYNERGIES = [
   { key: 'izk', color: '#00e5ff', name: 'IZK 1기', members: function () { return CONFIG.synergy.izk.members; }, suppressedBy: 'jeongbalsan',
     desc: function () { var z = CONFIG.synergy.izk; return '주는 피해 ' + _pct(z.damage) + ', 받는 피해 ' + _pct(z.taken) + '. 조하람의 긴급소집 때 추가 효과: 조우연 뱀 3마리 즉시 소환 / 김선율 복합 염색 / 한규성 규순이 3종 연속'; } },
   { key: 'ssabang', color: '#b36bff', name: '싸방', members: function () { return CONFIG.synergy.ssabang.members; },
-    desc: function () { var c = CONFIG.synergy.ssabang; return '체력 ' + _pct(c.hp) + ', 받는 회복 ' + _pct(c.heal); } },
+    desc: function () { var c = CONFIG.synergy.ssabang; return '체력 ' + _pct(c.hp) + ', 주는 피해 ' + _pct(c.damage) + ', 스킬 쿨타임 ' + Math.round((1 - 1 / c.cdr) * 100) + '% 감소'; } },
   { key: 'hwajeong', color: '#ff4fa3', name: '화정듀오', members: function () { return CONFIG.synergy.hwajeong.members; }, needIds: function () { return CONFIG.synergy.hwajeong.needIds; },
     note: '한규성은 포식자의 모습일 때만',
     desc: function () { var c = CONFIG.synergy.hwajeong; return '주는 피해 ' + _pct(c.damage) + ', 최대 체력 ' + _pct(c.hp); } },
