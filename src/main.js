@@ -62,7 +62,7 @@
     FX.initAudio();
     var p = toGame(e);
     var R = G.descRect, inDesc = G.scene === 'select' && R && p.x >= R.x && p.x <= R.x + R.w && p.y >= R.y && p.y <= R.y + R.h;
-    drag = { x: p.x, y: p.y, s: G.dexScroll || 0, ds: G.descScroll || 0, inDesc: inDesc, moved: false };
+    drag = { x: p.x, y: p.y, s: G.dexScroll || 0, ds: G.descScroll || 0, ms: G.mapScroll || 0, inDesc: inDesc && !G.mapPick, inMap: G.scene === 'select' && !!G.mapPick, moved: false };
     if (canvas.setPointerCapture) try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
   });
   canvas.addEventListener('pointermove', function (e) {
@@ -71,10 +71,11 @@
     if (Math.abs(p.y - drag.y) > 18) drag.moved = true;
     if (drag.moved && scrolly()) G.dexScroll = drag.s - (p.y - drag.y);
     if (drag.moved && drag.inDesc) G.descScroll = drag.ds - (p.y - drag.y);
+    if (drag.moved && drag.inMap) G.mapScroll = drag.ms - (p.y - drag.y);
   });
   canvas.addEventListener('pointerup', function () {
     var d = drag; drag = null;
-    if (!d || (d.moved && (scrolly() || d.inDesc))) return;
+    if (!d || (d.moved && (scrolly() || d.inDesc || d.inMap))) return;
     for (var i = G.hits.length - 1; i >= 0; i--) {
       var h = G.hits[i];
       if (d.x >= h.x && d.x <= h.x + h.w && d.y >= h.y && d.y <= h.y + h.h) { h.fn(); return; }
@@ -83,7 +84,8 @@
   canvas.addEventListener('pointercancel', function () { drag = null; });
   canvas.addEventListener('wheel', function (e) {
     var dyw = e.deltaY * (e.deltaMode === 1 ? 40 : 1) * 1.5;
-    if (G.scene === 'select') {   // 선택 화면: 설명 패널 위에서만
+    if (G.scene === 'select') {   // 선택 화면: 설명 패널 위에서만 (맵 고르기 창이 열려 있으면 그 창)
+      if (G.mapPick) { e.preventDefault(); G.mapScroll = (G.mapScroll || 0) + dyw; return; }
       var p = toGame(e), R = G.descRect;
       if (R && p.x >= R.x && p.x <= R.x + R.w && p.y >= R.y && p.y <= R.y + R.h) { e.preventDefault(); G.descScroll = (G.descScroll || 0) + dyw; }
       return;
@@ -398,7 +400,7 @@
     button(260, 1780, 220, 90, '📖 도감', function () { openDex(G.focus); }, { size: 36, color: '#7a5cff', color2: '#333355' });
     button(500, 1780, 220, 90, '📊 통계', openRecords, { size: 36, color: '#ffb000', color2: '#333355' });
     var mapOk = G.mode !== 'boss';
-    button(740, 1780, 300, 90, mapOk ? '🗺 ' + mapLabel(G.mapSel) : '🗺 보스전 전용', function () { G.mapPick = true; }, { size: 32, color: G.mapSel === 'none' ? '#3a6a5a' : (MAPS[G.mapSel] || { color: '#ff8c42' }).color, color2: '#223344', enabled: mapOk });
+    button(740, 1780, 300, 90, mapOk ? '🗺 ' + mapLabel(G.mapSel) : '🗺 보스전 전용', function () { G.mapPick = true; G.mapScroll = 0; }, { size: 32, color: G.mapSel === 'none' ? '#3a6a5a' : (MAPS[G.mapSel] || { color: '#ff8c42' }).color, color2: '#223344', enabled: mapOk });
     hint();
     if (G.synPick && synOk) synPickOverlay(); else G.synPick = false;
     if (G.mapPick && mapOk) mapPickOverlay(); else G.mapPick = false;
@@ -416,7 +418,11 @@
       var n = MAPS[id].lines.reduce(function (a, l) { return a + Math.ceil(ctx.measureText('· ' + l).width / tw0); }, 0);
       return { id: id, h: 100 + n * 30 + MAPS[id].lines.length * 16 };
     }), [{ id: 'random', h: 120 }]);
-    var gap = 18, tot = opts.reduce(function (a, o) { return a + o.h + gap; }, 0), y = Math.max(230, (H - tot - 110) / 2 + 40);
+    var gap = 18, tot = opts.reduce(function (a, o) { return a + o.h + gap; }, 0), y = Math.max(160, (H - tot - 110) / 2 + 40);
+    // 끌거나 휠로 스크롤 (내용 높이 = 카드들 + 닫기 버튼)
+    var maxS = Math.max(0, y + tot + 120 - H);
+    G.mapScroll = Math.max(0, Math.min(maxS, G.mapScroll || 0));
+    ctx.save(); ctx.translate(0, -G.mapScroll); G.hitClip = { dy: -G.mapScroll, top: 0, bottom: H };
     outlined(ctx, '🗺 맵 고르기', W / 2, y - 70, 60, '#ffffff', '#00e5ff');
     opts.forEach(function (o) {
       var m = MAPS[o.id], col = m ? m.color : o.id === 'random' ? '#ff8c42' : '#7a5cff', sel = G.mapSel === o.id, x = 40, w = W - 80;
@@ -439,6 +445,13 @@
       y += o.h + gap;
     });
     button(W / 2 - 150, y + 4, 300, 90, '닫기', function () { G.mapPick = false; }, { size: 38, color: '#555577', color2: '#333355' });
+    G.hitClip = null; ctx.restore();
+    if (maxS > 0) {   // 스크롤바
+      var th = H * H / (H + maxS), ty = (H - th) * G.mapScroll / maxS;
+      ctx.fillStyle = 'rgba(255,255,255,0.12)'; roundRect(ctx, W - 18, 0, 10, H, 5); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.6)'; roundRect(ctx, W - 18, ty, 10, th, 5); ctx.fill();
+      if (G.mapScroll < maxS - 5) outlined(ctx, '▼ 스크롤해서 더 보기', W / 2, H - 20, 24, 'rgba(255,255,255,0.75)');
+    }
   }
   // 시너지 멤버의 캐릭터 id: 모습 조건(needIds)이 있으면 그 모습, 아니면 지금 고른 모습
   function synMemberId(q, nm) {

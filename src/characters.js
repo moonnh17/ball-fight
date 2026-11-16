@@ -332,9 +332,9 @@ var GYUSUN_SKILLS = {
 
   // 워터밤: 물병을 들고 사방에 물을 뿌림. 이장님은 물에 안 닿아도 멘헤라
   waterbomb: function (bt, b) {
-    var c = b.cfg.waterbomb, t = 0, next = 0, n = 0;
+    var c = b.cfg.waterbomb, t = 0, next = 0, n = 0, keep = { vx: b.vx, vy: b.vy }, ang = _rnd(0, Math.PI * 2);
     FX.banner('워터밤!', { color: '#4fc3ff', size: 115, life: 1.2 }); FX.sfx('drool');
-    b.data.water = true;
+    b.data.water = true; b.vx = b.vy = 0;
     bt.enemies(b).forEach(function (o) {
       if (o.def.id !== 'chief' || !o.targetable) return;
       o.status.slow = Math.max(o.status.slow, c.menhera.time); o.status.slowMul = c.menhera.slow;
@@ -343,17 +343,19 @@ var GYUSUN_SKILLS = {
       bt.emit('menhera', { who: o.def.id });
     });
     return {
-      moves: true,
+      moves: false, spinning: true,
       update: function (dt) {
-        t += dt;
+        t += dt; b.vx = b.vy = 0;
+        b.rot += c.spin * dt; ang += c.spin * dt;   // 제자리에서 돌며 도는 방향으로 물줄기
         while (t >= next && n < c.shots) {
           n++; next += c.time / c.shots;
-          var a = _rnd(0, Math.PI * 2), d = _rnd(c.minDist, c.maxDist);
+          var a = ang + _rnd(-0.25, 0.25), d = _rnd(c.minDist, c.maxDist);
           bt.add(new WaterShot(bt, b, bt.clampPoint({ x: b.x + Math.cos(a) * d, y: b.y + Math.sin(a) * d }, 40), c));
+          FX.burst(b.x + Math.cos(a) * b.r, b.y + Math.sin(a) * b.r, '#9fe2ff', 5, 400, 6, 0.3, 'square');
         }
         return t >= c.time + 0.3;
       },
-      end: function () { b.data.water = false; },
+      end: function () { b.data.water = false; _restoreSpeed(b, keep.vx, keep.vy); },
     };
   },
   toka: function (bt, b) {
@@ -601,12 +603,12 @@ function ibiAwaken(bt, b, seq) {
         var pick = queue.shift();
         bt.emit('awakenPick', { pick: pick, combo: !!seq });
         sub = GYUSUN_SKILLS[pick](bt, b, !!seq);
-        this.moves = sub.moves; this.uninterruptible = !!sub.uninterruptible;
+        this.moves = sub.moves; this.uninterruptible = !!sub.uninterruptible; this.spinning = !!sub.spinning;
         return false;
       }
       if (sub.update(dt)) {
         if (sub.end) sub.end();
-        sub = null;
+        sub = null; this.spinning = false;
         return queue.length === 0;
       }
       return false;

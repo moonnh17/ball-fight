@@ -1505,5 +1505,19 @@ test('육개장 국물 쏟으면 문남휘 개빡침 · 김선율의 모습은 �
   assert(!joo.dead && !s.data.joo, '낯가림');
 });
 
+test('마을회관: 이장님이 컴퓨터를 끄고, 다른 사람이 닿으면 켜지지만 그때는 게임 안 함', () => {
+  const bt = new Battle(['chief', 'gym', 'chino'], 'ffa', { map: 'hall' });
+  bt.map.update(DT);
+  const [ch, g] = bt.balls, T = bt.map.table();
+  bt.balls.forEach(b => { b.maxHp = b.hp = 1e5; b.speed = 0; b.vx = b.vy = 0; b.x = T.x + T.w + 400; b.y = T.y + 600; b.data.pc = null; b.data.pcCd = 0; b.status.hold = 0; });
+  bt.map.pc = { user: null, broken: 0 };   // 처음 배치 때 테이블에 닿은 경우 초기화
+  function touch(b) { b.x = T.x + T.w / 2; b.y = T.y + T.h + b.r + 2; b.vx = b.vy = 0; bt.map.update(DT); b.x = T.x + T.w + 400; b.y = T.y + 600; }
+  touch(g); assert(g.data.pc && bt.map.pc.user === g, '진형권 게임 시작');
+  touch(ch); assert(bt.map.pc.off && !g.data.pc && !bt.map.pc.user, '이장님이 끄면 쫓겨남');
+  const c2 = bt.balls[2]; touch(c2);
+  assert(!bt.map.pc.off && !c2.data.pc && count(bt, 'pcOn') === 1, '켜기만 하고 게임 안 함');
+  c2.data.pcCd = 0; touch(c2); assert(c2.data.pc, '다음엔 게임');
+});
+
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);

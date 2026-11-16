@@ -60,9 +60,9 @@ var CONFIG = {
       king: { every: 3, max: 4, heal: 15, soju: 0.1, sojuTaken: 0.7, sojuTime: 8, sleep: 8 },
     },
     hall: {
-      trashEvery: 2.2, trashMax: 40, trashR: 22, trashSlow: 0.6, trashSlowTime: 1.2, cleanEvery: 0.7,   // 쓰레기: 밟으면 잠시 이동속도 x0.6
+      trashEvery: 5, trashMax: 18, trashR: 34, trashSlow: 0.75, trashSlowTime: 0.8, cleanEvery: 0.7,   // 쓰레기: 밟으면 잠시 이동속도 x0.75
       wellusHeal: 1.3,                                                        // 이장님 웰우스 개방 회복량
-      pcTime: 3, yooMul: 2, pcCd: 6, codeBuff: 1.1, stockDown: 0.7, stockSmash: 0.1, seoriSmash: 0.3, brokenTime: 20,
+      pcTime: 3, yooMul: 2, pcCd: 6, chiefCd: 4, codeBuff: 1.1, stockDown: 0.7, stockSmash: 0.1, seoriSmash: 0.3, brokenTime: 20,
       ow: ['한규성', '유재후', '진형권', '차승민', '이윤빈'], roblox: ['유재운', '김선율', '조하람', '조우연'],
       yuk: { every: 9, max: 2, heal: 10, soup: 20, tick: 0.25, spill: 0.05 }, angerTime: 6, angerMul: 1.3,   // 육개장 국물 쏟으면 문남휘 공격력 x1.3
     },
@@ -138,7 +138,7 @@ var CONFIG = {
       hp: 170, speed: 480, radius: 70, color: '#b04dff', phase2Color: '#00f0ff', phase2Ratio: 0.7,   // 한규성: 체력 70%에서 페이즈 2
       stone: { cd: 3, damage: 18, speed: 1400, shake: 9 },
       awaken: { cd: 12, introTime: 0.9, darkness: 0.8, fadeOut: 1.2, weights: { birds: 1, lucha: 1, toka: 1, waterbomb: 1 } },
-      waterbomb: { time: 3, shots: 14, minDist: 150, maxDist: 520, damage: 8, puddleR: 70, puddleLife: 2.5, slip: 1.5, slipTime: 1, menhera: { time: 4, slow: 0.6, dps: 4 } },
+      waterbomb: { time: 3, shots: 18, spin: 9, minDist: 150, maxDist: 520, damage: 8, puddleR: 70, puddleLife: 2.5, slip: 1.5, slipTime: 1, menhera: { time: 4, slow: 0.6, dps: 4 } },
       birds: { count: 3, damage: 12, life: 4, speed: 640, turn: 5.5, shake: 8 },
       lucha: { riseTime: 0.7, hangTime: 0.25, fallTime: 0.22, radius: 220, damage: 25, knockback: 1100, shake: 30 },
       toka: { jumps: 3, jumpTime: 0.55, waveRadius: 300, waveSpeed: 900, damage: 10, shake: 14 },

@@ -30,7 +30,7 @@ var MAPS = {
       '시간이 지날수록 옷 · 음료수 병 · 라면 용기 같은 쓰레기가 쌓임, 밟으면 잠시 이동속도 감소 (싸방 멤버는 면역)',
       '왼쪽 위 컴퓨터: 한규성 · 유재후 · 진형권 · 차승민 · 이윤빈은 오버워치, 유재운 · 김선율 · 조하람 · 조우연은 로블록스 (담배타임처럼 행동불능 + 받는 피해 2배, 유재후는 2배 오래)',
       '컴퓨터: 개발자 문남휘는 코딩해서 자기 스탯 +10% · 최휘는 주식 (끝나면 한 번 더 등락, 70% 하락, 하락하면 10% 컴퓨터 박살) · 서리는 30% 박살',
-      '이장님 문남휘: 웰우스 개방 회복량 +30% · 웰우스 대청소 중엔 쓰레기가 점점 사라짐',
+      '이장님 문남휘: 컴퓨터에 닿으면 꺼버림 (다른 사람이 닿으면 켜지지만 그 사람은 그때 게임 못 함) · 웰우스 개방 회복량 +30% · 대청소 중엔 쓰레기가 점점 사라짐',
       '아이템: 육개장 컵라면 — 편의점 라면과 같음, 국물을 쏟으면 문남휘가 개빡쳐서 공격력 증가',
     ],
   },
@@ -322,7 +322,22 @@ class MapRun {
         if (u.t <= 0) self.pcDone(b, u.mode);
         return;
       }
-      if (pc.user || pc.broken > 0 || b.hidden || b.air || b.disabled || (b.data.pcCd || 0) > bt.time || !_touchRect(b, T, 10)) return;
+      if (pc.broken > 0 || b.hidden || b.air || b.disabled || (b.data.pcCd || 0) > bt.time || !_touchRect(b, T, 10)) return;
+      if (b.def.id === 'chief') {   // 이장님: 컴퓨터를 끔 (하던 사람도 쫓겨남)
+        if (pc.off) return;
+        b.data.pcCd = bt.time + c.chiefCd; pc.off = true;
+        if (pc.user) { pc.user.data.pc = null; pc.user.status.hold = 0; FX.text(pc.user.x, pc.user.y - pc.user.r - 60, '아 왜 꺼요!!', '#ff6b6b', 42, 1.0); pc.user = null; }
+        FX.text(T.x + T.w / 2, T.y - 20, '이장님이 컴퓨터를 껐다', '#d8c38a', 40, 1.2); FX.sfx('vanish');
+        bt.emit('pcOff', { who: b.def.id });
+        return;
+      }
+      if (pc.user) return;
+      if (pc.off) {   // 꺼져 있으면 켜기만 하고 이번엔 게임 안 함
+        pc.off = false; b.data.pcCd = bt.time + c.pcCd;
+        FX.text(T.x + T.w / 2, T.y - 20, b.name + ' 컴퓨터 켬', '#9fd8ff', 38, 1.0); FX.sfx('ding');
+        bt.emit('pcOn', { who: b.def.id });
+        return;
+      }
       var mode = pcMode(b);
       if (!mode) return;
       b.data.pcCd = bt.time + c.pcCd;
@@ -443,7 +458,7 @@ class MapRun {
     if (this.id === 'workroom') parts.push('변경 ' + Math.ceil(this.swapIn));
     if (this.sub === 'jbs') { parts.push('환기 ' + this.left('vent', c.jbs.vent)); parts.push((this.split ? '개방 ' : '분리 ') + this.left('split', c.jbs.split)); }
     if (this.sub === 'mind') parts.push('리허설 ' + this.left('rehearsal', c.mind.rehearsal));
-    if (this.sub === 'hall') { parts.push('쓰레기 ' + this.trash.length); if (this.pc.broken > 0) parts.push('컴퓨터 고장'); }
+    if (this.sub === 'hall') { parts.push('쓰레기 ' + this.trash.length); if (this.pc.broken > 0) parts.push('컴퓨터 고장'); else if (this.pc.off) parts.push('컴퓨터 꺼짐'); }
     var txt = '🗺 ' + parts.join('  ·  ');
     ctx.font = '700 26px "Malgun Gothic",sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     var w = ctx.measureText(txt).width + 32;
@@ -805,7 +820,7 @@ function _touchRect(b, R, pad) {
 }
 function drawTrash(ctx, tr) {
   var s = Math.min(1, tr.t / 0.3);
-  ctx.save(); ctx.translate(tr.x, tr.y); ctx.rotate(tr.rot); ctx.scale(s, s);
+  ctx.save(); ctx.translate(tr.x, tr.y); ctx.rotate(tr.rot); ctx.scale(s * 1.45, s * 1.45);   // 다른 아이템만 한 크기
   ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(3, 6, 24, 14, 0, 0, Math.PI * 2); ctx.fill();
   ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(20,10,0,0.6)';
   if (tr.kind === 'clothes') {   // 벗어 던진 티셔츠
@@ -839,7 +854,9 @@ function drawTable(ctx, T, pc, time) {
   ctx.fillStyle = '#16161c'; Battle.roundRect(ctx, mx - 6, my - 6, mw + 12, mh + 12, 6); ctx.fill();
   var u = pc.user, mode = u && u.data.pc ? u.data.pc.mode : null;
   ctx.save(); ctx.beginPath(); ctx.rect(mx, my, mw, mh); ctx.clip();
-  if (pc.broken > 0) {
+  if (pc.off && !(pc.broken > 0)) {
+    ctx.fillStyle = '#050507'; ctx.fillRect(mx, my, mw, mh); ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(mx + mw * 0.1, my + mh * 0.1, mw * 0.25, mh * 0.12);
+  } else if (pc.broken > 0) {
     ctx.fillStyle = '#050507'; ctx.fillRect(mx, my, mw, mh);
     ctx.strokeStyle = 'rgba(220,240,255,0.8)'; ctx.lineWidth = 2; ctx.beginPath();
     var cx = mx + mw * 0.45, cy = my + mh * 0.5;
