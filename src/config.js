@@ -45,7 +45,7 @@ var CONFIG = {
   // ---------- 맵 (개인전·팀전·토너먼트) ----------
   maps: {
     nonSmokers: ['서리', '최휘', '조하람'],   // 특성 비흡연자 (이름 기준, 나머지는 흡연자)
-    workroom: { swap: 30 },                   // 작업실: 30초마다 산내/정발산 중 하나로
+    workroom: { swap: 30 },                   // 작업실: 시작할 때 산내/정발산 중 하나, 그 뒤 30초마다 다시 뽑음
     sannae: {
       notchW: 0.24, notchH: 0.15,             // 오른쪽 위 파인 곳 (경기장 가로 대비)
       window: 170, smokeTime: 3, smokeCd: 6, smokeTaken: 2,   // 금연구역 창문: 닿으면 흡연(행동불능), 그동안 받는 피해 2배
@@ -60,8 +60,8 @@ var CONFIG = {
       king: { every: 3, max: 4, heal: 15, soju: 0.1, sojuTaken: 0.7, sojuTime: 8, sleep: 8 },
     },
     mind: {
-      spawn: 5, maxUndead: 4, undeadLife: 16, undeadSpeed: 80, orbit: 120, orbitSpeed: 2.4, touch: 5,
-      rehearsal: 20, away: 5, poisonDps: 6, poisonTime: 3, slow: 0.6, slowTime: 3, jooRespawn: 7,
+      spawn: 5, maxUndead: 2, undeadLife: 16, undeadSpeed: 80, orbit: 120, orbitSpeed: 2.4, touch: 3,
+      rehearsal: 15, away: 5, poisonDps: 6, poisonTime: 3, slow: 0.6, slowTime: 3, jooRespawn: 10,
     },
   },
   // 보스 수치: 기본값 위에 easy / hard 값을 덮어씀. 체력 = hpPerPlayer x 도전자 수^hpExp (인원 많으면 광역기가 나눠 맞아서)

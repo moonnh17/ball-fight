@@ -1327,11 +1327,12 @@ test('맵: 모든 맵에서 개인전·팀전이 끝까지 진행된다', () => 
     }
   }
 });
-test('맵: 작업실은 30초마다 산내/정발산으로 바뀌고, 산내는 정사각형 + 파인 벽', () => {
+test('맵: 작업실은 시작부터 산내/정발산이고 30초마다 다시 뽑힘, 산내는 정사각형 + 파인 벽', () => {
   const bt = new Battle([{ id: 'baton', team: 0 }, { id: 'gym', team: 1 }], 'team', { map: 'workroom' });
   bt.balls.forEach(b => { b.maxHp = b.hp = 1e6; });
-  run(bt, 29); assert(bt.map.sub === 'work');
-  run(bt, 2); assert(['sannae', 'jbs'].includes(bt.map.sub), '30초에 변경');
+  assert(['sannae', 'jbs'].includes(bt.map.sub), '시작부터 산내/정발산');
+  run(bt, 29); assert(count(bt, 'mapSwap') === 0);
+  run(bt, 2); assert(count(bt, 'mapSwap') === 1, '30초에 다시 뽑음');
   bt.map.setSub('sannae'); run(bt, 2);
   assert(Math.abs(bt.arena.w - bt.arena.h) < 1, '정사각형');
   const b = bt.balls[0], n = bt.map.notch();
@@ -1419,7 +1420,8 @@ test('맵: 마인드 언데드 촬영팀에 닿으면 5 피해', () => {
   const bt = new Battle(['gym', 'baton'], 'ffa', { map: 'mind' });
   bt.balls.forEach(b => { b.maxHp = b.hp = 1e6; });
   run(bt, 30);
-  assert(count(bt, 'undead') >= 4, '언데드 등장');
+  assert(count(bt, 'undead') >= 2, '언데드 등장');
+  assert(bt.ents.filter(e => e.constructor.name === 'Undead' && !e.dead).length <= 2, '최대 2명');
   assert(bt.log.filter(e => e.type === 'damage' && e.kind === 'undead').every(e => e.amt === M.mind.touch));
 });
 

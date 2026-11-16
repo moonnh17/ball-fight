@@ -5,7 +5,7 @@ var MAPS = {
   workroom: {
     id: 'workroom', no: '01', name: '작업실', color: '#ffb347',
     lines: [
-      '30초마다 산내 / 정발산 중 하나로 바뀜 (같은 곳이 또 나올 수 있음)',
+      '시작할 때 산내 / 정발산 중 하나, 그 뒤 30초마다 다시 뽑음 (같은 곳이 또 나올 수 있음)',
       '산내: 정사각형 · 금연구역 창문(흡연자는 담배 피우느라 행동불능, 받는 피해 2배)',
       '산내: 조하람 펑크(긴급소집 30% 취소) · 월세머신(10초마다 모두에게서 체력 5 흡수)',
       '산내 아이템: 담요(함정, 수면) · 피자 오브 레전드(체력 +20)',
@@ -17,15 +17,14 @@ var MAPS = {
   mind: {
     id: 'mind', no: '02', name: '마인드', color: '#9cff57',
     lines: [
-      '5초마다 언데드 마인드 부원 등장 · 주변을 도는 촬영팀 2명에 닿으면 5 피해',
-      '리허설: 20초마다 1~3명(1대1이면 1명)이 사라졌다가 5초 뒤 독 · 둔화 상태로 복귀',
+      '5초마다 언데드 마인드 부원 등장 (최대 2명) · 주변을 도는 촬영팀 2명에 닿으면 3 피해',
+      '리허설: 15초마다 1~3명(1대1이면 1명)이 사라졌다가 5초 뒤 독 · 둔화 상태로 복귀',
       '한규성(이비)은 리허설에서 돌아오면 규순이로 등장',
-      '아이템: 주현지 누나 — 먹으면 리허설 독에 안 걸림, 7초 뒤 다른 곳에 다시 생김',
+      '아이템: 주현지 누나 — 먹으면 리허설 독에 안 걸림, 10초 뒤 다른 곳에 다시 생김',
     ],
   },
 };
 var SUB_MAPS = {
-  work:   { name: '작업실', color: '#ffb347' },
   sannae: { name: '산내', color: '#ff9a3c' },
   jbs:    { name: '정발산', color: '#e8e8ff' },
   mind:   { name: '마인드', color: '#9cff57' },
@@ -54,9 +53,11 @@ function _pushRect(b, R) {
 class MapRun {
   constructor(bt, id) {
     this.bt = bt; this.id = id; this.def = MAPS[id];
-    this.sub = id === 'workroom' ? 'work' : id;
+    this.sub = id === 'workroom' ? (Math.random() < 0.5 ? 'sannae' : 'jbs') : id;   // 작업실은 시작부터 산내/정발산 중 하나
+    this.split = this.sub === 'jbs';
     this.clk = {}; this.smokes = []; this.split = false; this.splitK = 0; this.splitT = 0; this.vent = 0; this.flash = 0;
     this.swapIn = CONFIG.maps.workroom.swap;
+    var T = this.target(); bt.arena.y = T.y; bt.arena.h = T.h;   // 산내로 시작하면 처음부터 정사각형 (배치 전에)
   }
   get subName() { return SUB_MAPS[this.sub].name; }
   init() { if (this.id === 'mind') this.spawnJoo(); }
@@ -336,7 +337,7 @@ class MapRun {
       if (b.data.joo) { ctx.font = '36px "Segoe UI Emoji",sans-serif'; ctx.fillText('🎀', x + r * 0.72, y + r * 0.72); }
     });
     // 맵 이름 · 다음 이벤트 시간
-    var parts = [(this.id === 'workroom' && this.sub !== 'work' ? '작업실 · ' : '') + this.subName];
+    var parts = [(this.id === 'workroom' ? '작업실 · ' : '') + this.subName];
     if (this.id === 'workroom') parts.push('변경 ' + Math.ceil(this.swapIn));
     if (this.sub === 'jbs') { parts.push('환기 ' + this.left('vent', c.jbs.vent)); parts.push((this.split ? '개방 ' : '분리 ') + this.left('split', c.jbs.split)); }
     if (this.sub === 'mind') parts.push('리허설 ' + this.left('rehearsal', c.mind.rehearsal));
@@ -370,25 +371,6 @@ function _logo(ctx, A, text, color, alpha) {
   ctx.fillText(text, A.x + A.w / 2, A.y + A.h / 2); ctx.restore();
 }
 var MAP_FLOORS = {
-  // 작업실: 어두운 카펫 타일 + 가운데 러그 + 바닥에 늘어진 케이블
-  work: function (ctx, A, t) {
-    var k = A.w / 1000, s = 125 * k;
-    ctx.save(); ctx.beginPath(); ctx.rect(A.x, A.y, A.w, A.h); ctx.clip();
-    ctx.fillStyle = '#13111f'; ctx.fillRect(A.x, A.y, A.w, A.h);
-    ctx.fillStyle = '#18152a';
-    for (var y = 0, j = 0; y < A.h; y += s, j++) for (var x = (j % 2) * s, i = 0; x < A.w; x += 2 * s, i++) ctx.fillRect(A.x + x, A.y + y, s, s);
-    ctx.strokeStyle = 'rgba(255,180,90,0.12)'; ctx.lineWidth = 5 * k; ctx.lineCap = 'round';
-    [[0.05, 0.2, 0.4, 0.05, 0.3, 0.45], [0.95, 0.8, 0.6, 0.95, 0.7, 0.55], [0.1, 0.9, 0.3, 0.7, 0.5, 0.92]].forEach(function (q) {
-      ctx.beginPath(); ctx.moveTo(A.x + A.w * q[0], A.y + A.h * q[1]); ctx.quadraticCurveTo(A.x + A.w * q[2], A.y + A.h * q[3], A.x + A.w * q[4], A.y + A.h * q[5]); ctx.stroke();
-    });
-    ctx.fillStyle = 'rgba(60,40,90,0.45)'; Battle.roundRect(ctx, A.x + A.w * 0.18, A.y + A.h * 0.3, A.w * 0.64, A.h * 0.4, 30 * k); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,179,71,0.25)'; ctx.lineWidth = 6 * k; ctx.setLineDash([22 * k, 14 * k]); ctx.stroke(); ctx.setLineDash([]);
-    var g = ctx.createRadialGradient(A.x + A.w / 2, A.y + A.h * 0.45, 0, A.x + A.w / 2, A.y + A.h * 0.45, A.w * 0.7);
-    g.addColorStop(0, 'rgba(255,190,110,0.10)'); g.addColorStop(1, 'rgba(255,190,110,0)');
-    ctx.fillStyle = g; ctx.fillRect(A.x, A.y, A.w, A.h);
-    _logo(ctx, A, 'WORKROOM', '#ffb347', 0.07);
-    ctx.restore();
-  },
   // 산내: 따뜻한 나무 마루 + 스탠드 조명
   sannae: function (ctx, A, t) {
     var k = A.w / 1000, ph = 52 * k;
@@ -705,7 +687,7 @@ function drawMapPreview(ctx, id, x, y, w, h, time) {
   var A = { x: x, y: y, w: w, h: h };
   ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
   if (id === 'workroom') {   // 작업실: 반은 산내, 반은 정발산
-    MAP_FLOORS.work(ctx, A, time);
+    MAP_FLOORS.jbs(ctx, A, time);
     ctx.save(); ctx.beginPath(); ctx.moveTo(x + w * 0.55, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w * 0.25, y + h); ctx.clip();
     MAP_FLOORS.sannae(ctx, A, time); ctx.restore();
   } else if (MAP_FLOORS[id]) MAP_FLOORS[id](ctx, A, time);
