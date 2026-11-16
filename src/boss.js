@@ -139,32 +139,41 @@ class Hot6Box {
   }
   light() { return { x: this.x, y: this.y, r: 100 }; }
 }
-// 지갑전사 돈: 맞으면 조금 회복되지만 잠깐 아무것도 못 함 (IZK는 무효)
+// 지갑전사 지폐: 맞으면 조금 회복되지만 잠깐 아무것도 못 함 (IZK는 무효). 최휘는 잔고도 오름
 class CoinShot {
   constructor(bt, owner, ang, c) {
     this.bt = bt; this.owner = owner; this.c = c; this.x = owner.x; this.y = owner.y; this.vx = Math.cos(ang) * c.speed; this.vy = Math.sin(ang) * c.speed; this.t = 0; this.z = 1;
+    this.spin = _rnd(-10, 10);
   }
   update(dt) {
     var A = CONFIG.arena, self = this, c = this.c, bt = this.bt;
     this.t += dt; this.x += this.vx * dt; this.y += this.vy * dt;
     if (this.t > 3 || this.x < A.x || this.x > A.x + A.w || this.y < A.y || this.y > A.y + A.h) { this.dead = true; return; }
-    if (Math.random() < dt * 20) FX.particle({ x: this.x, y: this.y, vx: _rnd(-40, 40), vy: _rnd(-40, 40), life: 0.4, size: 5, color: '#ffe066', shape: 'spark' });
+    if (Math.random() < dt * 14) FX.particle({ x: this.x, y: this.y, vx: _rnd(-40, 40), vy: _rnd(-40, 40), life: 0.4, size: 5, color: '#9be59b', shape: 'spark' });
     var e = _bPlayers(bt, this.owner).find(function (q) { return !q.air && _dist(q, self) < q.r + 20; });
     if (!e) return;
     this.dead = true;
     if (_isIzk(e)) { FX.text(e.x, e.y - e.r - 40, '안 받아!', '#00e5ff', 40, 0.8); bt.emit('walletImmune', { who: e.def.id }); return; }
     bt.heal(e, c.heal);
     e.status.stun = Math.max(e.status.stun, c.stun);
-    FX.text(e.x, e.y - e.r - 50, '돈이다…!', '#ffe066', 44, 1.0); FX.sfx('coin');
-    FX.burst(e.x, e.y, '#ffd400', 16, 400, 8, 0.5, 'square');
+    FX.text(e.x, e.y - e.r - 50, '돈이다…!', '#9be59b', 44, 1.0); FX.sfx('coin');
+    FX.burst(e.x, e.y, '#6fdc7a', 16, 400, 8, 0.5, 'square');
+    if (e.data && e.data.chart && typeof hauSet === 'function') {   // 최휘: 받은 돈은 계좌로
+      hauSet(bt, e, e.data.bal + c.money);
+      FX.text(e.x, e.y - e.r - 90, '입금 +' + c.money + '만', '#ffd400', 40, 1.0);
+      bt.emit('walletHau', { bal: e.data.bal });
+    }
     bt.emit('walletHit', { who: e.def.id });
   }
-  draw(ctx) {
-    var img = FxImg.get('coin'), m = FX_SHEETS.coin;
-    if (!img) { ctx.fillStyle = '#ffd400'; ctx.beginPath(); ctx.arc(this.x, this.y, 16, 0, Math.PI * 2); ctx.fill(); return; }
-    var f = Math.floor(this.t * m.fps * 2) % m.n;
-    ctx.save(); ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(img, (f % m.cols) * m.w, Math.floor(f / m.cols) * m.h, m.w, m.h, this.x - m.px, this.y - m.py, m.w, m.h);
+  draw(ctx) {   // 빙글 돌며 펄럭이는 지폐
+    var a = this.t * this.spin;
+    ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(a); ctx.scale(1, 0.35 + Math.abs(Math.cos(this.t * 9)) * 0.65);
+    ctx.shadowColor = '#6fdc7a'; ctx.shadowBlur = 16;
+    ctx.fillStyle = '#7fe08a'; ctx.fillRect(-34, -17, 68, 34);
+    ctx.shadowBlur = 0; ctx.strokeStyle = '#2e8b3d'; ctx.lineWidth = 3; ctx.strokeRect(-29, -12, 58, 24);
+    ctx.fillStyle = '#1f5f2a'; ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#c8f5cc'; ctx.font = '700 13px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('₩', 0, 1);
+    ctx.fillStyle = '#1f5f2a'; ctx.font = '700 10px "Malgun Gothic",sans-serif'; ctx.fillText('50000', -17, -5); ctx.fillText('50000', 17, 6);
     ctx.restore();
   }
   light() { return { x: this.x, y: this.y, r: 70 }; }
@@ -199,8 +208,12 @@ class JokeShot {
 }
 // 뱅커 조준 표시
 class BankMark {
-  constructor(x, y, life, r) { this.x = x; this.y = y; this.life = life; this.t = 0; this.r = r; this.z = -1; }
-  update(dt) { this.t += dt; if (this.t >= this.life) this.dead = true; }
+  constructor(x, y, life, r, follow) { this.x = x; this.y = y; this.life = life; this.t = 0; this.r = r; this.z = -1; this.follow = follow || null; }
+  update(dt) {
+    this.t += dt;
+    if (this.follow && this.follow.alive && this.t < this.life - 0.1) { this.x = this.follow.x; this.y = this.follow.y; }   // 거의 끝까지 따라감
+    if (this.t >= this.life) this.dead = true;
+  }
   draw(ctx) {
     var k = this.t / this.life;
     ctx.save(); ctx.strokeStyle = '#ff2b3b'; ctx.lineWidth = 6; ctx.shadowColor = '#ff2b3b'; ctx.shadowBlur = 20;
@@ -351,7 +364,7 @@ var BATON_SKILLS = {
     var c = b.cfg.wallet, t = 0, tgt = _bPick(bt, b), base = tgt ? Math.atan2(tgt.y - b.y, tgt.x - b.x) : _rnd(0, Math.PI * 2), spread = 1.1;
     bossCast(bt, b, '지갑전사 바통', '#ffe066');
     for (var i = 0; i < c.coins; i++) bt.add(new CoinShot(bt, b, base - spread / 2 + spread * (c.coins > 1 ? i / (c.coins - 1) : 0.5), c));
-    FX.burst(b.x, b.y, '#ffd400', 30, 600, 10, 0.6, 'square'); FX.sfx('coin');
+    FX.burst(b.x, b.y, '#6fdc7a', 30, 600, 10, 0.6, 'square'); FX.sfx('coin');
     bt.emit('wallet');
     return { moves: false, update: function (dt) { t += dt; return t >= 0.5; }, end: function () { _restoreSpeed(b, b.vx, b.vy); } };
   },
@@ -425,7 +438,7 @@ var BATON_SKILLS = {
     };
   },
   // 3-2 바지 강림: 바카라 — 플(파랑) = 주위 범위 / 뱅(빨강) = 한 명에게 강한 한 방
-  baccarat: function (bt, b) {
+  baccarat: function (bt, b, force) {   // force: 'P' | 'B' (테스트용)
     var c = b.cfg.baccarat, t = 0, done = false;
     bossCast(bt, b, '바지 강림', '#ff2b3b');
     b.data.bac = { t: 0, res: null };
@@ -437,7 +450,7 @@ var BATON_SKILLS = {
         if (t < c.flip) { if (Math.random() < dt * 10) FX.sfx('click'); return false; }
         if (!done) {
           done = true;
-          var res = Math.random() < 0.5 ? 'P' : 'B'; b.data.bac.res = res;
+          var res = force || (Math.random() < 0.5 ? 'P' : 'B'); b.data.bac.res = res;
           if (res === 'P') {
             FX.text(b.x, b.y - b.r - 90, '플레이어!', '#3b8bff', 70, 1.2);
             bfx(bt, 'burst_blue', b.x, b.y, { scale: 3.4 }); FX.sfx('freeze'); FX.shake(20);
@@ -447,14 +460,16 @@ var BATON_SKILLS = {
           } else {
             var tgt = _bPick(bt, b);
             FX.text(b.x, b.y - b.r - 90, '뱅커!!', '#ff2b3b', 76, 1.2);
-            if (tgt) {
-              var mx = tgt.x, my = tgt.y;
-              bt.add(new BankMark(mx, my, c.bankerDelay, c.bankerRadius));
-              bfx(bt, 'strike_red', mx, my, { scale: 1.6 });
+            if (tgt) {   // 번개가 대상을 따라가서 거의 확정으로 맞음 (근처 다른 도전자도 휘말림)
+              var mark = bt.add(new BankMark(tgt.x, tgt.y, c.bankerDelay, c.bankerRadius, tgt));
+              bfx(bt, 'strike_red', tgt.x, tgt.y, { scale: 1.6, follow: tgt });
               bt.after(c.bankerDelay, function () {
+                var mx = mark.x, my = mark.y;
                 FX.shake(34); FX.flash('#ff2b3b', 0.3, 0.25); FX.sfx('ddakbam');
                 bfx(bt, 'smash_red', mx, my, { scale: 2.6 });
-                _bPlayers(bt, b).forEach(function (o) { if (Math.hypot(o.x - mx, o.y - my) < c.bankerRadius + o.r * 0.5) bt.damage(o, c.bankerDamage, b, { color: '#ff5a50', kind: 'baccaratB' }); });
+                if (tgt.alive) bt.damage(tgt, c.bankerDamage, b, { color: '#ff5a50', kind: 'baccaratB' });
+                _bPlayers(bt, b).forEach(function (o) { if (o !== tgt && Math.hypot(o.x - mx, o.y - my) < c.bankerRadius + o.r * 0.5) bt.damage(o, c.bankerDamage * 0.5, b, { color: '#ff5a50', kind: 'baccaratB' }); });
+                bt.emit('banker', { who: tgt.def.id });
               });
             }
             bt.emit('baccarat', { res: 'B' });
@@ -556,7 +571,25 @@ var BOSSES = {
     },
     portrait: function (b) { return b.phase >= 3 ? 'p3' : b.phase >= 2 ? 'p2' : 'base'; },
     blurb: '보스',
-    intro: '정의의 이름으로 굴러온 히어로 바통. 체력에 따라 세 페이즈로 바뀌고, 페이즈가 바뀔 때마다 끼야아아악을 지른다.',
+    title: '굴러온 정의',
+    intro: '정의의 이름으로 굴러온 히어로 바통. 체력에 따라 세 페이즈로 바뀌고, 페이즈가 바뀔 때마다 끼야아아악을 지른다. IZK 1기에게 묵은 울분이 있다.',
+    // 로비·전투 화면 설명 (d: 난이도별 수치)
+    info: {
+      passives: [
+        { name: '울분', desc: function (c) { return 'IZK 1기 멤버에게 주는 피해 +' + Math.round((c.izkRage - 1) * 100) + '%'; } },
+        { name: '끼야아아악', desc: function (c) { return '페이즈가 바뀔 때마다 맵 전체에 비명 (도전자 전원 ' + c.scream.damage + ' 피해)'; } },
+        { name: '일단 씻고 오겠습니다', desc: function (c) { return '페이즈 3이 되면 ' + c.wash.time + '초 동안 자리를 비우고, 씻고 와서 최대 체력의 ' + Math.round(c.wash.heal * 100) + '% 회복'; } },
+      ],
+      skills: [
+        { key: 'roll', phase: 1, name: '끝까지 구르기', desc: function (c) { return '예고 화살표 방향으로 굴러 부딪힌 도전자에게 피해, 멈추면 쿵! 연속 ' + c.roll.rolls + '번'; } },
+        { key: 'hot6', phase: 1, name: '핫식스 한 박스 쟁여놓기', desc: function (c) { return '핫식스 박스 ' + c.hot6.boxes + '개를 깜. 보스가 먹으면 이속·공격력 상승, 도전자가 먹으면 터지며 탄막 ' + c.hot6.bullets + '발'; } },
+        { key: 'wallet', phase: 2, name: '지갑전사 바통', desc: function (c) { return '지폐 ' + c.wallet.coins + '장을 뿌림. 맞으면 체력이 조금 차지만 ' + c.wallet.stun + '초 동안 아무것도 못 함 (IZK 무효, 최휘는 잔고 +' + c.wallet.money + ')'; } },
+        { key: 'origin', phase: 2, name: '바통의 근원', desc: function (c) { return '맵 밖으로 나갔다가 예고된 차선으로 킥보드를 타고 소주를 마시며 돌격. 맞으면 피해와 넉백' + (c.origin.passes > 1 ? ' (' + c.origin.passes + '번 왕복)' : ''); } },
+        { key: 'joke', phase: 3, name: '자학개그', desc: function (c) { return '자학개그 ' + c.joke.count + '개를 날림. 맞으면 공격력 ' + Math.round((1 - c.joke.atkMul) * 100) + '% 감소 (IZK 무효)'; } },
+        { key: 'baccarat', phase: 3, name: '바지 강림', desc: function (c) { return '바카라! 플(파랑)이면 주위 전체 ' + c.baccarat.playerDamage + ' 피해, 뱅(빨강)이면 한 명을 끝까지 쫓는 번개 ' + c.baccarat.bankerDamage + ' 피해'; } },
+      ],
+      hard: { key: 'song', name: '노광석의 힘', desc: function (c) { return '체력 ' + Math.round(c.song.at * 100) + '% 이하에서 맵 맨 위로 올라가 노래. 맵 전체에 파장, 틈으로 피할 수 있음'; } },
+    },
     skills: [], noAutoPhase2: true,
     color: function (b) { return b.phase >= 3 ? b.cfg.phase3Color : b.phase >= 2 ? b.cfg.phase2Color : b.cfg.color; },
     // 패시브 1 울분: IZK 소속에게 피해 +10%
@@ -572,13 +605,14 @@ var BOSSES = {
       if (b.phase === 1 && b.hp <= b.maxHp * c.phases[0]) bossPhase(bt, b, 2);
       else if (b.phase === 2 && b.hp <= b.maxHp * c.phases[1]) bossPhase(bt, b, 3);
       if (c.song.at > 0 && !d.sang && b.phase >= 3 && b.hp <= b.maxHp * c.song.at) { d.sang = true; d.queue.push('song'); }
+      if (!b.action && !b.hidden) d.cur = null;
       if (b.action || b.hidden) return;
-      if (d.queue.length) { var q = d.queue.shift(); b.action = BATON_SKILLS[q](bt, b); bt.emit('bossSkill', { skill: q }); return; }
+      if (d.queue.length) { var q = d.queue.shift(); d.cur = q; b.action = BATON_SKILLS[q](bt, b); bt.emit('bossSkill', { skill: q }); return; }
       if (b.disabled) return;
       d.cd -= dt * b.cdRate;
       if (d.cd > 0) return;
       var pool = bossPool(b), opts = pool.filter(function (k) { return k !== d.last; }), k = (opts.length ? opts : pool)[Math.floor(Math.random() * (opts.length || pool.length))];
-      d.last = k; d.cd = c.cd;
+      d.last = k; d.cur = k; d.cd = c.cd;
       b.action = BATON_SKILLS[k](bt, b);
       bt.emit('bossSkill', { skill: k });
     },
@@ -637,15 +671,15 @@ Battle.prototype.drawBossHUD = function (ctx, time) {
   var self = this, b = this.boss, W = CONFIG.W, rr = Battle.roundRect, col = b.color(), d = b.data;
   // 보스 이름판
   ctx.save();
-  var g = ctx.createLinearGradient(0, 12, 0, 178); g.addColorStop(0, '#2c0912'); g.addColorStop(1, '#0d0510');
-  ctx.fillStyle = g; rr(ctx, 16, 12, W - 32, 168, 22); ctx.fill();
+  var PH = 200, g = ctx.createLinearGradient(0, 12, 0, 12 + PH); g.addColorStop(0, '#2c0912'); g.addColorStop(1, '#0d0510');
+  ctx.fillStyle = g; rr(ctx, 16, 12, W - 32, PH, 22); ctx.fill();
   ctx.lineWidth = 5; ctx.strokeStyle = '#d8a428'; ctx.stroke();
-  ctx.lineWidth = 2; ctx.strokeStyle = col; rr(ctx, 26, 22, W - 52, 148, 16); ctx.stroke();
-  [[16, 12], [W - 16, 12], [16, 180], [W - 16, 180]].forEach(function (p) {   // 모서리 장식
+  ctx.lineWidth = 2; ctx.strokeStyle = col; rr(ctx, 26, 22, W - 52, PH - 20, 16); ctx.stroke();
+  [[16, 12], [W - 16, 12], [16, 12 + PH], [W - 16, 12 + PH]].forEach(function (p) {   // 모서리 장식
     ctx.save(); ctx.translate(p[0], p[1]); ctx.rotate(Math.PI / 4); ctx.fillStyle = '#ffd400'; ctx.fillRect(-9, -9, 18, 18); ctx.restore();
   });
   // 초상화
-  var px = 104, py = 96, pr = 64;
+  var px = 104, py = 110, pr = 72;
   ctx.shadowColor = col; ctx.shadowBlur = 30; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, pr + 6, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
   Assets.drawBall(ctx, b.def, b.def.portrait(b), px, py, pr, 0, col);
   ctx.lineWidth = 6; ctx.strokeStyle = '#ffd400'; ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.stroke();
@@ -681,20 +715,41 @@ Battle.prototype.drawBossHUD = function (ctx, time) {
   ctx.font = '700 24px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 5; ctx.strokeStyle = '#000';
   var ht = Math.ceil(Math.max(0, b.hp)) + ' / ' + Math.round(b.maxHp) + '   (' + Math.round(frac * 100) + '%)';
   ctx.strokeText(ht, bx + bw / 2, by + 30); ctx.fillStyle = '#ffffff'; ctx.fillText(ht, bx + bw / 2, by + 30);
-  // 지금 쓰는 스킬 / 상태
-  ctx.textAlign = 'left'; ctx.font = '700 24px "Malgun Gothic",sans-serif';
-  var line = b.hidden ? '… 자리를 비움' : d.castT > 0 ? '▶ ' + d.cast : '';
-  if (b.status.atk > 0 && b.status.atkMul > 1) line += '   🔥 핫식스 버프 ' + b.status.atk.toFixed(1) + 's';
-  ctx.fillStyle = b.hidden ? '#78ccf4' : '#ffe066'; ctx.fillText(line, 190, 158);
-  ctx.textAlign = 'right'; ctx.fillStyle = '#bbbbbb';
+  // 이번 페이즈 스킬 칩: 지금 쓰는 스킬은 빛남 (패시브·하드 스킬이 발동 중이면 따로 한 칸)
+  var names = {}, info = b.def.info;
+  info.skills.forEach(function (s) { names[s.key] = s.name; });
+  names.scream = '끼야아아악'; names.wash = '일단 씻고 오겠습니다'; names[info.hard.key] = info.hard.name;
+  var keys = bossPool(b).slice();
+  if (d.cur && keys.indexOf(d.cur) < 0) keys.unshift(d.cur);
+  ctx.font = '700 20px "Malgun Gothic",sans-serif'; ctx.textAlign = 'left';
+  var cx2 = 190, cy2 = 140;
+  keys.forEach(function (k) {
+    var on = d.cur === k, label = (on ? '▶ ' : '') + names[k], w2 = ctx.measureText(label).width + 26;
+    if (cx2 + w2 > W - 190) return;
+    ctx.save();
+    if (on) { ctx.shadowColor = col; ctx.shadowBlur = 20; ctx.fillStyle = col; } else ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    rr(ctx, cx2, cy2, w2, 34, 17); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.lineWidth = 2; ctx.strokeStyle = on ? '#ffffff' : 'rgba(255,212,0,0.6)'; ctx.stroke();
+    ctx.fillStyle = on ? '#1a0a10' : '#ffe066'; ctx.fillText(label, cx2 + 13, cy2 + 24);
+    ctx.restore();
+    cx2 += w2 + 8;
+  });
+  ctx.textAlign = 'right'; ctx.font = '700 20px "Malgun Gothic",sans-serif';
+  var st2 = b.hidden ? '… 자리를 비움' : d.cur ? '사용 중' : '다음 스킬 ' + Math.max(0, d.cd).toFixed(1) + '초';
+  ctx.fillStyle = b.hidden ? '#78ccf4' : '#bbbbbb'; ctx.fillText(st2, W - 40, cy2 + 24);
+  var extra = [];
+  if (b.status.atk > 0 && b.status.atkMul > 1) extra.push('🔥 핫식스 버프 ' + b.status.atk.toFixed(1) + 's');
   var left = Math.max(0, this.maxTime - this.time), mm = Math.floor(left / 60), ss = Math.floor(left % 60);
-  ctx.fillText('⏱ ' + mm + ':' + (ss < 10 ? '0' : '') + ss, W - 40, 158);
+  extra.push('⏱ ' + mm + ':' + (ss < 10 ? '0' : '') + ss);
+  ctx.fillStyle = '#dddddd'; ctx.fillText(extra.join('   '), W - 40, 196);
+  ctx.textAlign = 'left'; ctx.fillStyle = '#999999'; ctx.font = '700 18px "Malgun Gothic",sans-serif';
+  ctx.fillText('패시브: 울분 · 끼야아아악 · 일단 씻고 오겠습니다' + (b.cfg.song.at > 0 ? ' · 하드: 노광석의 힘' : ''), 190, 196);
   ctx.restore();
 
   // 도전자 카드
   var ps = this.balls.filter(function (o) { return !o.isBoss; }), n = ps.length;
-  var cols = n <= 4 ? n : n <= 8 ? 4 : Math.ceil(n / 3), rows = Math.ceil(n / cols), gap = 8, top = 190, area = 202;
-  var ch = Math.min(96, (area - (rows - 1) * gap) / rows), cw = (W - 32 - (cols - 1) * gap) / cols;
+  var cols = n <= 4 ? n : n <= 8 ? 4 : Math.ceil(n / 3), rows = Math.ceil(n / cols), gap = 8, top = 222, area = 168;
+  var ch = Math.min(84, (area - (rows - 1) * gap) / rows), cw = (W - 32 - (cols - 1) * gap) / cols;
   ps.forEach(function (o, i) {
     var x = 16 + (i % cols) * (cw + gap), y = top + Math.floor(i / cols) * (ch + gap), oc = o.color(), k = ch / 96;
     ctx.save(); ctx.globalAlpha = o.alive ? 1 : 0.35;
@@ -716,7 +771,7 @@ Battle.prototype.drawBossHUD = function (ctx, time) {
   });
   // 도전자 팀 시너지
   if (this.synergies.length) {
-    var txt = this.synergies.filter(function (s) { return s.team === 1; }).map(function (s) { return '✦ ' + s.name; }).join('   ');
+    var txt = this.synergies.filter(function (s) { return s.team === 1; }).map(function (s) { return '✦ ' + s.name; }).join('   ') + (this.synergyBonus ? '   (이지 보너스 x' + this.synergyBonus + ')' : '');
     if (txt) { ctx.font = '700 22px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 5; ctx.strokeStyle = '#000'; ctx.fillStyle = '#ffe14d'; ctx.strokeText(txt, W / 2, CONFIG.arena.y - 6); ctx.fillText(txt, W / 2, CONFIG.arena.y - 6); }
   }
   this.balls.forEach(function (o) { if (o.def.drawOverlay) o.def.drawOverlay(ctx, o, self, time); });

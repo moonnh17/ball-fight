@@ -54,7 +54,7 @@
     ctx.restore();
     if (enabled) hit(x, y, w, h, function () { FX.sfx('click'); fn(); });
   }
-  function scrolly() { return G.scene === 'dex' || G.scene === 'records'; }   // 끌어서/휠로 스크롤하는 화면
+  function scrolly() { return G.scene === 'dex' || G.scene === 'records' || G.scene === 'bossLobby'; }   // 끌어서/휠로 스크롤하는 화면
   // 클릭은 손을 뗄 때 판정 (도감에서 끌어서 스크롤한 경우는 클릭 아님)
   function toGame(e) { var r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }; }
   var drag = null;
@@ -179,9 +179,14 @@
     var names = GROUPS.map(function (q) { return q.name; }), half = Math.ceil(names.length / 2);
     outlined(ctx, names.slice(0, half).join(' · '), W / 2, 940, 42, '#ffffff');
     if (names.length > half) outlined(ctx, names.slice(half).join(' · '), W / 2, 1010, 42, '#ffffff');
-    button(W / 2 - 260, 1250, 520, 150, '시작', function () { go('select'); }, { size: 72 });
-    button(W / 2 - 420, 1440, 400, 110, '📖 도감', function () { openDex(IDS[0]); }, { size: 50, color: '#7a5cff', color2: '#2f9bff' });
-    button(W / 2 + 20, 1440, 400, 110, '📊 통계', openRecords, { size: 50, color: '#ffb000', color2: '#ff2b6a' });
+    button(W / 2 - 260, 1170, 520, 150, '시작', function () { if (G.mode === 'boss') G.mode = 'ffa'; go('select'); }, { size: 72 });
+    // 보스전 입구: 붉은 금테 버튼이 맥동
+    var bp = 0.5 + Math.sin(G.time * 4) * 0.5;
+    ctx.save(); ctx.shadowColor = '#ff2b3b'; ctx.shadowBlur = 30 + bp * 40; ctx.fillStyle = 'rgba(255,43,59,' + (0.25 + bp * 0.2) + ')';
+    roundRect(ctx, W / 2 - 300, 1340, 600, 140, 40); ctx.fill(); ctx.restore();
+    button(W / 2 - 290, 1350, 580, 120, '👑 보스전', openBossLobby, { size: 60, color: '#ff2b3b', color2: '#ffb000' });
+    button(W / 2 - 420, 1520, 400, 110, '📖 도감', function () { openDex(IDS[0]); }, { size: 50, color: '#7a5cff', color2: '#2f9bff' });
+    button(W / 2 + 20, 1520, 400, 110, '📊 통계', openRecords, { size: 50, color: '#ffb000', color2: '#ff2b6a' });
     hint();
   }
 
@@ -198,21 +203,29 @@
   }
   var synCache = { key: '', list: [] };
   function previewSynergies() {
-    if (G.mode !== 'team' || !G.roster.length) return [];
-    var key = JSON.stringify(G.roster);
-    if (synCache.key !== key) { synCache.key = key; synCache.list = new Battle(G.roster, 'team').synergies; }
+    if ((G.mode !== 'team' && G.mode !== 'boss') || !G.roster.length) return [];
+    var key = G.mode + JSON.stringify(G.roster);
+    if (synCache.key !== key) {
+      synCache.key = key;
+      synCache.list = G.mode === 'boss'   // 보스전: 도전자 전원이 한 팀
+        ? new Battle(G.roster.map(function (e) { return e.id; }), 'boss', { boss: G.bossId, difficulty: G.bossDiff }).synergies.filter(function (s) { return s.team === 1; })
+        : new Battle(G.roster, 'team').synergies;
+    }
     return synCache.list;
   }
 
   function selectScene() {
     background();
-    outlined(ctx, '캐릭터 선택', W / 2, 74, 76, '#ffffff', '#ff2bd6');
-
-    // 모드
-    chip(30, 128, 240, 76, '개인전', G.mode === 'ffa', '#00c2ff', function () { G.mode = 'ffa'; G.swapSel = null; });
-    chip(285, 128, 240, 76, '팀전', G.mode === 'team', '#ff2b6a', function () { G.mode = 'team'; G.swapSel = null; });
-    chip(540, 128, 240, 76, '토너먼트', G.mode === 'tour', '#ffd400', function () { G.mode = 'tour'; G.swapSel = null; });
-    chip(795, 128, 255, 76, '👑 보스전', G.mode === 'boss', '#ff8a00', function () { G.mode = 'boss'; G.swapSel = null; });
+    if (G.mode === 'boss') {   // 보스전 도전자 고르기 (보스전 로비에서 들어옴)
+      outlined(ctx, '보스전 · 도전자 선택', W / 2, 74, 70, '#ffd400', '#ff2b3b');
+      button(40, 128, 1000, 76, '👑 ' + BOSSES[G.bossId].name + ' 정보 · 난이도 바꾸기', openBossLobby, { size: 34, color: '#ff2b3b', color2: '#7a1020' });
+    } else {
+      outlined(ctx, '캐릭터 선택', W / 2, 74, 76, '#ffffff', '#ff2bd6');
+      // 모드
+      chip(40, 128, 320, 76, '개인전', G.mode === 'ffa', '#00c2ff', function () { G.mode = 'ffa'; G.swapSel = null; });
+      chip(380, 128, 320, 76, '팀전', G.mode === 'team', '#ff2b6a', function () { G.mode = 'team'; G.swapSel = null; });
+      chip(720, 128, 320, 76, '토너먼트', G.mode === 'tour', '#ffd400', function () { G.mode = 'tour'; G.swapSel = null; });
+    }
 
     // 캐릭터 카드(사람 단위): 누를 때마다 지금 보이는 모습으로 참가자 추가 (중복 가능)
     // 이격이 있으면 카드 아래 모습 탭으로 바꿈
@@ -342,7 +355,9 @@
 
     // 시너지 미리보기
     var syn = previewSynergies();
-    if (G.mode === 'team') {
+    if (G.mode === 'boss') {
+      outlined(ctx, syn.length ? '✦ 도전자 시너지: ' + syn.map(function (s) { return s.name; }).join('  ✦ ') : '같은 팀 시너지가 보스전에도 적용돼요 (조건은 도감 → 시너지)', W / 2, py + ph + 34, syn.length ? 30 : 22, syn.length ? '#ffe14d' : '#999999');
+    } else if (G.mode === 'team') {
       var st = syn.length ? '✦ ' + syn.map(function (s) { return TEAMS[s.team].label + '팀 ' + s.name; }).join('  ✦ ') : '시너지 ' + SYNERGIES.length + '종 · 조건은 도감 → 시너지 (이격 포함)';
       outlined(ctx, st, W / 2, py + ph + 34, syn.length ? 30 : 22, syn.length ? '#ffe14d' : '#999999');
     }
@@ -373,7 +388,7 @@
     button(40, 1625, 300, 120, '랜덤', randomRoster, { color: '#00c2ff', color2: '#7a5cff' });
     button(360, 1625, 300, 120, '비우기', function () { G.roster = []; }, { color: '#555577', color2: '#333355', enabled: G.roster.length > 0 });
     button(680, 1625, 360, 120, G.mode === 'tour' ? '토너먼트 시작' : '전투 시작', startBattle, { enabled: canStart(), color: '#ff2b6a', color2: '#ffb000', size: G.mode === 'tour' ? 42 : 50 });
-    button(40, 1780, 200, 90, '◀ 뒤로', function () { go('title'); }, { size: 36, color: '#555577', color2: '#333355' });
+    button(40, 1780, 200, 90, '◀ 뒤로', function () { if (G.mode === 'boss') openBossLobby(); else go('title'); }, { size: 36, color: '#555577', color2: '#333355' });
     button(260, 1780, 220, 90, '📖 도감', function () { openDex(G.focus); }, { size: 36, color: '#7a5cff', color2: '#333355' });
     button(500, 1780, 220, 90, '📊 통계', openRecords, { size: 36, color: '#ffb000', color2: '#333355' });
     hint();
@@ -597,6 +612,89 @@
     hint();
   }
 
+  // ---------- 보스전 로비 ----------
+  function openBossLobby() { G.dexScroll = 0; G.pt = 0; go('bossLobby'); }
+  function drawSheetFrame(name, x, y, s, t, alpha) {   // pixelfx 시트 한 프레임 (화면용)
+    var img = FxImg.get(name), m = FX_SHEETS[name]; if (!img) return;
+    var f = Math.floor(t * m.fps) % m.n;
+    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.globalAlpha = alpha == null ? 1 : alpha;
+    ctx.drawImage(img, (f % m.cols) * m.w, Math.floor(f / m.cols) * m.h, m.w, m.h, x - m.px * s, y - m.py * s, m.w * s, m.h * s);
+    ctx.restore();
+  }
+  function bossLobbyScene(dt) {
+    var bd = BOSSES[G.bossId], hard = G.bossDiff === 'hard', c = bossConfig(G.bossId, G.bossDiff, 4), col = hard ? '#ff2b3b' : '#ffd400';
+    G.pt += dt;
+    // 배경: 붉은 기운 + 회전하는 빛줄기 + 올라가는 불티
+    ctx.fillStyle = '#0a0306'; ctx.fillRect(0, 0, W, H);
+    var bg = ctx.createRadialGradient(W / 2, 420, 60, W / 2, 420, 1100);
+    bg.addColorStop(0, hard ? 'rgba(160,20,30,0.75)' : 'rgba(150,90,10,0.7)'); bg.addColorStop(1, 'rgba(10,3,6,0)');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    ctx.save(); ctx.translate(W / 2, 420); ctx.rotate(G.time * 0.25);
+    for (var i = 0; i < 16; i++) { ctx.rotate(Math.PI / 8); ctx.fillStyle = i % 2 ? col + '22' : 'rgba(255,255,255,0.04)'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-70, -1000); ctx.lineTo(70, -1000); ctx.fill(); }
+    ctx.restore();
+    if (Math.random() < dt * 30) FX.particle({ x: Math.random() * W, y: H + 10, vx: (Math.random() - 0.5) * 60, vy: -120 - Math.random() * 200, life: 4, size: 6 + Math.random() * 8, color: Math.random() < 0.3 ? '#ffffff' : col, shape: 'square', vr: 4 });
+    FX.drawWorld(ctx);
+    // 제목
+    var s = 1 + Math.sin(G.time * 3) * 0.03;
+    ctx.save(); ctx.translate(W / 2, 92); ctx.scale(s, s); outlined(ctx, 'BOSS RAID', 0, 0, 96, col, hard ? '#550000' : '#ff8a00'); ctx.restore();
+    outlined(ctx, '보스전', W / 2, 160, 34, '#ffffff');
+    // 보스 초상: 발밑 마법진 + 금테 + 왕관
+    drawSheetFrame(hard ? 'rune_red' : 'rune_gold', W / 2, 560, 3.2, G.time, 0.9);
+    var pr = 175, py = 420;
+    ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = 70; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(W / 2, py, pr + 10, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    Assets.drawBall(ctx, bd, hard ? 'p3' : 'base', W / 2, py, pr, 0, col);
+    ctx.lineWidth = 12; ctx.strokeStyle = '#ffd400'; ctx.beginPath(); ctx.arc(W / 2, py, pr, 0, Math.PI * 2); ctx.stroke();
+    ctx.save(); ctx.translate(W / 2, py - pr - 34); ctx.scale(1.6, 1.6); ctx.fillStyle = '#ffd400'; ctx.strokeStyle = '#7a4a00'; ctx.lineWidth = 3; ctx.shadowColor = '#ffd400'; ctx.shadowBlur = 20;
+    ctx.beginPath(); ctx.moveTo(-48, 16); ctx.lineTo(-48, -14); ctx.lineTo(-24, 4); ctx.lineTo(0, -22); ctx.lineTo(24, 4); ctx.lineTo(48, -14); ctx.lineTo(48, 16); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+    outlined(ctx, bd.name, W / 2, 660, 84, '#ffd400', col);
+    outlined(ctx, '「' + bd.title + '」', W / 2, 722, 30, '#ffffff');
+    // 난이도
+    chip(W / 2 - 400, 760, 380, 84, 'EASY · 이지', !hard, '#39c46a', function () { G.bossDiff = 'easy'; });
+    chip(W / 2 + 20, 760, 380, 84, 'HARD · 하드', hard, '#ff2b3b', function () { G.bossDiff = 'hard'; });
+    outlined(ctx, hard ? '더 많이 구르고 더 많이 뿌림 · 이전 페이즈 스킬도 섞어 씀 · 노광석의 힘 등장' : '이지 보너스: 도전자 시너지 하나당 공격력 +' + Math.round(c.synergyBonus.damage * 100) + '% · 체력 +' + Math.round(c.synergyBonus.hp * 100) + '%', W / 2, 872, 24, hard ? '#ff8a8a' : '#a8f0b8');
+    // 설명 (스크롤)
+    var top = 900, bot = 1660, maxS = Math.max(0, (G.lobbyEnd || 0) - bot + 30);
+    G.dexScroll = Math.max(0, Math.min(maxS, G.dexScroll || 0));
+    ctx.save(); ctx.beginPath(); ctx.rect(0, top, W, bot - top); ctx.clip(); ctx.translate(0, -G.dexScroll);
+    var y = top + 20, x = 60, w = W - 120;
+    ctx.fillStyle = 'rgba(20,6,10,0.85)'; Battle.roundRect(ctx, 30, top + 4, W - 60, (G.lobbyEnd || bot) - top, 24); ctx.fill();
+    ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.stroke();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.font = '500 25px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff';
+    y = wrap(bd.intro, x, y + 30, w, 36) + 6;
+    function head(t, cc) { ctx.font = '700 30px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.fillStyle = cc; ctx.fillText(t, x, y + 26); ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(x, y + 38, w, 2); y += 62; }
+    function item(name, desc, tagTxt, tagCol) {
+      ctx.font = '700 27px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff'; ctx.fillText(name, x + 10, y);
+      if (tagTxt) {
+        var tx = x + 22 + ctx.measureText(name).width; ctx.font = '700 18px "Malgun Gothic",sans-serif';
+        var tw = ctx.measureText(tagTxt).width + 18; ctx.fillStyle = tagCol; Battle.roundRect(ctx, tx, y - 22, tw, 28, 14); ctx.fill();
+        ctx.fillStyle = '#111'; ctx.fillText(tagTxt, tx + 9, y - 2);
+      }
+      ctx.font = '500 23px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#d8c8c0';
+      y = wrap(desc, x + 30, y + 34, w - 30, 32) + 10;
+    }
+    head('패시브', '#ffd400');
+    bd.info.passives.forEach(function (p) { item(p.name, p.desc(c), '패시브', '#c6ff00'); });
+    [1, 2, 3].forEach(function (ph) {
+      head('페이즈 ' + ['Ⅰ', 'Ⅱ', 'Ⅲ'][ph - 1] + (ph === 1 ? ' (체력 100~66%)' : ph === 2 ? ' (66~33%)' : ' (33% 이하)'), [c.color, c.phase2Color, c.phase3Color][ph - 1]);
+      bd.info.skills.filter(function (q) { return q.phase === ph; }).forEach(function (q) { item(q.name, q.desc(c), null); });
+    });
+    var hc = bossConfig(G.bossId, 'hard', 4);
+    head('하드 전용', '#ff7ad9');
+    item(bd.info.hard.name, bd.info.hard.desc(hc), 'HARD', '#ff2b3b');
+    G.lobbyEnd = y + 10 + G.dexScroll * 0;
+    ctx.restore();
+    if (maxS > 0) {
+      var th = (bot - top) * (bot - top) / (bot - top + maxS), sy = top + (bot - top - th) * G.dexScroll / maxS;
+      ctx.fillStyle = 'rgba(255,255,255,0.12)'; Battle.roundRect(ctx, W - 22, top, 10, bot - top, 5); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.6)'; Battle.roundRect(ctx, W - 22, sy, 10, th, 5); ctx.fill();
+      if (G.dexScroll < maxS - 5) outlined(ctx, '▼ 스크롤해서 스킬 보기', W / 2, bot - 8, 22, 'rgba(255,255,255,0.75)');
+    }
+    button(40, 1700, 260, 120, '◀ 처음으로', function () { go('title'); }, { size: 36, color: '#555577', color2: '#333355' });
+    button(330, 1690, 710, 140, '도전자 고르기 ▶', function () { G.mode = 'boss'; G.swapSel = null; go('select'); }, { size: 54, color: hard ? '#ff2b3b' : '#ffd400', color2: '#ff2b6a' });
+    hint();
+  }
+
   // ---------- 캐릭터 상세 (설명창 · 도감 공용) ----------
   function txt(d) { return typeof d === 'function' ? d() : d; }
   function section(label, x, y, w, color) {
@@ -816,8 +914,10 @@
     }
     ctx.save(); ctx.translate(FX.ox, FX.oy);
     bt.draw(ctx, G.time);
+    bt.viewBegin(ctx);   // 전투 파티클·숫자도 같은 배율로
     FX.drawWorld(ctx);
     FX.drawNums(ctx);
+    bt.viewEnd(ctx);
     ctx.restore();
     bt.drawHUD(ctx, G.time);
 
@@ -999,6 +1099,7 @@
     else if (G.scene === 'stats') statsScene(dt);
     else if (G.scene === 'bracket') bracketScene(dt);
     else if (G.scene === 'records') recordsScene(dt);
+    else if (G.scene === 'bossLobby') bossLobbyScene(dt);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

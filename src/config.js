@@ -4,6 +4,7 @@ var CONFIG = {
   W: 1080,
   H: 1920,
   arena: { x: 40, y: 400, w: 1000, h: 1280 },
+  screen: { x: 40, y: 400, w: 1000, h: 1280 },   // 화면에 그리는 경기장 자리 (보스전은 arena가 더 넓고 축소해서 그림)
 
   battle: {
     maxTime: 180,           // 최대 전투 시간(초). 끝나면 체력 비율 높은 쪽 승리
@@ -37,11 +38,12 @@ var CONFIG = {
   speeds: [0.5, 1, 1.5, 2, 3],   // 전투 배속 (전투 화면 버튼 / 숫자키 1~5)
 
   // ---------- 보스전 ----------
-  boss: { playerScale: 0.7 },   // 보스전에서 도전자 크기 배율
+  boss: { viewScale: 0.7 },   // 보스전 화면 배율: 경기장이 1/0.7배 넓어지고 모든 게 0.7배로 보임
   // 보스 수치: 기본값 위에 easy / hard 값을 덮어씀. 체력 = hpPerPlayer x 도전자 수^hpExp (인원 많으면 광역기가 나눠 맞아서)
   bosses: {
     heroBaton: {   // 히어로 바통
-      hpPerPlayer: 180, hpExp: 1.45, speed: 250, radius: 150, color: '#ffd400', phase2Color: '#ff8a00', phase3Color: '#ff2b3b',
+      hpPerPlayer: 180, hpExp: 1.45, speed: 300, radius: 180,   // 넓은 경기장 기준 (화면엔 x0.7: 반지름 약 126)
+      color: '#ffd400', phase2Color: '#ff8a00', phase3Color: '#ff2b3b',
       contactDamage: 6, dmgMult: 1, maxTime: 300,
       izkRage: 1.1,              // 패시브 울분: IZK 소속에게 주는 피해 배율
       phases: [0.66, 0.33],      // 이 체력 비율 이하로 페이즈 2, 3
@@ -53,14 +55,15 @@ var CONFIG = {
       wash: { time: 3.5, heal: 0.15 },                          // 패시브 일단 씻고 오겠습니다: 페이즈 3에서 최대 체력의 heal만큼 회복
       roll: { rolls: 2, speed: 1500, damage: 18, windup: 0.45, aoe: 130, aoeDamage: 8 },
       hot6: { boxes: 2, life: 14, damage: 12, bullets: 10, bulletDamage: 4, bulletSpeed: 520, buffTime: 6, buffSpeed: 1.4, buffAtk: 1.3 },
-      wallet: { coins: 5, speed: 700, heal: 6, stun: 1.5 },     // IZK 소속은 무효
+      wallet: { coins: 5, speed: 700, heal: 6, stun: 1.5, money: 20 },   // 지폐 (IZK 소속은 무효). money: 최휘 잔고에 들어가는 돈
       origin: { passes: 1, speed: 1700, damage: 24, knock: 1500, warn: 0.8, out: 0.7 },
       joke: { count: 5, speed: 600, damage: 8, atkMul: 0.75, time: 6 },   // IZK 소속은 무효
       baccarat: { flip: 1.2, playerRadius: 380, playerDamage: 22, bankerDamage: 45, bankerDelay: 0.75, bankerRadius: 110 },
       song: { at: 0 },           // 하드 전용 노광석의 힘 (0 = 안 씀)
-      easy: { hpPerPlayer: 180, dmgMult: 0.95, cd: 3.4 },
+      synergyBonus: null,        // 도전자 팀 시너지 하나당 도전자 { damage, hp } 상승 (이지 전용)
+      easy: { hpPerPlayer: 195, dmgMult: 1.0, cd: 3.3, synergyBonus: { damage: 0.3, hp: 0.25 } },
       hard: {
-        hpPerPlayer: 125, dmgMult: 0.85, cd: 3.4, contactDamage: 7, cumulative: true,
+        hpPerPlayer: 145, dmgMult: 0.95, cd: 3.25, contactDamage: 8, cumulative: true,
         scream: { damage: 20 }, wash: { heal: 0.25 },
         roll: { rolls: 3 }, hot6: { boxes: 3, bullets: 12 }, wallet: { coins: 8, stun: 2 },
         origin: { passes: 2 }, joke: { count: 8, atkMul: 0.65 }, baccarat: { bankerDamage: 55 },

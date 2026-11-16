@@ -77,12 +77,27 @@ var Battle = (function () {
         var boss = new Ball(bdef, 0, 0);
         boss.isBoss = true; boss.dmgMult = bdef.cfgOverride.dmgMult || 1;
         this.boss = boss;
-        this.balls.forEach(function (b) { b.r *= CONFIG.boss.playerScale; });   // 보스전에선 도전자들이 작아짐
+        // 보스전은 경기장을 1/viewScale배 넓게 만들고 화면엔 viewScale배로 축소해서 그림
+        // → 캐릭터 크기·이동속도·스킬 범위·이펙트가 모두 같은 비율로 작아 보여서 맵이 넓어진 느낌
+        var S = CONFIG.arena, k = CONFIG.boss.viewScale;
+        this.viewK = k; this.arena = { x: S.x, y: S.y, w: S.w / k, h: S.h / k };
         this.balls.unshift(boss);
         this.balls.forEach(function (b, i) { b.id = i; });
         this.maxTime = bdef.cfgOverride.maxTime;
       }
       if (this.mode === 'team') this.applySynergies();
+      // 보스전 시너지 보너스 (이지): 도전자 팀에 켜진 시너지 하나당 도전자 전원 공격력·체력 상승
+      var sb = this.boss && this.boss.cfg.synergyBonus;
+      if (sb) {
+        var on = this.synergies.filter(function (s) { return s.team === 1 && !s.off; }).length;
+        if (on) this.balls.forEach(function (b) {
+          if (b.isBoss) return;
+          b.dmgMult *= Math.pow(1 + sb.damage, on);
+          b.maxHp *= Math.pow(1 + sb.hp, on); b.hp = b.hpShown = b.maxHp;
+        });
+        this.synergyBonus = on;
+      }
+      var saved = CONFIG.arena; if (this.arena) CONFIG.arena = this.arena;
       this.place();
       if (this.boss) { var A0 = CONFIG.arena; this.boss.x = A0.x + A0.w / 2; this.boss.y = A0.y + A0.h * 0.32; }
       this.balls.forEach(function (b) {
@@ -90,6 +105,7 @@ var Battle = (function () {
         b.vx = Math.cos(va) * b.speed; b.vy = Math.sin(va) * b.speed;
         if (b.def.init) b.def.init(self, b);
       });
+      CONFIG.arena = saved;
     }
 
     // 팀원끼리 붙도록 팀 순서대로 원 위에 배치, 많으면 랜덤 배치
@@ -309,7 +325,17 @@ var Battle = (function () {
     }
 
     // ---------- 업데이트 ----------
-    update(dt) {
+    // 보스전처럼 이 전투만의 경기장(this.arena)이 있으면 그 동안만 CONFIG.arena를 바꿔 끼움
+    withArena(fn) {
+      if (!this.arena) return fn.call(this);
+      var saved = CONFIG.arena; CONFIG.arena = this.arena;
+      try { return fn.call(this); } finally { CONFIG.arena = saved; }
+    }
+    // 화면 경기장 왼쪽 위를 기준으로 viewK배 축소 (월드 좌표로 그리는 것들 앞뒤로)
+    viewBegin(ctx) { if (!this.viewK) return; var A = CONFIG.screen; ctx.save(); ctx.translate(A.x, A.y); ctx.scale(this.viewK, this.viewK); ctx.translate(-A.x, -A.y); }
+    viewEnd(ctx) { if (this.viewK) ctx.restore(); }
+    update(dt) { return this.withArena(function () { return this._update(dt); }); }
+    _update(dt) {
       if (this.hitstop > 0) { this.hitstop -= dt; return; }
       if (this.freeze > 0) {
         this.freeze -= dt;
@@ -491,7 +517,8 @@ var Battle = (function () {
     }
 
     // ---------- 그리기 ----------
-    draw(ctx, time) {
+    draw(ctx, time) { this.viewBegin(ctx); this.withArena(function () { this._draw(ctx, time); }); this.viewEnd(ctx); }
+    _draw(ctx, time) {
       var A = CONFIG.arena, self = this;
       // 경기장
       ctx.save();
@@ -550,13 +577,14 @@ var Battle = (function () {
 
     drawDark(ctx) {
       var A = CONFIG.arena;
-      if (!this.darkCanvas) {
+      var cw = Math.max(CONFIG.W, A.x + A.w + 40), chh = Math.max(CONFIG.H, A.y + A.h + 40);   // 넓은 경기장(보스전)도 덮게
+      if (!this.darkCanvas || this.darkCanvas.width !== cw || this.darkCanvas.height !== chh) {
         this.darkCanvas = document.createElement('canvas');
-        this.darkCanvas.width = CONFIG.W; this.darkCanvas.height = CONFIG.H;
+        this.darkCanvas.width = cw; this.darkCanvas.height = chh;
       }
       var dc = this.darkCanvas.getContext('2d');
       dc.globalCompositeOperation = 'source-over';
-      dc.clearRect(0, 0, CONFIG.W, CONFIG.H);
+      dc.clearRect(0, 0, cw, chh);
       dc.fillStyle = 'rgba(2,0,8,' + this.dark + ')';
       dc.fillRect(A.x - 20, A.y - 20, A.w + 40, A.h + 40);
       dc.globalCompositeOperation = 'destination-out';

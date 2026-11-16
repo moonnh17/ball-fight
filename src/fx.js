@@ -53,7 +53,7 @@ var FX = (function () {
     o = o || {};
     if (fx.banners.length >= 3) fx.banners.shift();
     fx.banners.push({ text: text, sub: o.sub || '', color: o.color || '#fff', size: o.size || 120,
-      life: o.life || 1.3, max: o.life || 1.3, y: o.y || CONFIG.arena.y + CONFIG.arena.h * 0.4 });
+      life: o.life || 1.3, max: o.life || 1.3, y: o.y || CONFIG.screen.y + CONFIG.screen.h * 0.4 });
   };
 
   fx.flash = function (color, alpha, life) {

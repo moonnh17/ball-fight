@@ -1126,14 +1126,21 @@ test('스킬 쿨타임 배율(cdRate)이 쿨타임 도는 속도를 바꿈', () 
   CONFIG.battle.contactDamage = 5;
 });
 // ---------- 보스전 ----------
-test('보스전: 보스 혼자 0팀, 도전자는 작아짐, 체력은 인원·난이도에 따라', () => {
+test('보스전: 보스 혼자 0팀, 경기장이 넓어지고(화면은 축소), 체력은 인원·난이도에 따라', () => {
   const C = CONFIG.bosses.heroBaton;
   const e = new Battle(['ibi', 'gym', 'ch'], 'boss', { boss: 'heroBaton', difficulty: 'easy' });
   const h = new Battle(['ibi', 'gym', 'ch'], 'boss', { boss: 'heroBaton', difficulty: 'hard' });
   assert(e.boss && e.balls[0] === e.boss && e.boss.team === 0 && e.balls.slice(1).every(b => b.team === 1));
   assert.strictEqual(e.boss.r, C.radius);
-  assert(Math.abs(e.balls[1].r - CONFIG.chars.ibi.radius * CONFIG.boss.playerScale) < 1e-9, 'players smaller');
+  const k = CONFIG.boss.viewScale;
+  assert(Math.abs(e.arena.w - CONFIG.arena.w / k) < 1e-9 && e.viewK === k, 'wide arena');
+  assert.strictEqual(e.balls[1].r, CONFIG.chars.ibi.radius, 'players keep their size in the wide arena');
+  assert.strictEqual(CONFIG.arena.w, CONFIG.screen.w, 'global arena restored after construction');
+  e.update(DT); assert.strictEqual(CONFIG.arena.w, CONFIG.screen.w, 'global arena restored after update');
   assert.strictEqual(e.boss.maxHp, Math.round(C.easy.hpPerPlayer * Math.pow(3, C.hpExp)));
+  const syn = new Battle(['ibi', 'samsik', 'ch', 'hxpwm'], 'boss', { boss: 'heroBaton', difficulty: 'easy' });
+  assert(syn.synergies.some(s => s.key === 'izk' && s.team === 1), '보스전에도 시너지');
+  assert(Math.abs(syn.balls[1].dmgMult - CONFIG.synergy.izk.damage * (1 + C.easy.synergyBonus.damage)) < 1e-9, '이지 시너지 보너스');
   assert.strictEqual(h.boss.cfg.roll.rolls, C.hard.roll.rolls); assert.strictEqual(e.boss.cfg.roll.rolls, C.roll.rolls);
   assert(h.boss.cfg.song.at > 0 && !(e.boss.cfg.song.at > 0), '노광석의 힘은 하드 전용');
 });
@@ -1158,7 +1165,7 @@ test('히어로 바통: 지갑·자학개그는 IZK에게 무효, 아니면 스�
   const bt = new Battle(['ibi', 'gym'], 'boss', { boss: 'heroBaton', difficulty: 'easy' });
   const [b, ibi, gym] = bt.balls;
   [ibi, gym].forEach(o => { o.hp = o.maxHp - 20; o.speed = 0; o.vx = o.vy = 0; });
-  const shoot = (Cls, cfg, tgt) => { const s = bt.add(new Cls(bt, b, 0, cfg)); s.x = tgt.x; s.y = tgt.y; s.update(DT); };
+  const shoot = (Cls, cfg, tgt) => bt.withArena(() => { const s = bt.add(new Cls(bt, b, 0, cfg)); s.x = tgt.x; s.y = tgt.y; s.update(DT); });   // 보스전 넓은 경기장 기준
   shoot(Ents.CoinShot, b.cfg.wallet, ibi); shoot(Ents.CoinShot, b.cfg.wallet, gym);
   assert.strictEqual(ibi.status.stun, 0, 'IZK should ignore wallet');
   assert(gym.status.stun > 0 && gym.hp > gym.maxHp - 20, 'wallet heals and stuns');
@@ -1166,6 +1173,20 @@ test('히어로 바통: 지갑·자학개그는 IZK에게 무효, 아니면 스�
   assert.strictEqual(ibi.status.atk, 0); assert(gym.status.atk > 0 && gym.status.atkMul < 1);
   gym.status.stun = 0; const before = bt.damage(b, 10, gym);   // 같은 팀끼리는 피해가 없으니 보스에게
   assert(Math.abs(before - 10 * gym.status.atkMul) < 1e-9, 'atk debuff applies');
+});
+test('히어로 바통: 지폐 맞은 최휘는 잔고 증가, 뱅커 번개는 움직여도 따라가서 맞음', () => {
+  const bt = new Battle(['hau', 'gym'], 'boss', { boss: 'heroBaton', difficulty: 'easy' });
+  const [b, hau, gym] = bt.balls;
+  hau.data.bal = 30;
+  bt.withArena(() => { const s = bt.add(new Ents.CoinShot(bt, b, 0, b.cfg.wallet)); s.x = hau.x; s.y = hau.y; s.update(DT); });
+  assert.strictEqual(hau.data.bal, 30 + b.cfg.wallet.money, 'deposit');
+  // 뱅커: 대상이 멀리 움직여도 맞음
+  gym.hp = gym.maxHp = 1e6; hau.hp = hau.maxHp = 1e6;
+  b.action = ctx.BATON_SKILLS.baccarat(bt, b, 'B');
+  for (let i = 0; i < 60 * 2.5; i++) { gym.x += 6; hau.x += 6; bt.update(DT); }
+  const hit = bt.log.find(e => e.type === 'banker');
+  assert(hit, 'banker fired');
+  assert(bt.log.some(e => e.type === 'damage' && e.kind === 'baccaratB' && e.who === hit.who && Math.abs(e.amt - b.cfg.baccarat.bankerDamage * b.dmgMult) < 1e-6), 'tracked target got full damage');
 });
 test('보스전 여러 판: 이지·하드 모두 끝까지, 모든 스킬 사용', () => {
   const ids = Object.keys(CHARACTERS), seen = new Set();
