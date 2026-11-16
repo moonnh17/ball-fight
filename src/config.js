@@ -51,7 +51,7 @@ var CONFIG = {
       window: 170, smokeTime: 3, smokeCd: 6, smokeTaken: 2,   // 금연구역 창문: 닿으면 흡연(행동불능), 그동안 받는 피해 2배
       punk: 0.3, rentEvery: 10, rent: 5, rentCap: 20,         // 조하람 전용: 긴급소집 펑크 확률 / 월세 흡수
       blanket: { every: 9, max: 2, sleepMax: 12 },            // 함정: 수면 (다른 플레이어에게 맞으면 깸, 최대 12초)
-      pizza: { every: 5, max: 4, heal: 20 },
+      pizza: { every: 12, max: 3, heal: 20 },
     },
     jbs: {
       smokeEvery: 1.1, smokeMax: 9, smokeRadius: 150, poisonDps: 6, poisonTime: 1.2, vent: 10, nonSmokerPoison: 2,
@@ -152,7 +152,7 @@ var CONFIG = {
     ch: {
       hp: 180, speed: 460, radius: 70, color: '#39ff88', phase2Color: '#ff8a00',
       // 1스킬 배앰: 무작위로 돌아다니는 뱀(개수 제한 없음). 적에게 닿으면 데미지를 주고 사라짐
-      snake: { cd: 2.8, damage: 10, femaleMultiplier: 2, speed: 260, turn: 2.5, segments: 14 },
+      snake: { cd: 2.8, max: 10, damage: 10, femaleMultiplier: 2, speed: 260, turn: 2.5, segments: 14 },
       // 2스킬 텐트치기(패시브): 몸에서 솟은 부위가 회전하며 닿는 적에게 데미지, 뱀에 닿으면 길어지고 빨라짐
       tent: { length: 60, width: 22, damage: 12, hitCooldown: 0.6, spin: 3.0,
               growLength: 25, growSpin: 0.7, maxLength: 230, maxSpin: 9, snakeCooldown: 1.2 },
@@ -187,6 +187,7 @@ var CONFIG = {
       contactDamage: 9,    // 몸통 박치기 데미지 (기본 5 대신)
       antiUninvited: 2,    // 캐릭터 패시브: 초대받지 못한 손님에게 주는 피해 배율 (개인전에선 유재후)
       snakeTaken: 0.5,     // 페이즈 2에서 조우연의 뱀에게 받는 피해 배율
+      vitaminTaken: 0.5,   // 단백질 먹방: 포식자 비타민에게 받는 피해 배율
       // 1스킬 벌크업(패시브): 아령. 본인: 최대체력+hp, 체력 heal 회복, 공격력 x atk, 크기 x size(최대 maxRadius) / 적: slowTime초 이동속도 x slowMul
       dumbbell: { interval: 5, max: 2, hp: 14, heal: 8, atk: 1.1, size: 1.06, maxRadius: 115, slowTime: 3, slowMul: 0.5 },
       // 2스킬 단백질 먹방(패시브): 프로틴. 본인: heal 회복 + hasteTime초 이동속도 x hasteMul / 다른 사람: otherHeal 회복

@@ -10,8 +10,8 @@ var MAPS = {
       '산내: 조하람 펑크(긴급소집 30% 취소) · 월세머신(10초마다 모두에게서 체력 5 흡수)',
       '산내 아이템: 담요(함정, 수면) · 피자 오브 레전드(체력 +20)',
       '정발산: 담배 연기 독 지대(10초마다 환기) · 비흡연자는 독 피해 2배',
-      '정발산: 오른쪽 1/3이 2층으로 10초마다 분리/통합',
-      '정발산 아이템: 의자(1층, 투척 20 · 김선율 30) · 핫식스 더 킹(2층, 회복 / 10% 소주)',
+      '정발산: 아래쪽 1/3 다락방(2층)이 가로 벽으로 10초마다 분리/통합',
+      '정발산 아이템: 의자(1층, 투척 20 · 김선율 30) · 핫식스 더 킹(다락방, 회복 / 10% 소주, 개방되면 사라짐)',
     ],
   },
   mind: {
@@ -78,13 +78,13 @@ class MapRun {
     var A = this.bt.arena, c = CONFIG.maps.sannae;
     return { x: A.x + A.w * (1 - c.notchW), y: A.y, w: A.w * c.notchW, h: A.w * c.notchH };
   }
-  divX() { var A = this.bt.arena; return A.x + A.w * 2 / 3; }
-  floorOf(b) { return b.x > this.divX() ? 2 : 1; }
+  divY() { var A = this.bt.arena; return A.y + A.h * 2 / 3; }   // 아래쪽 1/3이 2층(다락방)
+  floorOf(b) { return b.y > this.divY() ? 2 : 1; }
   // 아이템 자리: region 'all' | 'f1'(1층) | 'f2'(2층)
   spawnPoint(region) {
-    var A = this.target(), bt = this.bt, m = 70, x0 = A.x + m, x1 = A.x + A.w - m, p, self = this;
-    if (region === 'f1') x1 = A.x + A.w * 2 / 3 - 60;
-    if (region === 'f2') x0 = A.x + A.w * 2 / 3 + 60;
+    var A = this.target(), bt = this.bt, m = 70, y0 = A.y + m, y1 = A.y + A.h - m, p, self = this;
+    if (region === 'f1') y1 = A.y + A.h * 2 / 3 - 60;
+    if (region === 'f2') y0 = A.y + A.h * 2 / 3 + 60;
     var c = CONFIG.maps.sannae, k = A.w / 1000;
     function bad(p) {
       if (self.sub === 'sannae') {
@@ -93,7 +93,7 @@ class MapRun {
       }
       return bt.balls.some(function (o) { return o.alive && Math.hypot(o.x - p.x, o.y - p.y) < o.r + 90; });
     }
-    for (var i = 0; i < 15; i++) { p = { x: _rnd(x0, x1), y: _rnd(A.y + m, A.y + A.h - m) }; if (!bad(p)) break; }
+    for (var i = 0; i < 15; i++) { p = { x: _rnd(A.x + m, A.x + A.w - m), y: _rnd(y0, y1) }; if (!bad(p)) break; }
     return p;
   }
   items(kind) { return this.bt.ents.filter(function (e) { return e instanceof MapItem && !e.dead && (!kind || e.kind === kind); }); }
@@ -177,7 +177,11 @@ class MapRun {
     // 2층 분리 / 통합
     if (this.every('split', c.split, dt)) {
       this.split = !this.split;
-      FX.text(this.divX(), A.y + A.h / 2, this.split ? '2층 분리!' : '2층 개방!', this.split ? '#ff8c42' : '#7dd3ff', 56, 1.2);
+      FX.text(A.x + A.w / 2, this.divY() - 50, this.split ? '다락방 분리!' : '다락방 개방!', this.split ? '#ff8c42' : '#7dd3ff', 56, 1.2);
+      if (!this.split) this.items().forEach(function (e) {   // 2층이 사라지면 2층 아이템도 사라짐
+        if (e.kind !== 'king' && e.kind !== 'soju') return;
+        e.dead = true; FX.burst(e.x, e.y, '#d9b98a', 14, 400, 8, 0.5, 'smoke');
+      });
       FX.sfx(this.split ? 'slam' : 'vanish'); FX.shake(this.split ? 12 : 4);
       bt.emit('split', { closed: this.split });
     }
@@ -220,7 +224,7 @@ class MapRun {
       }
     });
     if (this.every('chair', c.chair.every, dt) && this.items('chair').length < c.chair.max) this.addItem('chair', 'f1');
-    if (this.every('king', c.king.every, dt) && this.items('king').length + this.items('soju').length < c.king.max)
+    if (this.every('king', c.king.every, dt) && this.split && this.items('king').length + this.items('soju').length < c.king.max)
       this.addItem(Math.random() < c.king.soju ? 'soju' : 'king', 'f2');
   }
 
@@ -285,9 +289,9 @@ class MapRun {
     var hit = false;
     if (this.sub === 'sannae') hit = _pushRect(b, this.notch());
     if (this.sub === 'jbs' && this.split) {
-      var dx = this.divX(), h = 14;
-      if (b.x < dx) { if (b.x + b.r > dx - h) { b.x = dx - h - b.r; b.vx = -Math.abs(b.vx); hit = true; } }
-      else if (b.x - b.r < dx + h) { b.x = dx + h + b.r; b.vx = Math.abs(b.vx); hit = true; }
+      var dy = this.divY(), h = 14;
+      if (b.y < dy) { if (b.y + b.r > dy - h) { b.y = dy - h - b.r; b.vy = -Math.abs(b.vy); hit = true; } }
+      else if (b.y - b.r < dy + h) { b.y = dy + h + b.r; b.vy = Math.abs(b.vy); hit = true; }
     }
     return hit;
   }
@@ -307,7 +311,7 @@ class MapRun {
       ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(n.x, n.y + n.h); ctx.lineTo(n.x + n.w, n.y + n.h); ctx.stroke(); ctx.restore();
       drawWindow(ctx, A.x + A.w, A.y + A.h, c.window * k, time);
     }
-    if (this.sub === 'jbs') drawDivider(ctx, A, this.divX(), this.splitK, time);
+    if (this.sub === 'jbs') drawDivider(ctx, A, this.divY(), this.splitK, time);
     if (this.flash > 0) { ctx.save(); ctx.globalAlpha = Math.min(1, this.flash) * 0.35; ctx.fillStyle = SUB_MAPS[this.sub].color; ctx.fillRect(A.x, A.y, A.w, A.h); ctx.restore(); }
   }
   drawTop(ctx, time) {
@@ -389,26 +393,47 @@ var MAP_FLOORS = {
     _logo(ctx, A, '산내', '#ff9a3c', 0.07);
     ctx.restore();
   },
-  // 정발산: 콘크리트 1층 + 오른쪽 1/3 파란 카펫 2층
+  // 정발산: 콘크리트 1층 + 아래쪽 1/3 다락방 2층 (세로 마룻널 · 서까래 그림자 · 상자 · 백열등 · 먼지)
   jbs: function (ctx, A, t, run) {
-    var k = A.w / 1000, dx = A.x + A.w * 2 / 3;
+    var k = A.w / 1000, dy = A.y + A.h * 2 / 3, ah = A.y + A.h - dy, on = run ? 0.55 + 0.45 * run.splitK : 1;
     ctx.save(); ctx.beginPath(); ctx.rect(A.x, A.y, A.w, A.h); ctx.clip();
-    ctx.fillStyle = '#1a1c22'; ctx.fillRect(A.x, A.y, A.w, A.h);
+    ctx.fillStyle = '#1a1c22'; ctx.fillRect(A.x, A.y, A.w, dy - A.y);
     ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 2;
     ctx.beginPath();
-    for (var x = A.x; x < dx; x += 100 * k) { ctx.moveTo(x, A.y); ctx.lineTo(x, A.y + A.h); }
-    for (var y = A.y; y < A.y + A.h; y += 100 * k) { ctx.moveTo(A.x, y); ctx.lineTo(dx, y); }
+    for (var x = A.x; x < A.x + A.w; x += 100 * k) { ctx.moveTo(x, A.y); ctx.lineTo(x, dy); }
+    for (var y = A.y; y < dy; y += 100 * k) { ctx.moveTo(A.x, y); ctx.lineTo(A.x + A.w, y); }
     ctx.stroke();
     ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    [[0.2, 0.3, 60], [0.45, 0.72, 90], [0.12, 0.85, 50]].forEach(function (q) { ctx.beginPath(); ctx.ellipse(A.x + A.w * q[0], A.y + A.h * q[1], q[2] * k, q[2] * 0.6 * k, 0.4, 0, Math.PI * 2); ctx.fill(); });
-    ctx.fillStyle = '#1c2436'; ctx.fillRect(dx, A.y, A.x + A.w - dx, A.h);
-    ctx.strokeStyle = 'rgba(120,160,255,0.08)'; ctx.lineWidth = 3;
-    ctx.beginPath();
-    for (var s = -A.h; s < A.w / 3; s += 40 * k) { ctx.moveTo(dx + s, A.y); ctx.lineTo(dx + s + A.h, A.y + A.h); }
-    ctx.stroke();
+    [[0.2, 0.2, 60], [0.7, 0.45, 90], [0.4, 0.55, 50]].forEach(function (q) { ctx.beginPath(); ctx.ellipse(A.x + A.w * q[0], A.y + A.h * q[1], q[2] * k, q[2] * 0.6 * k, 0.4, 0, Math.PI * 2); ctx.fill(); });
     ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.font = '700 ' + Math.round(110 * k) + 'px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('2F', (dx + A.x + A.w) / 2, A.y + A.h * 0.5); ctx.fillText('1F', A.x + A.w / 3, A.y + A.h * 0.5);
-    _logo(ctx, { x: A.x, y: A.y + A.h * 0.3, w: A.w * 2 / 3, h: A.h * 0.1 }, '정발산', '#e8e8ff', 0.06);
+    ctx.fillText('1F', A.x + A.w / 2, A.y + (dy - A.y) * 0.62);
+    _logo(ctx, { x: A.x, y: A.y + (dy - A.y) * 0.3, w: A.w, h: 10 }, '정발산', '#e8e8ff', 0.06);
+    // 다락방 (열려 있을 땐 조금 어둡게)
+    ctx.save(); ctx.globalAlpha = on;
+    ctx.fillStyle = '#2b1c12'; ctx.fillRect(A.x, dy, A.w, ah);
+    var pw = 46 * k;
+    for (var px = 0, j = 0; px < A.w; px += pw, j++) {
+      ctx.fillStyle = j % 2 ? '#33221a' : '#2a1b11'; ctx.fillRect(A.x + px, dy, pw, ah);
+      ctx.fillStyle = '#160d07'; ctx.fillRect(A.x + px, dy, 2 * k, ah);
+      ctx.fillRect(A.x + px, dy + ((j * 97) % 200) * k, pw, 2 * k);
+    }
+    ctx.fillStyle = 'rgba(15,8,4,0.7)';   // 서까래 그림자 (기울어진 지붕)
+    for (var bx = 0; bx < A.w + ah; bx += 210 * k) { ctx.beginPath(); ctx.moveTo(A.x + bx, dy); ctx.lineTo(A.x + bx + 34 * k, dy); ctx.lineTo(A.x + bx + 34 * k - ah * 0.5, A.y + A.h); ctx.lineTo(A.x + bx - ah * 0.5, A.y + A.h); ctx.fill(); }
+    function box(x, y, w, h) {
+      ctx.fillStyle = '#7a5a36'; ctx.fillRect(x, y, w, h); ctx.strokeStyle = '#3a2814'; ctx.lineWidth = 3 * k; ctx.strokeRect(x, y, w, h);
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y + h); ctx.moveTo(x + w, y); ctx.lineTo(x, y + h); ctx.stroke();
+    }
+    box(A.x + 18 * k, A.y + A.h - 92 * k, 74 * k, 74 * k); box(A.x + 62 * k, A.y + A.h - 140 * k, 52 * k, 52 * k);
+    box(A.x + A.w - 100 * k, A.y + A.h - 86 * k, 82 * k, 68 * k);
+    var lx = A.x + A.w * 0.5, ly = dy + ah * 0.5, g = ctx.createRadialGradient(lx, ly, 0, lx, ly, A.w * 0.45);
+    g.addColorStop(0, 'rgba(255,200,120,' + (0.2 + Math.sin(t * 3) * 0.02) + ')'); g.addColorStop(1, 'rgba(255,170,80,0)');
+    ctx.fillStyle = g; ctx.fillRect(A.x, dy, A.w, ah);
+    ctx.fillStyle = '#ffd890'; ctx.beginPath(); ctx.arc(lx, ly, 9 * k, 0, Math.PI * 2); ctx.fill();   // 전구
+    ctx.fillStyle = 'rgba(255,230,190,0.35)';
+    for (var i = 0; i < 14; i++) { var mx = A.x + ((i * 173 + t * 12 * (i % 3 + 1)) % A.w), my = dy + ((((i * 89 + Math.sin(t + i) * 20) % ah) + ah) % ah); ctx.fillRect(mx, my, 3 * k, 3 * k); }
+    ctx.fillStyle = 'rgba(255,220,170,0.1)'; ctx.font = '700 ' + Math.round(90 * k) + 'px "Do Hyeon","Malgun Gothic",sans-serif';
+    ctx.fillText('2F 다락방', A.x + A.w / 2, dy + ah * 0.5);
+    ctx.restore();
     ctx.restore();
   },
   // 마인드: 어두운 무대 + 스포트라이트 + 촬영 화면 테두리
@@ -462,24 +487,24 @@ function drawWindow(ctx, cx, cy, R, time) {
   ctx.fillText('🚭', -L * 0.55, -L * 0.55);
   ctx.restore();
 }
-// 정발산 2층 칸막이: 닫히면 벽, 열리면 점선 + 문틀
-function drawDivider(ctx, A, dx, k, time) {
+// 정발산 다락방 칸막이: 닫히면 가로 벽(양옆에서 닫혀 들어옴), 열리면 점선
+function drawDivider(ctx, A, dy, k, time) {
   ctx.save();
   if (k < 0.99) {
-    ctx.setLineDash([18, 14]); ctx.lineDashOffset = -time * 30; ctx.strokeStyle = 'rgba(200,220,255,0.35)'; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(dx, A.y); ctx.lineTo(dx, A.y + A.h); ctx.stroke(); ctx.setLineDash([]);
+    ctx.setLineDash([18, 14]); ctx.lineDashOffset = -time * 30; ctx.strokeStyle = 'rgba(255,220,170,0.35)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(A.x, dy); ctx.lineTo(A.x + A.w, dy); ctx.stroke(); ctx.setLineDash([]);
   }
   if (k > 0.01) {
-    var half = A.h / 2 * k;   // 위아래에서 닫혀 들어옴
-    [[A.y, A.y + half], [A.y + A.h - half, A.y + A.h]].forEach(function (s) {
-      ctx.fillStyle = '#3a3f4c'; ctx.fillRect(dx - 14, s[0], 28, s[1] - s[0]);
-      ctx.save(); ctx.beginPath(); ctx.rect(dx - 14, s[0], 28, s[1] - s[0]); ctx.clip();
+    var half = A.w / 2 * k;
+    [[A.x, A.x + half], [A.x + A.w - half, A.x + A.w]].forEach(function (s) {
+      ctx.fillStyle = '#4a3624'; ctx.fillRect(s[0], dy - 14, s[1] - s[0], 28);
+      ctx.save(); ctx.beginPath(); ctx.rect(s[0], dy - 14, s[1] - s[0], 28); ctx.clip();
       ctx.fillStyle = '#ffb000';
-      for (var y = s[0] - 40; y < s[1]; y += 40) { ctx.beginPath(); ctx.moveTo(dx - 14, y); ctx.lineTo(dx + 14, y + 20); ctx.lineTo(dx + 14, y + 32); ctx.lineTo(dx - 14, y + 12); ctx.fill(); }
+      for (var x = s[0] - 40; x < s[1]; x += 40) { ctx.beginPath(); ctx.moveTo(x, dy + 14); ctx.lineTo(x + 20, dy - 14); ctx.lineTo(x + 32, dy - 14); ctx.lineTo(x + 12, dy + 14); ctx.fill(); }
       ctx.restore();
     });
     ctx.shadowColor = '#ff8c42'; ctx.shadowBlur = 18; ctx.strokeStyle = 'rgba(255,140,66,' + k + ')'; ctx.lineWidth = 3;
-    ctx.strokeRect(dx - 14, A.y, 28, half); ctx.strokeRect(dx - 14, A.y + A.h - half, 28, half);
+    ctx.strokeRect(A.x, dy - 14, half, 28); ctx.strokeRect(A.x + A.w - half, dy - 14, half, 28);
   }
   ctx.restore();
 }

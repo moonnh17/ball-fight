@@ -267,6 +267,7 @@ var Battle = (function () {
       if (src && !o.noMult && src.synDecay) amt *= 1 + src.synDecay.amt * Math.max(0, 1 - this.time / src.synDecay.time);   // 정발산: 점점 줄어듦
       if (src && src.def.dealMult) amt *= src.def.dealMult(this, src, t, amt, o);   // amt: 지금까지 계산된 피해, o.kind로 박치기 구분
       amt *= this.guardMult(t);   // 보호막 (삼식이 하양)
+      if (t.def.kindTaken) amt *= t.def.kindTaken(t, o.kind);   // 공격 종류별 받는 피해 (진형권 비타민 반감)
       if (this.map) { amt *= this.map.taken(t, src, o); if (amt <= 0) return 0; }
       if (t.def.onHurt) t.def.onHurt(this, t, amt, src, o);   // 받은 피해 기록 (차승민 강펀치)
       var real = Math.min(amt, t.hp);   // 오버킬 제외한 실제 피해

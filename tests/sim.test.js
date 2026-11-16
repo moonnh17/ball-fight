@@ -999,9 +999,9 @@ test('포식자: 박치기 8.8 고정, 스킬은 여성 보너스 없음, 벽·�
   g3.x += 200; sh.update(DT);
   assert(Math.hypot(sh.x - g3.x, sh.y - g3.y) <= g3.r + 1, 'shell did not move with enemy');
   const hp3 = g3.hp; sh.t = P.vitamin.fuse; sh.update(DT);
-  assert(Math.abs(hp3 - g3.hp - P.vitamin.stickDamage) < 1e-9, 'stuck splash damage');
+  assert(Math.abs(hp3 - g3.hp - P.vitamin.stickDamage * CONFIG.chars.gym.vitaminTaken) < 1e-9, 'stuck splash damage (진형권은 비타민 반감)');
   for (let k = 0; k < 30; k++) b3.ents.filter(e => e instanceof Ents.VitaminBullet).forEach(e => e.update(DT));
-  assert(Math.abs(hp3 - g3.hp - P.vitamin.stickDamage) < 1e-9, 'bullets hit the host');
+  assert(Math.abs(hp3 - g3.hp - P.vitamin.stickDamage * CONFIG.chars.gym.vitaminTaken) < 1e-9, 'bullets hit the host');
   // 여성에게 다가가면 +30%
   const b4 = new Battle(['predator', 'chino']);
   const [p4, c4] = b4.balls;
@@ -1379,7 +1379,7 @@ test('맵: 정발산 비흡연자 독 2배 · 2층 분리 중엔 층이 다르�
   const [g, h] = bt.balls; bt.hitstop = 0;
   let hp = h.hp; bt.damage(h, 3, null, { dot: true, kind: 'poison' }); assert(Math.abs(hp - h.hp - 6) < 1e-6, '최휘 독 2배');
   hp = g.hp; bt.damage(g, 3, null, { dot: true, kind: 'poison' }); assert(Math.abs(hp - g.hp - 3) < 1e-6, '진형권 독 1배');
-  const dx = bt.map.divX(); g.x = dx - 200; h.x = dx + 200; bt.map.splitK = 1;
+  const dy = bt.map.divY(); g.y = dy - 150; h.y = dy + 150; bt.map.splitK = 1;
   hp = h.hp; bt.damage(h, 10, g, {}); assert(h.hp === hp, '분리 중 다른 층');
   bt.map.split = false; bt.map.splitK = 0; bt.damage(h, 10, g, {}); assert(h.hp < hp, '통합되면 닿음');
   Ctx_eat('soju', bt, g); hp = g.hp; bt.damage(g, 10, null, {}); assert(Math.abs(hp - g.hp - 10 * M.jbs.king.sojuTaken) < 1e-6, '소주: 받는 피해 감소');
@@ -1389,7 +1389,7 @@ test('맵: 정발산 비흡연자 독 2배 · 2층 분리 중엔 층이 다르�
 test('맵: 정발산 의자 투척 (김선율 30)', () => {
   const bt = new Battle(['sy', 'gym'], 'ffa', { map: 'workroom' });
   bt.map.setSub('jbs'); bt.map.split = false;
-  const [s, t] = bt.balls; s.x = bt.arena.x + 200; s.y = t.y = bt.arena.y + 600; t.x = s.x + 400; t.maxHp = t.hp = 1000;
+  const [s, t] = bt.balls; s.x = bt.arena.x + 200; s.y = t.y = bt.arena.y + 300; t.x = s.x + 400; t.maxHp = t.hp = 1000;
   s.vx = s.vy = t.vx = t.vy = 0; s.speed = t.speed = 0;
   Ctx_eat('chair', bt, s);
   run(bt, 1.5);
@@ -1423,6 +1423,19 @@ test('맵: 마인드 언데드 촬영팀에 닿으면 5 피해', () => {
   assert(count(bt, 'undead') >= 2, '언데드 등장');
   assert(bt.ents.filter(e => e.constructor.name === 'Undead' && !e.dead).length <= 2, '최대 2명');
   assert(bt.log.filter(e => e.type === 'damage' && e.kind === 'undead').every(e => e.amt === M.mind.touch));
+});
+
+test('진형권 비타민 반감 · 조우연 뱀 최대 10마리 · 정발산 다락방은 아래쪽, 열리면 다락방 아이템 사라짐', () => {
+  const bt = new Battle(['gym', 'baton']); const g = bt.balls[0]; g.maxHp = g.hp = 1000;
+  let hp = g.hp; bt.damage(g, 10, bt.balls[1], { kind: 'vitamin' }); assert(Math.abs(hp - g.hp - 10 * CONFIG.chars.gym.vitaminTaken) < 1e-6);
+  const b2 = new Battle(['ch', 'gym']); const ch = b2.balls[0];
+  for (let i = 0; i < 15; i++) ch.def.skills[0].start(b2, ch);
+  assert(b2.ents.filter(e => e instanceof Ents.Snake && e.owner === ch).length === 10, '뱀 10마리');
+  const b3 = new Battle(['gym', 'hau'], 'ffa', { map: 'workroom' }); b3.map.setSub('jbs');
+  assert(b3.map.floorOf({ x: 0, y: b3.arena.y + b3.arena.h * 0.9 }) === 2 && b3.map.floorOf({ x: 0, y: b3.arena.y + 50 }) === 1, '아래쪽이 2층');
+  b3.map.addItem('king', 'f2'); assert(b3.map.items('king').length === 1);
+  b3.map.clk.split = M.jbs.split - 0.001; b3.map.update(DT);
+  assert(!b3.map.split && b3.map.items('king').length === 0, '개방되면 다락방 아이템 사라짐');
 });
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');

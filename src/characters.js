@@ -2233,10 +2233,11 @@ var CHARACTERS = {
     init: function (bt, b) { b.data.tentAng = 0; b.data.tentLen = b.cfg.tent.length; b.data.tentSpin = b.cfg.tent.spin; b.data.tentHit = {}; },
     skills: [
       {
-        key: 'snake', name: '배앰', desc: '무작위로 돌아다니는 뱀 소환(개수 제한 없음). 적에게 닿으면 데미지를 주고 사라짐, 여성(규순이 포함)에게는 2배',
+        key: 'snake', name: '배앰', desc: '무작위로 돌아다니는 뱀 소환(최대 10마리). 적에게 닿으면 데미지를 주고 사라짐, 여성(규순이 포함)에게는 2배',
         cd: function (c) { return c.snake.cd; },
         start: function (bt, b) {
           var c = b.cfg.snake;
+          if (bt.ents.filter(function (e) { return e instanceof Snake && e.owner === b && !e.dead; }).length >= c.max) return null;   // 최대 10마리
           bt.add(new Snake(bt, b, c));
           bt.skillText(b, '배앰'); FX.sfx('skill');
           FX.burst(b.x, b.y, '#39ff88', 16, 500, 9, 0.5);
@@ -2496,6 +2497,7 @@ var CHARACTERS = {
       { name: '근육 갑옷', desc: function () { return '페이즈 2에서 조우연의 뱀에게 받는 피해 x' + CONFIG.chars.gym.snakeTaken; } },
     ],
     snakeTaken: function (b) { return b.phase >= 2 ? b.cfg.snakeTaken : 1; },
+    kindTaken: function (b, kind) { return kind === 'vitamin' ? b.cfg.vitaminTaken : 1; },   // 단백질 먹방: 비타민 피해 반감
     // 캐릭터 패시브: 초대받지 못한 손님에게 피해 2배 (개인전에선 유재후 자체)
     dealMult: function (bt, s, t) { return bt.isUninvited(t) || t.def.batonBoss ? s.cfg.antiUninvited : 1; },   // 보스 히어로 바통도 유재후
     skills: [
@@ -2507,7 +2509,7 @@ var CHARACTERS = {
       },
       {
         key: 'protein', name: '단백질 먹방', passive: true,
-        desc: '주기적으로 프로틴 생성. 본인이 먹으면 이동속도 증가+체력 회복, 다른 사람이 먹으면 소폭 회복',
+        desc: '주기적으로 프로틴 생성. 본인이 먹으면 이동속도 증가+체력 회복, 다른 사람이 먹으면 소폭 회복. 단백질로 다져진 몸이라 포식자 한규성의 비타민 피해는 항상 절반',
         cd: function (c) { return c.protein.interval; },
         start: function (bt, b) { gymSpawn(bt, b, 'protein'); },
       },
