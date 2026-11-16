@@ -581,7 +581,6 @@
     tourResolve();
     FX.reset(); G.scene = 'bracket'; G.pt = 0;
     if (G.tour.champion) {
-      FX.sfx('victory');
       if (!G.tour.recorded) {   // 우승 = 결승 승자, 준우승 = 결승 상대 (부전승으로 결승이 없으면 없음)
         G.tour.recorded = true;
         var fin = G.tour.rounds[G.tour.rounds.length - 2] || [], ch = G.tour.champion;
@@ -1067,7 +1066,7 @@
       if (bt.over) { G.phase = 'ko'; G.pt = 0; Records.battle(bt); }
     } else if (G.phase === 'ko') {
       G.pt += dt;
-      if (G.pt > 2.0) { G.scene = 'result'; G.pt = 0; if (bt.winner || bt.winnerTeam != null) FX.sfx(bt.bossMode && bt.winnerTeam === 0 ? 'lose' : 'victory'); }   // 보스에게 지면 패배음, 무승부는 없음
+      if (G.pt > 2.0) { G.scene = 'result'; G.pt = 0; if (bt.bossMode && bt.winnerTeam === 0) FX.sfx('lose'); }   // 이기면 winner 곡(배경음악), 보스에게 지면 패배음
     }
 
     background();
@@ -1249,15 +1248,20 @@
   // ---------- 메인 루프 ----------
   var last = performance.now();
   // ---------- 배경음악 ----------
-  // 화면마다 곡: 보스전 대기(보스 로비 · 보스 도전자 고르기) = 보스 곡, 보스전 전투 = 0713, 마인드 전투 = 006 하우스, 마을회관 전투 = 마을회관 곡, 그 밖의 전투 = 없음, 나머지 = 로비 곡
+  // 화면마다 곡: 보스전 대기(보스 로비 · 보스 도전자 고르기) = 보스 곡, 보스전 전투 = 0713, 맵 전투 = 맵 곡(작업실 0826 · 마인드 006 하우스 · 마을회관), 기본 경기장 전투 = 배그로블마크지메, 승리 결과 · 토너먼트 우승 = winner, 나머지 = 로비 곡
   // HTML <audio>의 loop는 mp3 앞뒤 무음 때문에 이음매가 끊김 → Web Audio로 디코딩해서 무음을 잘라내고 이음매 없이 반복
-  var BGM_FILES = { lobby: 'assets/bgm_lobby.mp3', boss: 'assets/bgm_boss.mp3', bossFight: 'assets/bgm_bossfight.mp3', mind: 'assets/bgm_mind.mp3', hall: 'assets/bgm_hall.mp3' };
+  var BGM_FILES = { lobby: 'assets/bgm_lobby.mp3', boss: 'assets/bgm_boss.mp3', bossFight: 'assets/bgm_bossfight.mp3', mind: 'assets/bgm_mind.mp3', hall: 'assets/bgm_hall.mp3', work: 'assets/bgm_work.mp3', field: 'assets/bgm_default.mp3', winner: 'assets/bgm_winner.mp3' };
   var bgm = { ctx: null, tracks: {} };
   function bgmPick() {
     if (FX.muted) return null;
-    if (G.scene === 'battle') { var bt = G.battle, mid = bt && bt.map && bt.map.id; return bt && bt.bossMode ? 'bossFight' : mid === 'mind' || mid === 'hall' ? mid : null; }
+    if (G.scene === 'battle') { var bt = G.battle, mid = bt && bt.map && bt.map.id; return !bt ? null : bt.bossMode ? 'bossFight' : mid === 'workroom' ? 'work' : mid ? mid : 'field'; }
+    if (G.scene === 'result' && G.battle) {   // 이기면 winner, 보스에게 지면 패배음만 잠깐 뒤 로비 곡, 무승부는 로비 곡
+      var rb = G.battle, won = (rb.winner || rb.winnerTeam != null) && !(rb.bossMode && rb.winnerTeam === 0);
+      if (won) return 'winner';
+      if (rb.bossMode && G.pt < 2.5) return null;
+    }
+    if (G.scene === 'bracket' && G.tour && G.tour.champion) return 'winner';
     if (G.scene === 'bossLobby' || (G.scene === 'select' && G.mode === 'boss')) return 'boss';
-    if (G.scene === 'result' && G.pt < 2.5) return null;   // 승리 · 패배 효과음이 묻히지 않게 잠깐 비움
     return 'lobby';
   }
   function bgmLoad(key) {
@@ -1271,12 +1275,19 @@
         function loud(i) { for (var k = 0; k < ch.length; k++) if (Math.abs(ch[k][i]) > th) return true; return false; }
         while (s0 < e0 && !loud(s0)) s0++;
         while (e0 > s0 && !loud(e0)) e0--;
-        var src = bgm.ctx.createBufferSource();
-        src.buffer = buf; src.loop = true; src.loopStart = s0 / buf.sampleRate; src.loopEnd = (e0 + 1) / buf.sampleRate;
-        src.connect(tr.gain); src.start(0, src.loopStart); tr.src = src;
+        tr.buf = buf; tr.ls = s0 / buf.sampleRate; tr.le = (e0 + 1) / buf.sampleRate;
+        bgmStart(tr);
       })
       .catch(function (err) { console.warn('[볼파이트] 배경음악 로딩 실패: ' + key, err); });
     return tr;
+  }
+  // 처음부터 재생 (winner는 이길 때마다 처음부터)
+  function bgmStart(tr) {
+    if (!tr.buf) return;
+    if (tr.src) try { tr.src.stop(); } catch (e) {}
+    var src = bgm.ctx.createBufferSource();
+    src.buffer = tr.buf; src.loop = true; src.loopStart = tr.ls; src.loopEnd = tr.le;
+    src.connect(tr.gain); src.start(0, tr.ls); tr.src = src;
   }
   // 브라우저는 사용자가 한 번 누르기 전엔 소리를 못 냄 → 첫 입력 때 만들기
   function bgmUnlock() {
@@ -1290,6 +1301,8 @@
     if (!bgm.ctx) return;
     var want = bgmPick(), any = false;
     if (want && !bgm.tracks[want]) bgmLoad(want);
+    if (want === 'winner' && bgm.prev !== 'winner') { bgmStart(bgm.tracks.winner); bgm.tracks.winner.vol = CONFIG.sound.bgm.winner; }   // 승리하면 처음부터 바로
+    bgm.prev = want;
     Object.keys(bgm.tracks).forEach(function (k) {
       var tr = bgm.tracks[k], to = k === want ? CONFIG.sound.bgm[k] : 0;
       tr.vol += Math.max(-dt * 0.8, Math.min(dt * 0.8, to - tr.vol));
