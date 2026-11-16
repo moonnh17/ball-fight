@@ -1,4 +1,4 @@
-// pixelfx(https://github.com/patch-gg/pixelfx)로 구운 스프라이트 시트 정보. 다시 구우려면 bake_fx 스크립트
+// pixelfx(https://github.com/patch-gg/pixelfx)로 구운 스프라이트 시트 정보. 다시 구우려면 node tools/bake_fx.mjs (pixelfx 체크아웃 필요)
 var FX_SHEETS = {
  "smash_gold": {
   "src": "assets/fx/smash_gold.png",
