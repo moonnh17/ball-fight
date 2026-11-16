@@ -865,7 +865,7 @@ Battle.prototype.drawBossHUD = function (ctx, time) {
   // 도전자 카드: 초상화 · 이름 · 체력(숫자) · 스킬 두 개 쿨타임
   var ps = this.balls.filter(function (o) { return !o.isBoss; }), n = ps.length;
   var cols = n <= 4 ? n : n <= 8 ? 4 : Math.ceil(n / 3), rows = Math.ceil(n / cols), gap = 8, top = 222, area = CONFIG.screen.y - 34 - top;
-  var ch = Math.min(124, (area - (rows - 1) * gap) / rows), cw = (W - 32 - (cols - 1) * gap) / cols;
+  var cw = (W - 32 - (cols - 1) * gap) / cols, ch = Math.min(Math.max(124, Math.min(190, cw * 0.55)), (area - (rows - 1) * gap) / rows);   // 인원이 적으면 크게
   ps.forEach(function (o, i) {
     var x = 16 + (i % cols) * (cw + gap), y = top + Math.floor(i / cols) * (ch + gap), oc = o.color(), k = ch / 110;
     ctx.save(); ctx.globalAlpha = o.alive ? 1 : 0.35;

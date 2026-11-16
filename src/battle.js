@@ -160,12 +160,12 @@ var Battle = (function () {
       if (this.mode !== 'team') return TEAMS[team % TEAMS.length].color;
       if (!this.teamCols) {
         var self = this, used = {};
-        this.teamCols = {};
+        this.teamCols = {}; this.teamSynCol = {};
         this.teamIds().forEach(function (t) {
           var best = null;
           self.synergies.forEach(function (s) { if (s.team === t && !s.off && s.color && (!best || s.size > best.size)) best = s; });
           var c = best && !used[best.color] ? best.color : TEAMS[t % TEAMS.length].color;
-          used[c] = true; self.teamCols[t] = c;
+          used[c] = true; self.teamCols[t] = c; if (best && c === best.color) self.teamSynCol[t] = true;
         });
       }
       return this.teamCols[team] || TEAMS[team % TEAMS.length].color;
@@ -560,6 +560,8 @@ var Battle = (function () {
       var sc = teams.map(function (t) { return Math.max(0, self.teamScore(t)); }), sum = sc.reduce(function (a, b) { return a + b; }, 0) || 1;
       if (!this.shares) this.shares = teams.map(function () { return 1 / teams.length; });
       this.shares = this.shares.map(function (v, i) { return v + (sc[i] / sum - v) * 0.08; });   // 부드럽게 변함
+      var ssum = this.shares.reduce(function (a, b) { return a + b; }, 0) || 1;
+      this.shares = this.shares.map(function (v) { return v / ssum; });   // 합이 1에서 벗어나면 둘레를 넘거나 비어 이상한 선이 생김
       var P = 2 * (A.w + A.h), d = 0, lead = 0;
       function pt(s) {
         s = ((s % P) + P) % P;
@@ -573,9 +575,16 @@ var Battle = (function () {
         var len = self.shares[i] * P, col = self.teamColor(t);
         if (self.shares[i] > self.shares[lead]) lead = i;
         if (len < 1) return;
-        ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = 30; ctx.lineWidth = 10; ctx.strokeStyle = col; ctx.lineJoin = 'round';
+        var stroke = col;
+        if (self.teamSynCol && self.teamSynCol[t]) {   // 시너지 색은 그라데이션
+          stroke = ctx.createLinearGradient(A.x, A.y, A.x + A.w, A.y + A.h);
+          stroke.addColorStop(0, col); stroke.addColorStop(0.5, shiftHue(col, 50)); stroke.addColorStop(1, col);
+        }
+        ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = 30; ctx.lineWidth = 10; ctx.strokeStyle = stroke; ctx.lineJoin = 'round'; ctx.lineCap = 'butt';
         ctx.beginPath(); var p0 = pt(d); ctx.moveTo(p0[0], p0[1]);
-        corners.forEach(function (c) { [c, c + P].forEach(function (cc) { if (cc > d && cc < d + len) { var q = pt(cc); ctx.lineTo(q[0], q[1]); } }); });
+        // 꼭짓점은 둘레 순서대로 (정렬 안 하면 0 지점을 넘는 구간에서 대각선이 그어짐)
+        corners.concat(corners.map(function (c) { return c + P; })).sort(function (a, b) { return a - b; })
+          .forEach(function (cc) { if (cc > d && cc < d + len) { var q = pt(cc); ctx.lineTo(q[0], q[1]); } });
         var p1 = pt(d + len); ctx.lineTo(p1[0], p1[1]); ctx.stroke(); ctx.restore();
         d += len;
       });
@@ -696,9 +705,11 @@ var Battle = (function () {
     // 인원 수에 맞춰 1열/2열, 패널 높이 자동 조절
     drawHUD(ctx, time) {
       if (this.bossMode) return this.drawBossHUD(ctx, time);
-      var self = this, n = this.balls.length, top = 14, area = CONFIG.screen.y - 28;
+      var self = this, n = this.balls.length, top = 14, area = CONFIG.screen.y - (this.synergies.length ? 50 : 28);   // 시너지 줄 자리는 비워 둠
       var cols = n <= 3 ? 1 : 2, rows = Math.ceil(n / cols), gap = 8;
-      var ph = Math.min(108, (area - (rows - 1) * gap) / rows), pw = (1040 - (cols - 1) * 10) / cols;
+      var pw = (1040 - (cols - 1) * 10) / cols, maxH = cols === 1 ? 150 : Math.min(165, pw * 0.32);   // 인원이 적으면 영역에 맞춰 크게
+      var ph = Math.min(maxH, (area - (rows - 1) * gap) / rows);
+      top += Math.max(0, (area - rows * ph - (rows - 1) * gap) / 2);   // 남는 공간은 위아래로 나눔
       this.balls.forEach(function (b, i) {
         var col = i % cols, row = Math.floor(i / cols);
         self.drawPanel(ctx, b, 20 + col * (pw + 10), top + row * (ph + gap), pw, ph, cols === 1, time);
@@ -796,6 +807,23 @@ var Battle = (function () {
     }
   }
 
+  // #rrggbb 색의 색상만 deg만큼 돌림 (채도·밝기 유지)
+  function shiftHue(hex, deg) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(hex); if (!m) return hex;
+    var n = parseInt(m[1], 16), r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn, h = 0, s = 0;
+    if (d) {
+      s = d / (1 - Math.abs(2 * l - 1));
+      h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      h *= 60;
+    }
+    if (s < 0.15) { s = 0.6; }   // 거의 흰색(정발산 등)도 그라데이션이 보이게
+    h = ((h + deg) % 360 + 360) % 360;
+    var c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), o = l - c / 2, rgb;
+    rgb = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+    return '#' + rgb.map(function (v) { return ('0' + Math.round((v + o) * 255).toString(16)).slice(-2); }).join('');
+  }
+
   function roundRect(ctx, x, y, w, h, r) {
     r = Math.max(0, Math.min(r, h / 2, Math.max(0, w) / 2));
     ctx.beginPath();
@@ -806,5 +834,6 @@ var Battle = (function () {
   Battle.Ball = Ball;
   Battle.TEAMS = TEAMS;
   Battle.roundRect = roundRect;
+  Battle.shiftHue = shiftHue;
   return Battle;
 })();

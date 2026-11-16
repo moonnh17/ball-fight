@@ -387,13 +387,67 @@
       if (G.descScroll < maxS - 5) outlined(ctx, '▼ 스크롤해서 더 보기', W / 2, bot - 4, 20, 'rgba(255,255,255,0.7)');
     }
 
-    button(40, 1625, 300, 120, '랜덤', randomRoster, { color: '#00c2ff', color2: '#7a5cff' });
-    button(360, 1625, 300, 120, '비우기', function () { G.roster = []; }, { color: '#555577', color2: '#333355', enabled: G.roster.length > 0 });
-    button(680, 1625, 360, 120, G.mode === 'tour' ? '토너먼트 시작' : '전투 시작', startBattle, { enabled: canStart(), color: '#ff2b6a', color2: '#ffb000', size: G.mode === 'tour' ? 42 : 50 });
+    var synOk = G.mode === 'team' || G.mode === 'boss';
+    button(40, 1625, 230, 120, '랜덤', randomRoster, { color: '#00c2ff', color2: '#7a5cff' });
+    button(285, 1625, 250, 120, '✦ 시너지', function () { G.synPick = true; }, { color: '#9cff57', color2: '#00a37a', size: 42, enabled: synOk });
+    button(550, 1625, 190, 120, '비우기', function () { G.roster = []; }, { color: '#555577', color2: '#333355', enabled: G.roster.length > 0, size: 40 });
+    button(755, 1625, 285, 120, G.mode === 'tour' ? '토너먼트 시작' : '전투 시작', startBattle, { enabled: canStart(), color: '#ff2b6a', color2: '#ffb000', size: G.mode === 'tour' ? 38 : 46 });
     button(40, 1780, 200, 90, '◀ 뒤로', function () { if (G.mode === 'boss') openBossLobby(); else go('title'); }, { size: 36, color: '#555577', color2: '#333355' });
     button(260, 1780, 220, 90, '📖 도감', function () { openDex(G.focus); }, { size: 36, color: '#7a5cff', color2: '#333355' });
     button(500, 1780, 220, 90, '📊 통계', openRecords, { size: 36, color: '#ffb000', color2: '#333355' });
     hint();
+    if (G.synPick && synOk) synPickOverlay(); else G.synPick = false;
+  }
+  // 시너지 멤버의 캐릭터 id: 모습 조건(needIds)이 있으면 그 모습, 아니면 지금 고른 모습
+  function synMemberId(q, nm) {
+    var g = GROUPS.filter(function (x) { return x.name === nm; })[0], need = q.needIds ? q.needIds() : [];
+    if (!g) return null;
+    var nid = g.ids.filter(function (id) { return need.indexOf(id) >= 0; })[0];
+    return nid || G.pick[nm] || g.ids[0];
+  }
+  // 시너지별 채우기 — 팀전: 지금 고른 팀을 그 멤버로 바꿈 / 보스전: 없는 멤버만 도전자에 추가 (최대 인원까지)
+  function synFill(q) {
+    var mem = q.solo ? [q.solo[0]] : q.members();
+    var ids = mem.map(function (nm) { return synMemberId(q, nm); }).filter(Boolean);
+    if (G.mode === 'team') {
+      G.roster = G.roster.filter(function (e) { return e.team !== G.curTeam; })
+        .concat(ids.map(function (id) { return { id: id, team: G.curTeam }; }));
+    } else {
+      var need = q.needIds ? q.needIds() : [];
+      ids.forEach(function (id) {
+        var g = groupOf(id), has = G.roster.some(function (e) { return need.indexOf(id) >= 0 ? e.id === id : g.ids.indexOf(e.id) >= 0; });
+        if (!has && G.roster.length < CONFIG.boss.maxPlayers) G.roster.push({ id: id, team: 0 });
+      });
+    }
+    G.swapSel = null; if (ids.length) G.focus = ids[0];
+  }
+  function synPickOverlay() {
+    // 뒤를 막는 판 (누르면 닫힘) — 나중에 등록한 hit이 먼저 받음
+    ctx.fillStyle = 'rgba(4,0,12,0.82)'; ctx.fillRect(0, 0, W, H);
+    hit(0, 0, W, H, function () { G.synPick = false; });
+    var list = SYNERGIES, cols = 2, gap = 16, cw = (W - 80 - gap) / cols, chh = 150, rows = Math.ceil(list.length / cols);
+    var py = Math.max(260, H / 2 - (rows * (chh + gap)) / 2 - 40);
+    outlined(ctx, '✦ 시너지별 채우기', W / 2, py - 90, 60, '#9cff57', '#00a37a');
+    outlined(ctx, G.mode === 'team' ? TEAMS[G.curTeam].label + '팀을 이 멤버로 바꿔요' : '없는 멤버만 도전자에 더해요 (최대 ' + CONFIG.boss.maxPlayers + '명)', W / 2, py - 36, 28, '#dddddd');
+    list.forEach(function (q, i) {
+      var x = 40 + (i % cols) * (cw + gap), y = py + Math.floor(i / cols) * (chh + gap), col = q.color || '#ffe14d';
+      var mem = q.solo ? [q.solo[0]] : q.members();
+      ctx.save(); ctx.fillStyle = 'rgba(22,14,42,0.97)'; roundRect(ctx, x, y, cw, chh, 22); ctx.fill();
+      var gr = ctx.createLinearGradient(x, y, x + cw, y + chh); gr.addColorStop(0, col); gr.addColorStop(1, Battle.shiftHue(col, 50));
+      ctx.lineWidth = 4; ctx.strokeStyle = gr; ctx.stroke(); ctx.restore();
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.font = '700 36px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.fillStyle = col;
+      ctx.fillText(q.name + (q.solo ? ' (혼자)' : ''), x + 22, y + 46, cw - 40);
+      var step = Math.min(70, (cw - 40) / mem.length), r = Math.min(30, step / 2 - 3);
+      mem.forEach(function (nm, k) {
+        var id = synMemberId(q, nm); if (!id) return;
+        var c = CONFIG.chars[id], cx = x + 22 + r + k * step, cy = y + 98;
+        Assets.drawBall(ctx, CHARACTERS[id], 'base', cx, cy, r, 0, c.color);
+        ctx.lineWidth = 3; ctx.strokeStyle = c.color; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+      });
+      hit(x, y, cw, chh, function () { FX.sfx('click'); synFill(q); G.synPick = false; });
+    });
+    var by = py + rows * (chh + gap) + 10;
+    button(W / 2 - 150, by, 300, 90, '닫기', function () { G.synPick = false; }, { size: 38, color: '#555577', color2: '#333355' });
   }
   function tourTap(idx) {
     if (G.tourSeed !== 'manual') { G.roster.splice(idx, 1); return; }
