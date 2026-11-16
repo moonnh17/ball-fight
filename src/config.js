@@ -14,8 +14,9 @@ var CONFIG = {
     phase2Ratio: 0.5,       // 이 비율 이하로 체력이 떨어지면 페이즈 2
     phaseFreeze: 0.7,       // 페이즈 전환 시 시간 정지(초)
     phase2FirstDelay: 1.0,  // 페이즈 2 진입 후 2스킬 첫 발동까지(초)
-    hitstop: 0.035,         // 일반 히트스톱(초)
-    bigHitstop: 0.11,       // 큰 데미지 히트스톱(초)
+    hitstop: 0,             // 일반 타격 히트스톱(초): 매 타격 멈춤이 렉처럼 느껴져서 없앰
+    bigHitstop: 0.06,       // 큰 데미지 히트스톱(초)
+    hitstopGap: 0.35,       // 한 번 멈춘 뒤 이 시간 안에는 다시 안 멈춤
     bigHitDamage: 18,       // 이 이상이면 큰 히트
     disabledFriction: 2.5,  // 스턴/빙결 중 감속
     introPerChar: 0.8,      // 시작 전 캐릭터 소개 시간(1명당)
@@ -38,7 +39,8 @@ var CONFIG = {
   speeds: [0.5, 1, 1.5, 2, 3],   // 전투 배속 (전투 화면 버튼 / 숫자키 1~5)
 
   // ---------- 보스전 ----------
-  boss: { viewScale: 0.7 },   // 보스전 화면 배율: 경기장이 1/0.7배 넓어지고 모든 게 0.7배로 보임
+  boss: { viewScale: 0.7, maxPlayers: 8 },   // 보스전 화면 배율: 경기장이 1/0.7배 넓어지고 모든 게 0.7배로 보임 / 도전자 최대 인원
+  teamViewScale: 0.82,   // 팀전 화면 배율 (보스전보다 조금 크게)
   // 보스 수치: 기본값 위에 easy / hard 값을 덮어씀. 체력 = hpPerPlayer x 도전자 수^hpExp (인원 많으면 광역기가 나눠 맞아서)
   bosses: {
     heroBaton: {   // 히어로 바통
@@ -54,7 +56,8 @@ var CONFIG = {
       scream: { damage: 14 },                                   // 패시브 끼야아아악: 페이즈 바뀔 때 맵 전체
       wash: { time: 3.5, heal: 0.15 },                          // 패시브 일단 씻고 오겠습니다: 페이즈 3에서 최대 체력의 heal만큼 회복
       roll: { rolls: 2, speed: 1500, damage: 18, windup: 0.45, aoe: 130, aoeDamage: 8 },
-      hot6: { boxes: 2, life: 14, damage: 12, bullets: 10, bulletDamage: 4, bulletSpeed: 520, buffTime: 6, buffSpeed: 1.4, buffAtk: 1.3 },
+      hot6: { boxes: 1, size: 1.35, life: 14, damage: 12, bullets: 12, bulletDamage: 4,   // 한 박스 (size: 크기 배율)
+              bulletSpeed: 520, buffTime: 6, buffSpeed: 1.4, buffAtk: 1.3 },
       wallet: { coins: 5, speed: 700, heal: 6, stun: 1.5, money: 20 },   // 지폐 (IZK 소속은 무효). money: 최휘 잔고에 들어가는 돈
       origin: { passes: 1, speed: 1700, damage: 24, knock: 1500, warn: 0.8, out: 0.7 },
       joke: { count: 5, speed: 600, damage: 8, atkMul: 0.75, time: 6 },   // IZK 소속은 무효
@@ -63,9 +66,9 @@ var CONFIG = {
       synergyBonus: null,        // 도전자 팀 시너지 하나당 도전자 { damage, hp } 상승 (이지 전용)
       easy: { hpPerPlayer: 195, dmgMult: 1.0, cd: 3.3, synergyBonus: { damage: 0.3, hp: 0.25 } },
       hard: {
-        hpPerPlayer: 145, dmgMult: 0.95, cd: 3.25, contactDamage: 8, cumulative: true,
+        hpPerPlayer: 137, dmgMult: 0.91, cd: 3.25, contactDamage: 8, cumulative: true,
         scream: { damage: 20 }, wash: { heal: 0.25 },
-        roll: { rolls: 3 }, hot6: { boxes: 3, bullets: 12 }, wallet: { coins: 8, stun: 2 },
+        roll: { rolls: 3 }, hot6: { bullets: 16 }, wallet: { coins: 8, stun: 2 },
         origin: { passes: 2 }, joke: { count: 8, atkMul: 0.65 }, baccarat: { bankerDamage: 55 },
         // 노광석의 힘: 체력 at 이하에서 한 번, 맵 위 가운데서 time초 동안 every초마다 파장 (gaps개의 틈으로 피할 수 있음)
         song: { at: 0.25, time: 7, every: 0.9, speed: 430, width: 38, gaps: 2, gapDeg: 62, damage: 12 },

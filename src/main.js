@@ -132,6 +132,7 @@
     }
     if (!canStart()) return;
     FX.reset();
+    if (G.mode === 'boss') G.roster = G.roster.slice(0, CONFIG.boss.maxPlayers);
     G.battle = G.mode === 'boss'
       ? new Battle(G.roster.map(function (e) { return e.id; }), 'boss', { boss: G.bossId, difficulty: G.bossDiff })
       : new Battle(G.roster.map(function (e) { return { id: e.id, team: e.team }; }), G.mode);
@@ -261,6 +262,7 @@
       if (multi) outlined(ctx, '이격', x + 30, y + 22, 16, '#ffe14d');
       hit(x, y, cw, ch, function () {
         FX.sfx('click'); G.focus = id;
+        if (G.mode === 'boss' && G.roster.length >= CONFIG.boss.maxPlayers) { FX.sfx('click'); G.fullMsg = G.time; return; }   // 보스전 도전자 최대 인원
         G.roster.push({ id: id, team: G.mode === 'team' ? G.curTeam : 0 });
       });
       if (multi) {   // 모습 탭: 누르면 모습만 바꿈 (추가 안 함)
@@ -306,7 +308,7 @@
     ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 3; ctx.stroke();
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     ctx.font = '700 28px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff';
-    var modeTxt = G.mode === 'team' ? '팀전 · ' + teamsInRoster().length + '팀' : G.mode === 'tour' ? '토너먼트 1:1' : G.mode === 'boss' ? '보스전 도전자 (1명부터)' : '개인전';
+    var modeTxt = G.mode === 'team' ? '팀전 · ' + teamsInRoster().length + '팀' : G.mode === 'tour' ? '토너먼트 1:1' : G.mode === 'boss' ? '보스전 도전자 (최대 ' + CONFIG.boss.maxPlayers + '명)' + (G.fullMsg && G.time - G.fullMsg < 1.5 ? ' · 가득 찼어요!' : '') : '개인전';
     var helpTxt = G.mode === 'tour' && G.tourSeed === 'manual' ? '(같은 사람 두 번 누르면 제외)' : '(누르면 제외)';
     ctx.fillText('참가자 ' + G.roster.length + '명 · ' + modeTxt + '   ' + helpTxt, 60, py + 44);
     function portrait(e, idx, x, y, r) {

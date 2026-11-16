@@ -85,6 +85,10 @@ var Battle = (function () {
         this.balls.forEach(function (b, i) { b.id = i; });
         this.maxTime = bdef.cfgOverride.maxTime;
       }
+      if (this.mode === 'team' && !this.bossMode && CONFIG.teamViewScale < 1) {   // 팀전도 경기장을 넓히고 축소해서 그림
+        var S2 = CONFIG.arena, k2 = CONFIG.teamViewScale;
+        this.viewK = k2; this.arena = { x: S2.x, y: S2.y, w: S2.w / k2, h: S2.h / k2 };
+      }
       if (this.mode === 'team') this.applySynergies();
       // 보스전 시너지 보너스 (이지): 도전자 팀에 켜진 시너지 하나당 도전자 전원 공격력·체력 상승
       var sb = this.boss && this.boss.cfg.synergyBonus;
@@ -261,7 +265,8 @@ var Battle = (function () {
       FX.num(t.x, t.y - t.r * 0.6 - t.lift * 140, amt, { dot: o.dot, color: o.color || (o.dot ? '#ffb3b3' : '#ffffff'), precise: o.kind === 'contact' && src && src.def.preciseContact });
       if (!o.dot) {
         var big = amt >= CONFIG.battle.bigHitDamage;
-        this.hitstop = Math.max(this.hitstop, big ? CONFIG.battle.bigHitstop : CONFIG.battle.hitstop);
+        var hs = big ? CONFIG.battle.bigHitstop : CONFIG.battle.hitstop;
+        if (hs > 0 && !(this.time - this.lastStop < CONFIG.battle.hitstopGap)) { this.hitstop = Math.max(this.hitstop, hs); this.lastStop = this.time; }
         FX.sfx(big ? 'bigHit' : 'hit');
         if (CONFIG.fx.hitSparks) FX.burst(t.x, t.y, o.color || '#ffffff', big ? 18 : 8, big ? 900 : 600, 6, 0.35, 'spark');
       }
@@ -320,7 +325,7 @@ var Battle = (function () {
       FX.ring(b.x, b.y, b.r, b.r * 4, 0.8, b.color(), 20);
       FX.banner('K.O.', { color: '#ff2a55', sub: b.name + ' 탈락', size: 170, life: 1.6 });
       FX.flash('#ffffff', 0.5, 0.35); FX.shake(40); FX.sfx('ko');
-      this.hitstop = 0.25;
+      this.hitstop = Math.max(this.hitstop, 0.18); this.lastStop = this.time;
       this.emit('ko', { who: b.def.id });
     }
 
@@ -618,6 +623,7 @@ var Battle = (function () {
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.beginPath(); ctx.ellipse(b.x, b.y + b.r * 0.5, b.r * (1 - lift * 0.35), b.r * 0.35 * (1 - lift * 0.35), 0, 0, Math.PI * 2); ctx.fill();
       }
+      if (b.def.drawUnder) b.def.drawUnder(ctx, b, this, x, y, r, time);   // 공 밑에 깔리는 것 (보스 킥보드)
       if (b.phase >= 2) {
         var ar = r * (1.55 + Math.sin(time * 6) * 0.08);
         var g = ctx.createRadialGradient(x, y, r * 0.8, x, y, ar);

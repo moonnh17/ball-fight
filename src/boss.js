@@ -97,7 +97,7 @@ class BossBullet {
 // ---------- 히어로 바통 ----------
 // 핫식스 박스: 보스가 먹으면 버프, 도전자가 먹으면 터지며 탄막
 class Hot6Box {
-  constructor(bt, owner, p, c) { this.bt = bt; this.owner = owner; this.x = p.x; this.y = p.y; this.c = c; this.t = 0; this.z = -1; this.r = 44; }
+  constructor(bt, owner, p, c) { this.bt = bt; this.owner = owner; this.x = p.x; this.y = p.y; this.c = c; this.t = 0; this.z = -1; this.k = c.size || 1; this.r = 44 * this.k; }
   update(dt) {
     var o = this.owner, c = this.c, bt = this.bt, self = this, i;
     this.t += dt;
@@ -124,7 +124,7 @@ class Hot6Box {
   }
   draw(ctx) {
     var blink = this.c.life - this.t < 2 && Math.sin(this.t * 20) > 0, s = Math.min(1, this.t / 0.3), bob = Math.sin(this.t * 3) * 3;
-    ctx.save(); ctx.translate(this.x, this.y + bob); ctx.scale(s, s); ctx.globalAlpha = blink ? 0.5 : 1;
+    ctx.save(); ctx.translate(this.x, this.y + bob); ctx.scale(s * this.k, s * this.k); ctx.globalAlpha = blink ? 0.5 : 1;
     ctx.shadowColor = '#b07cff'; ctx.shadowBlur = 26;
     ctx.fillStyle = '#b5834a'; Battle.roundRect(ctx, -42, -30, 84, 60, 6); ctx.fill();   // 상자
     ctx.shadowBlur = 0; ctx.fillStyle = '#8f6233'; ctx.fillRect(-42, -30, 84, 10);
@@ -349,7 +349,7 @@ var BATON_SKILLS = {
   // 1-2 핫식스 한 박스 쟁여놓기
   hot6: function (bt, b) {
     var c = b.cfg.hot6, t = 0;
-    bossCast(bt, b, '핫식스 한 박스 쟁여놓기', '#c684ff');
+    bossCast(bt, b, '핫식스 한 박스 쟁여놓기', '#c684ff');   // 박스는 한 개 (config hot6.boxes)
     for (var i = 0; i < c.boxes; i++) {
       var p = bt.randomPoint(90);
       for (var k = 0; k < 12 && _dist(p, b) < b.r + 160; k++) p = bt.randomPoint(90);
@@ -492,18 +492,44 @@ var BATON_SKILLS = {
     return { moves: false, uninterruptible: true, update: function (dt) { t += dt; b.jx = _rnd(-8, 8); b.jy = _rnd(-8, 8); return t >= 0.8; }, end: function () { b.jx = b.jy = 0; } };
   },
   // 패시브 3 일단 씻고 오겠습니다: 페이즈 3에서 잠깐 사라졌다가 회복해서 돌아옴
+  // 샤워 타월을 걸치고 사라졌다가, 맵 밖에서 데굴데굴 굴러서 돌아옴
   wash: function (bt, b) {
-    var c = b.cfg.wash, A = CONFIG.arena, t = 0;
+    var c = b.cfg.wash, A = CONFIG.arena, t = 0, st = 'towel', from = null, to = null, gt = 0, dir = 1;
     FX.banner('일단 씻고 오겠습니다', { color: '#78ccf4', sub: '히어로 바통 · 패시브', size: 110, life: 1.6 });
-    bfx(bt, 'implode', b.x, b.y, { scale: 1.3 }); FX.sfx('vanish');
-    b.hidden = true; b.phasing = true;
+    b.vx = b.vy = 0; b.phasing = true; b.data.towel = 0;
     bt.emit('bossWashOut');
     return {
-      moves: false, uninterruptible: true,
-      update: function (dt) { t += dt; return t >= c.time; },
+      moves: false, uninterruptible: true, spinning: true,
+      update: function (dt) {
+        t += dt;
+        if (st === 'towel') {   // 수건이 위에서부터 덮어 내려옴
+          b.data.towel = Math.min(1, t / 0.7); b.jy = Math.sin(t * 14) * 3;
+          if (Math.random() < dt * 20) FX.particle({ x: b.x + _rnd(-b.r, b.r), y: b.y + _rnd(-b.r, b.r) * 0.6, vx: _rnd(-30, 30), vy: _rnd(-120, -60), life: 0.8, size: _rnd(6, 12), color: '#cdeeff', shape: 'dot' });
+          if (t >= 1.1) {
+            st = 'away'; t = 0; b.jy = 0; b.data.towel = 0; b.hidden = true;
+            bfx(bt, 'implode', b.x, b.y, { scale: 1.3 }); FX.burst(b.x, b.y, '#fff4f8', 24, 500, 14, 0.6, 'smoke'); FX.sfx('vanish');
+          }
+          return false;
+        }
+        if (st === 'away') {
+          if (t < c.time) return false;
+          st = 'roll'; t = 0; dir = Math.random() < 0.5 ? 1 : -1;
+          to = { x: A.x + A.w / 2, y: A.y + A.h * 0.35 };
+          from = { x: dir > 0 ? A.x - b.r : A.x + A.w + b.r, y: to.y };
+          b.x = from.x; b.y = from.y; b.hidden = false;
+          FX.sfx('roll'); FX.text(b.x + dir * b.r * 2, b.y - b.r, '뽀득뽀득~', '#78ccf4', 50, 1.0);
+          return false;
+        }
+        var k = Math.min(1, t / 1.2), e = 1 - Math.pow(1 - k, 3), px = b.x;
+        b.x = from.x + (to.x - from.x) * e; b.y = to.y;
+        b.rot += (b.x - px) / b.r;
+        gt += dt; if (gt > 0.04) { gt = 0; _ghost(b); }
+        if (Math.random() < dt * 30) FX.particle({ x: b.x - dir * b.r * 0.6, y: b.y + b.r * 0.7, vx: -dir * _rnd(60, 160), vy: _rnd(-80, -20), life: 0.5, size: _rnd(7, 13), color: Math.random() < 0.5 ? '#cdeeff' : '#ffffff', shape: 'dot' });
+        return k >= 1;
+      },
       end: function () {
-        b.hidden = false; b.phasing = false;
-        b.x = A.x + A.w / 2; b.y = A.y + A.h * 0.35;
+        b.hidden = false; b.phasing = false; b.data.towel = 0; b.jy = 0;
+        if (to) { b.x = to.x; b.y = to.y; } else { b.x = A.x + A.w / 2; b.y = A.y + A.h * 0.35; }
         bfx(bt, 'heal_water', b.x, b.y + b.r * 0.6, { scale: 3 });
         FX.burst(b.x, b.y, '#78ccf4', 40, 700, 10, 0.8);
         var healed = bt.heal(b, b.maxHp * c.heal);
@@ -582,7 +608,7 @@ var BOSSES = {
       ],
       skills: [
         { key: 'roll', phase: 1, name: '끝까지 구르기', desc: function (c) { return '예고 화살표 방향으로 굴러 부딪힌 도전자에게 피해, 멈추면 쿵! 연속 ' + c.roll.rolls + '번'; } },
-        { key: 'hot6', phase: 1, name: '핫식스 한 박스 쟁여놓기', desc: function (c) { return '핫식스 박스 ' + c.hot6.boxes + '개를 깜. 보스가 먹으면 이속·공격력 상승, 도전자가 먹으면 터지며 탄막 ' + c.hot6.bullets + '발'; } },
+        { key: 'hot6', phase: 1, name: '핫식스 한 박스 쟁여놓기', desc: function (c) { return '핫식스 한 박스를 깜. 보스가 먹으면 이속·공격력 상승, 도전자가 먹으면 터지며 탄막 ' + c.hot6.bullets + '발'; } },
         { key: 'wallet', phase: 2, name: '지갑전사 바통', desc: function (c) { return '지폐 ' + c.wallet.coins + '장을 뿌림. 맞으면 체력이 조금 차지만 ' + c.wallet.stun + '초 동안 아무것도 못 함 (IZK 무효, 최휘는 잔고 +' + c.wallet.money + ')'; } },
         { key: 'origin', phase: 2, name: '바통의 근원', desc: function (c) { return '맵 밖으로 나갔다가 예고된 차선으로 킥보드를 타고 소주를 마시며 돌격. 맞으면 피해와 넉백' + (c.origin.passes > 1 ? ' (' + c.origin.passes + '번 왕복)' : ''); } },
         { key: 'joke', phase: 3, name: '자학개그', desc: function (c) { return '자학개그 ' + c.joke.count + '개를 날림. 맞으면 공격력 ' + Math.round((1 - c.joke.atkMul) * 100) + '% 감소 (IZK 무효)'; } },
@@ -616,6 +642,23 @@ var BOSSES = {
       b.action = BATON_SKILLS[k](bt, b);
       bt.emit('bossSkill', { skill: k });
     },
+    // 바통의 근원 킥보드: 공 밑에 크게 (주황 발판 + 노란 손잡이 + 바퀴 빛)
+    drawUnder: function (ctx, b, bt, x, y, r, time) {
+      if (!b.data.kick) return;
+      var a = Math.atan2(b.vy, b.vx), L = r * 1.6;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+      ctx.globalAlpha = 0.5; ctx.strokeStyle = '#ff8a00'; ctx.lineWidth = 6;
+      for (var i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(-L - 20, i * 22); ctx.lineTo(-L - 120 - (i * 37 % 60 + 60), i * 22); ctx.stroke(); }
+      ctx.globalAlpha = 1; ctx.shadowColor = '#ff8a00'; ctx.shadowBlur = 30;
+      ctx.fillStyle = '#ff8a00'; Battle.roundRect(ctx, -L, -r * 0.42, L * 2, r * 0.84, r * 0.3); ctx.fill();
+      ctx.shadowBlur = 0; ctx.lineWidth = 6; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+      ctx.fillStyle = '#2a2a35'; Battle.roundRect(ctx, -L * 0.8, -r * 0.25, L * 1.4, r * 0.5, r * 0.2); ctx.fill();
+      ctx.fillStyle = '#ffd400'; ctx.fillRect(L * 0.82, -r * 0.95, 22, r * 1.9);
+      ctx.beginPath(); ctx.arc(L * 0.82 + 11, -r * 0.95, 16, 0, Math.PI * 2); ctx.arc(L * 0.82 + 11, r * 0.95, 16, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowColor = '#7dff9a'; ctx.shadowBlur = 25; ctx.fillStyle = '#111';
+      [-L + 20, L - 20].forEach(function (wx) { ctx.beginPath(); ctx.arc(wx, 0, 26, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#7dff9a'; ctx.lineWidth = 6; ctx.stroke(); });
+      ctx.restore();
+    },
     drawExtra: function (ctx, b, bt, x, y, r, time) {
       var d = b.data, tl = d.tele;
       // 예고: 구르기 화살표 / 킥보드 돌격 차선
@@ -635,14 +678,22 @@ var BOSSES = {
       ctx.save(); ctx.translate(x, y - r - 26); ctx.fillStyle = '#ffd400'; ctx.strokeStyle = '#7a4a00'; ctx.lineWidth = 4; ctx.shadowColor = '#ffd400'; ctx.shadowBlur = 20;
       ctx.beginPath(); ctx.moveTo(-48, 16); ctx.lineTo(-48, -14); ctx.lineTo(-24, 4); ctx.lineTo(0, -22); ctx.lineTo(24, 4); ctx.lineTo(48, -14); ctx.lineTo(48, 16); ctx.closePath(); ctx.fill(); ctx.stroke();
       ctx.shadowBlur = 0; ctx.fillStyle = '#ff2b3b'; ctx.beginPath(); ctx.arc(0, 2, 7, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-      // 킥보드 + 소주
-      if (d.kick) {
-        var a = Math.atan2(b.vy, b.vx);
-        ctx.save(); ctx.translate(x, y); ctx.rotate(a);
-        ctx.fillStyle = '#2a2a35'; Battle.roundRect(ctx, -r * 1.1, r * 0.75, r * 2.2, 22, 10); ctx.fill();
-        ctx.fillStyle = '#7dff9a'; ctx.fillRect(r * 0.9, -r * 0.4, 12, r * 1.2);
-        ctx.fillStyle = '#111'; [-r * 0.85, r * 0.85].forEach(function (wx) { ctx.beginPath(); ctx.arc(wx, r * 0.75 + 26, 16, 0, Math.PI * 2); ctx.fill(); });
+      // 샤워 타월: 위에서부터 몸을 덮음
+      if (d.towel > 0) {
+        var th = r * 2.2 * d.towel;
+        ctx.save(); ctx.beginPath(); ctx.arc(x, y, r * 1.12, 0, Math.PI * 2); ctx.clip();
+        ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 20;
+        ctx.fillStyle = '#fff4f8'; ctx.beginPath(); ctx.moveTo(x - r * 1.2, y - r * 1.15);
+        ctx.lineTo(x + r * 1.2, y - r * 1.15); ctx.lineTo(x + r * 1.2, y - r * 1.15 + th);
+        for (var wv = 6; wv >= 0; wv--) ctx.quadraticCurveTo(x - r * 1.2 + (wv + 0.5) * r * 2.4 / 7, y - r * 1.15 + th + (wv % 2 ? 16 : -6), x - r * 1.2 + wv * r * 2.4 / 7, y - r * 1.15 + th);
+        ctx.closePath(); ctx.fill(); ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ff9ecf';
+        for (var sy = 0; sy < th - 10; sy += 34) ctx.fillRect(x - r * 1.2, y - r * 1.15 + sy + 12, r * 2.4, 10);
         ctx.restore();
+        ctx.font = '60px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🧼', x + r * 0.9, y - r * 0.9);
+      }
+      // 킥보드는 drawUnder (공 밑), 소주는 손에
+      if (d.kick) {
         ctx.save(); ctx.translate(x + r * 0.7, y - r * 0.3); ctx.rotate(-0.6);
         ctx.fillStyle = '#3fae5b'; Battle.roundRect(ctx, -12, -34, 24, 60, 6); ctx.fill(); ctx.fillStyle = '#e8fff0'; ctx.fillRect(-12, -6, 24, 16);
         ctx.fillStyle = '#2b7a40'; ctx.fillRect(-6, -48, 12, 16); ctx.restore();

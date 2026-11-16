@@ -17,7 +17,7 @@ var FX = (function () {
     p.max = p.life; p.rot = p.rot || 0; p.vr = p.vr || 0; p.g = p.g || 0;
     p.drag = p.drag == null ? 1 : p.drag; p.shape = p.shape || 'dot';
     fx.parts.push(p);
-    if (fx.parts.length > 1800) fx.parts.shift();
+    if (fx.parts.length > 900) fx.parts.splice(0, 150);   // 너무 많으면 오래된 것부터 한 번에 정리 (매번 shift하면 느림)
     return p;
   };
 
