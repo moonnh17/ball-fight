@@ -550,10 +550,11 @@ var BOSSES = {
   heroBaton: {
     id: 'heroBaton', name: '히어로 바통', sub: '보스',
     images: {
-      base: { src: 'assets/baton.jpg', fx: 0.48, fy: 0.55, s: 0.8 },
-      p2:   { src: 'assets/baton_p2.jpg', fx: 0.57, fy: 0.47, s: 0.6 },
+      base: { src: 'assets/hero_baton1.jpg', fx: 0.5, fy: 0.27, s: 0.75 },
+      p2:   { src: 'assets/hero_baton2.jpg', fx: 0.75, fy: 0.37, s: 0.32 },
+      p3:   { src: 'assets/hero_baton3.jpg', fx: 0.53, fy: 0.22, s: 0.9 },
     },
-    portrait: function (b) { return b.phase >= 2 ? 'p2' : 'base'; },
+    portrait: function (b) { return b.phase >= 3 ? 'p3' : b.phase >= 2 ? 'p2' : 'base'; },
     blurb: '보스',
     intro: '정의의 이름으로 굴러온 히어로 바통. 체력에 따라 세 페이즈로 바뀌고, 페이즈가 바뀔 때마다 끼야아아악을 지른다.',
     skills: [], noAutoPhase2: true,

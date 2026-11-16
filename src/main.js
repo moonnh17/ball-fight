@@ -9,7 +9,7 @@
   }
   window.addEventListener('resize', fit); fit();
   Assets.load();
-  FxImg.preload();   // 보스전 픽셀 이펙트 시트
+  if (typeof FxImg !== 'undefined') FxImg.preload();   // 보스전 픽셀 이펙트 시트
 
   var IDS = Object.keys(CHARACTERS), TEAMS = Battle.TEAMS;
   // 이름이 같은 캐릭터(이격)는 한 그룹: 선택창에선 카드 하나 + 모습 탭
