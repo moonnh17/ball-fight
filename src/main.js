@@ -59,7 +59,7 @@
   function toGame(e) { var r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }; }
   var drag = null;
   canvas.addEventListener('pointerdown', function (e) {
-    FX.initAudio();
+    FX.initAudio(); bgmUnlock();
     var p = toGame(e);
     var R = G.descRect, inDesc = G.scene === 'select' && R && p.x >= R.x && p.x <= R.x + R.w && p.y >= R.y && p.y <= R.y + R.h;
     drag = { x: p.x, y: p.y, s: G.dexScroll || 0, ds: G.descScroll || 0, ms: G.mapScroll || 0, inDesc: inDesc && !G.mapPick, inMap: G.scene === 'select' && !!G.mapPick, moved: false };
@@ -95,7 +95,7 @@
     G.dexScroll = (G.dexScroll || 0) + dyw;
   }, { passive: false });
   window.addEventListener('keydown', function (e) {
-    FX.initAudio();
+    FX.initAudio(); bgmUnlock();
     var k = e.key.toLowerCase();
     if (k === 'h') G.record = !G.record;
     else if (k === 'm') FX.setMuted(!FX.muted);
@@ -1240,6 +1240,20 @@
 
   // ---------- 메인 루프 ----------
   var last = performance.now();
+  // ---------- 로비 배경음악: 시작 화면 · 캐릭터 선택에서만 (다른 화면에선 서서히 꺼지고, 돌아오면 이어서) ----------
+  var bgm = typeof Audio !== 'undefined' ? new Audio('assets/bgm_lobby.mp3') : null;
+  if (bgm) { bgm.loop = true; bgm.volume = 0; }
+  function bgmWant() { return (G.scene === 'title' || G.scene === 'select') && !FX.muted ? CONFIG.sound.bgm : 0; }
+  // 브라우저는 사용자가 한 번 누르기 전엔 소리를 못 냄 → 첫 입력 때 바로 재생
+  function bgmUnlock() { if (!bgm || G.bgmOk) return; G.bgmOk = true; if (bgmWant() > 0) bgm.play().catch(function () { G.bgmOk = false; }); }
+  function bgmUpdate(dt) {
+    if (!bgm) return;
+    var want = bgmWant(), d = want - bgm.volume;
+    bgm.volume = Math.max(0, Math.min(1, bgm.volume + Math.max(-dt * 0.8, Math.min(dt * 0.8, d))));
+    if (want > 0 && bgm.paused && G.bgmOk) bgm.play().catch(function () {});
+    else if (want === 0 && bgm.volume <= 0.001 && !bgm.paused) bgm.pause();
+  }
+
   function frame(now) {
     var raw = (now - last) / 1000; last = now;
     var dt = Math.min(0.05, raw);
@@ -1248,6 +1262,7 @@
     G.hits = [];
     var fxScale = G.scene === 'battle' && G.phase === 'ko' ? 0.35 : G.scene === 'battle' && G.phase === 'fight' ? speed() : 1;
     FX.update(dt * fxScale);
+    bgmUpdate(dt);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     // 화면 하나에서 오류가 나도 게임 전체가 멈추지 않게: 기록만 하고 다음 프레임은 계속 돈다
     try {

@@ -34,7 +34,7 @@ var CONFIG = {
     hitSparks: true,
   },
 
-  sound: { volume: 0.45 },
+  sound: { volume: 0.45, bgm: 0.5 },   // bgm: 로비 배경음악 볼륨 (시작 화면 · 캐릭터 선택)
 
   speeds: [0.5, 1, 1.5, 2, 3],   // 전투 배속 (전투 화면 버튼 / 숫자키 1~5)
 
@@ -60,7 +60,7 @@ var CONFIG = {
       king: { every: 3, max: 4, heal: 15, soju: 0.1, sojuTaken: 0.7, sojuTime: 8, sleep: 8 },
     },
     hall: {
-      trashEvery: 5, trashMax: 18, trashR: 34, trashSlow: 0.75, trashSlowTime: 0.8, cleanEvery: 0.7,   // 쓰레기: 밟으면 잠시 이동속도 x0.75
+      trashEvery: 14, trashMax: 18, trashR: 34, trashSlow: 0.75, trashSlowTime: 0.8, cleanEvery: 0.7,   // 쓰레기: 밟으면 잠시 이동속도 x0.75
       wellusHeal: 1.3,                                                        // 이장님 웰우스 개방 회복량
       pcTime: 3, yooMul: 2, pcCd: 6, chiefCd: 4, codeBuff: 1.1, stockDown: 0.7, stockSmash: 0.1, seoriSmash: 0.3, brokenTime: 20,
       ow: ['한규성', '유재후', '진형권', '차승민', '이윤빈'], roblox: ['유재운', '김선율', '조하람', '조우연'],
