@@ -73,8 +73,8 @@ test('페이즈 2 진입 시 1·2스킬 모두 사용', () => {
   CONFIG.battle.contactDamage = 5;
 });
 
-test('이비 규순이 각성: 4개 하위 스킬이 모두 랜덤하게 나온다', () => {
-  const picks = { birds: 0, lucha: 0, toka: 0, waterbomb: 0 };
+test('이비 규순이 각성: 3개 하위 스킬이 모두 랜덤하게 나온다 (워터밤은 마을회관에서만)', () => {
+  const picks = { birds: 0, lucha: 0, toka: 0 };
   for (let k = 0; k < 40; k++) {
     const bt = new Battle(['ibi', 'baton']);
     const ibi = bt.balls[0];
@@ -1331,8 +1331,8 @@ test('맵: 작업실은 시작부터 산내/정발산이고 30초마다 다시 �
   const bt = new Battle([{ id: 'baton', team: 0 }, { id: 'gym', team: 1 }], 'team', { map: 'workroom' });
   bt.balls.forEach(b => { b.maxHp = b.hp = 1e6; });
   assert(['sannae', 'jbs'].includes(bt.map.sub), '시작부터 산내/정발산');
-  run(bt, 29); assert(count(bt, 'mapSwap') === 0);
-  run(bt, 2); assert(count(bt, 'mapSwap') === 1, '30초에 다시 뽑음');
+  while (bt.time < 29) bt.update(DT); assert(count(bt, 'mapSwap') === 0);   // 히트스톱엔 전투 시간이 멈추므로 전투 시간 기준
+  while (bt.time < 31) bt.update(DT); assert(count(bt, 'mapSwap') === 1, '30초에 다시 뽑음');
   bt.map.setSub('sannae'); run(bt, 2);
   assert(Math.abs(bt.arena.w - bt.arena.h) < 1, '정사각형');
   const b = bt.balls[0], n = bt.map.notch();
@@ -1489,7 +1489,7 @@ test('마을회관 컴퓨터: 오버워치(유재후 2배) · 코딩 +10% · 서
   [bt, b] = at('ch'); assert(b.data.pc.mode === 'rb', '조우연 로블록스');
   [bt, b] = at('dev'); assert(b.data.pc.mode === 'code');
   const dm = b.dmgMult, mh = b.maxHp; bt.map.pcDone(b, 'code');
-  assert(Math.abs(b.dmgMult - dm * 1.1) < 1e-9 && Math.abs(b.maxHp - mh * 1.1) < 1e-6, '코딩 +10%');
+  assert(Math.abs(b.dmgMult - dm * M.hall.codeBuff) < 1e-9 && Math.abs(b.maxHp - mh * M.hall.codeBuff) < 1e-6, '코딩 버프');
   [bt, b] = at('chief'); assert(!b.data.pc, '이장님은 컴퓨터 안 함');
   let smash = 0; for (let i = 0; i < 300; i++) { const r = at('seori'); if (r[0].map.pc.broken > 0) smash++; }
   assert(smash > 60 && smash < 120, '서리 30% 박살 ' + smash);
@@ -1538,6 +1538,17 @@ test('진형권(심리학자): 고정 타겟 3번 맞히면 표식 → 표식 �
   assert(count(b2, 'damage', e => e.kind === 'pavlov') >= 3 && count(b2, 'pavlovMark') === 1, '돌진 ' + count(b2, 'damage', e => e.kind === 'pavlov'));
   const hits = b2.log.filter(e => e.type === 'damage' && e.kind === 'pavlov');
   assert(hits.every(h => b2.log.some(e => e.type === 'damage' && e.who === 'psych' && e.src === 'gym' && e.kind === 'contact' && e.t === h.t)), '돌진 반동: 본인도 박치기 피해');
+});
+
+test('워터밤은 마을회관에서만 · 코딩은 +5%', () => {
+  const seen = { none: 0, hall: 0 };
+  for (const m of ['none', 'hall']) for (let k = 0; k < 60; k++) {
+    const bt = new Battle(['ibi', 'gym'], 'ffa', m === 'hall' ? { map: 'hall' } : undefined);
+    const a = vm.runInContext('ibiAwaken', ctx)(bt, bt.balls[0]); a.update(1); a.update(0.01);
+    if (bt.log.some(e => e.type === 'awakenPick' && e.pick === 'waterbomb')) seen[m]++;
+  }
+  assert(seen.none === 0 && seen.hall > 5, JSON.stringify(seen));
+  assert(CONFIG.maps.hall.codeBuff === 1.05);
 });
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');

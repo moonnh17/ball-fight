@@ -62,7 +62,7 @@ var CONFIG = {
     hall: {
       trashEvery: 14, trashMax: 18, trashR: 34, trashSlow: 0.75, trashSlowTime: 0.8, cleanEvery: 0.7,   // 쓰레기: 밟으면 잠시 이동속도 x0.75
       wellusHeal: 1.3,                                                        // 이장님 웰우스 개방 회복량
-      pcTime: 3, yooMul: 2, pcCd: 6, chiefCd: 4, codeBuff: 1.1, stockDown: 0.7, stockSmash: 0.1, seoriSmash: 0.3, brokenTime: 20,
+      pcTime: 3, yooMul: 2, pcCd: 6, chiefCd: 4, codeBuff: 1.05, stockDown: 0.7, stockSmash: 0.1, seoriSmash: 0.3, brokenTime: 20,
       ow: ['한규성', '유재후', '진형권', '차승민', '이윤빈'], roblox: ['유재운', '김선율', '조하람', '조우연'],
       yuk: { every: 9, max: 2, heal: 10, soup: 20, tick: 0.25, spill: 0.05 }, angerTime: 6, angerMul: 1.3,   // 육개장 국물 쏟으면 문남휘 공격력 x1.3
     },

@@ -605,7 +605,9 @@ function samsikMultiDye(bt, b) {
 
 // ---------- 이비 각성 (seq가 있으면 그 순서대로 연속 사용) ----------
 function ibiAwaken(bt, b, seq) {
-  var c = b.cfg.awaken, t = 0, sub = null, queue = seq ? seq.slice() : [_pickWeighted(c.weights)];
+  var c = b.cfg.awaken, t = 0, sub = null, w = {};
+  Object.keys(c.weights).forEach(function (k) { if (k !== 'waterbomb' || (bt.map && bt.map.id === 'hall')) w[k] = c.weights[k]; });   // 워터밤은 마을회관에서만
+  var queue = seq ? seq.slice() : [_pickWeighted(w)];
   bt.darkOn(b); b.data.gyusuni = true;
   FX.banner(seq ? '규순이 풀코스' : '규순이로 각성', { color: '#c77dff', size: 125, life: 1.3 });
   FX.sfx('awaken'); FX.shake(16);
@@ -2090,7 +2092,7 @@ var CHARACTERS = {
         },
       },
       {
-        key: 'awaken', name: '규순이로 각성', desc: '경기장이 어두워지고 [새가 너무 좋아 / 루차루차 / 토카토카 / 워터밤] 중 하나를 랜덤 발동. 워터밤: 물병으로 사방에 물을 뿌려 닿으면 피해 + 미끄러짐 (이장님은 안 닿아도 멘헤라로 둔화 · 지속 피해, 얼음 삼식이 무효 · 불 삼식이 2배)',
+        key: 'awaken', name: '규순이로 각성', desc: '경기장이 어두워지고 [새가 너무 좋아 / 루차루차 / 토카토카] 중 하나를 랜덤 발동 (마을회관에선 워터밤도). 워터밤: 물병으로 사방에 물을 뿌려 닿으면 피해 + 미끄러짐 (이장님은 안 닿아도 멘헤라로 둔화 · 지속 피해, 얼음 삼식이 무효 · 불 삼식이 2배)',
         cd: function (c) { return c.awaken.cd; },
         start: function (bt, b) { return ibiAwaken(bt, b, null); },
       },
