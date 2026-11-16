@@ -15,7 +15,7 @@ var Battle = (function () {
 
   class Ball {
     constructor(def, idx, team) {
-      var c = CONFIG.chars[def.id];
+      var c = def.cfgOverride || CONFIG.chars[def.id];   // 보스는 난이도·인원수로 만든 수치
       this.def = def; this.cfg = c; this.id = idx; this.name = def.name; this.team = team;
       this.maxHp = c.hp; this.hp = c.hp; this.hpShown = c.hp;
       this.speed = c.speed; this.r = c.radius;
@@ -31,7 +31,7 @@ var Battle = (function () {
       this.phase = 1; this.alive = true; this.action = null;
       this.rot = 0; this.scale = 1; this.pulse = 0; this.lift = 0; this.flash = 0;
       this.air = false; this.phasing = false; this.hidden = false; this.invuln = false; this.jx = 0; this.jy = 0;
-      this.status = { burn: 0, burnDps: 0, stun: 0, freeze: 0, bleed: 0, bleedStacks: 0, bleedDps: 0, blind: 0, slow: 0, slowMul: 1, haste: 0, hasteMul: 1 };
+      this.status = { burn: 0, burnDps: 0, stun: 0, freeze: 0, bleed: 0, bleedStacks: 0, bleedDps: 0, blind: 0, slow: 0, slowMul: 1, haste: 0, hasteMul: 1, atk: 0, atkMul: 1 };   // atk: 일시적인 공격력 배율 (자학개그 너프, 핫식스 박스 버프)
       this.burnTick = 0; this.bleedTick = 0;
       this.stats = { dealt: 0, taken: 0, healed: 0 };   // 결과 화면 그래프용
       this.data = {};
@@ -48,12 +48,14 @@ var Battle = (function () {
 
   class Battle {
     // roster: ['baton','ibi'] (개인전) 또는 [{id:'baton', team:0}, ...] + mode 'team'
-    constructor(roster, mode) {
+    // opts (보스전): { boss: 'heroBaton', difficulty: 'easy' | 'hard' }
+    constructor(roster, mode, opts) {
       var self = this;
-      this.mode = mode === 'team' ? 'team' : 'ffa';
+      this.bossMode = mode === 'boss';   // 보스전: 보스 혼자 0팀, 도전자 전원 1팀 (안에서는 팀전 규칙)
+      this.mode = mode === 'team' || this.bossMode ? 'team' : 'ffa';
       var entries = roster.map(function (r, i) {
         var e = typeof r === 'string' ? { id: r } : r;
-        return { id: e.id, team: self.mode === 'team' ? (e.team || 0) : i };
+        return { id: e.id, team: self.bossMode ? 1 : self.mode === 'team' ? (e.team || 0) : i };
       });
       var counts = {}, seen = {};
       entries.forEach(function (e) { counts[e.id] = (counts[e.id] || 0) + 1; });
@@ -68,8 +70,21 @@ var Battle = (function () {
       this.pairCD = {}; this.effCD = {};
       this.darkCanvas = null;
       this.synergies = [];
+      if (this.bossMode) {
+        var bdef = Object.create(BOSSES[opts.boss]);
+        this.difficulty = opts.difficulty === 'hard' ? 'hard' : 'easy';
+        bdef.cfgOverride = bossConfig(opts.boss, this.difficulty, this.balls.length);
+        var boss = new Ball(bdef, 0, 0);
+        boss.isBoss = true; boss.dmgMult = bdef.cfgOverride.dmgMult || 1;
+        this.boss = boss;
+        this.balls.forEach(function (b) { b.r *= CONFIG.boss.playerScale; });   // 보스전에선 도전자들이 작아짐
+        this.balls.unshift(boss);
+        this.balls.forEach(function (b, i) { b.id = i; });
+        this.maxTime = bdef.cfgOverride.maxTime;
+      }
       if (this.mode === 'team') this.applySynergies();
       this.place();
+      if (this.boss) { var A0 = CONFIG.arena; this.boss.x = A0.x + A0.w / 2; this.boss.y = A0.y + A0.h * 0.32; }
       this.balls.forEach(function (b) {
         var va = rnd(0, Math.PI * 2);
         b.vx = Math.cos(va) * b.speed; b.vy = Math.sin(va) * b.speed;
@@ -218,6 +233,7 @@ var Battle = (function () {
       if (src && src !== t && src.team === t.team) return 0;   // 팀킬 없음
       if (!o.dot && t.def.absorb && t.def.absorb(this, t, amt, src, o)) return 0;   // 피해 무효화 (이윤빈 기억력 감퇴)
       amt *= (src && !o.noMult ? src.dmgMult : 1) * t.takenMult * t.synTaken;   // noMult: 시너지 피해 배율 미적용
+      if (src && src.status.atk > 0) amt *= src.status.atkMul;
       if (src && !o.noMult && src.synDecay) amt *= 1 + src.synDecay.amt * Math.max(0, 1 - this.time / src.synDecay.time);   // 정발산: 점점 줄어듦
       if (src && src.def.dealMult) amt *= src.def.dealMult(this, src, t, amt, o);   // amt: 지금까지 계산된 피해, o.kind로 박치기 구분
       amt *= this.guardMult(t);   // 보호막 (삼식이 하양)
@@ -343,6 +359,7 @@ var Battle = (function () {
       if (st.blind > 0) st.blind -= dt;
       if (st.slow > 0) st.slow -= dt;
       if (st.haste > 0) st.haste -= dt;
+      if (st.atk > 0) { st.atk -= dt; if (st.atk <= 0) st.atkMul = 1; }
       if (b.flash > 0) b.flash -= dt;
       if (b.pulse > 0) b.pulse -= dt;
       b.hpShown += (b.hp - b.hpShown) * Math.min(1, dt * 4);
@@ -458,9 +475,9 @@ var Battle = (function () {
       alive.forEach(function (b) { if (teams.indexOf(b.team) < 0) teams.push(b.team); });
       if (teams.length <= 1) {
         this.over = true; this.winnerTeam = teams.length ? teams[0] : null;
-      } else if (this.time >= CONFIG.battle.maxTime) {
+      } else if (this.time >= (this.maxTime || CONFIG.battle.maxTime)) {
         this.over = true; this.timeUp = true;
-        this.winnerTeam = teams.sort(function (x, y) { return self.teamScore(y) - self.teamScore(x); })[0];
+        this.winnerTeam = this.bossMode ? 0 : teams.sort(function (x, y) { return self.teamScore(y) - self.teamScore(x); })[0];   // 보스전 시간 초과 = 보스 승
         FX.banner('TIME UP', { color: '#00f0ff', size: 150 });
       }
       if (this.over) {
@@ -485,7 +502,8 @@ var Battle = (function () {
       for (var gx = A.x + 50; gx < A.x + A.w; gx += 100) { ctx.moveTo(gx, A.y); ctx.lineTo(gx, A.y + A.h); }
       for (var gy = A.y + 60; gy < A.y + A.h; gy += 100) { ctx.moveTo(A.x, gy); ctx.lineTo(A.x + A.w, gy); }
       ctx.stroke();
-      if (this.mode === 'team') this.drawTeamBorder(ctx);
+      if (this.bossMode) this.drawBossBorder(ctx);
+      else if (this.mode === 'team') this.drawTeamBorder(ctx);
       else {
         ctx.shadowColor = '#ff2bd6'; ctx.shadowBlur = 30; ctx.lineWidth = 8;
         var grad = ctx.createLinearGradient(A.x, A.y, A.x + A.w, A.y + A.h);
@@ -555,6 +573,7 @@ var Battle = (function () {
 
     // 테두리 색: 팀전은 팀 색, 개인전에서 같은 캐릭터가 여럿이면 번호별 색, 아니면 캐릭터 색
     rimColor(b) {
+      if (this.bossMode) return b.isBoss ? b.color() : b.color();
       if (this.mode === 'team') return this.teamColor(b.team);
       if (b.dupNo) return DUP_COLORS[(b.dupNo - 1) % DUP_COLORS.length];
       return b.color();
@@ -606,8 +625,8 @@ var Battle = (function () {
         ctx.beginPath(); ctx.arc(x, y, r + 22, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
       }
 
-      // 팀 배지
-      if (this.mode === 'team') {
+      // 팀 배지 (보스전엔 없음)
+      if (this.mode === 'team' && !this.bossMode) {
         var T = TEAMS[b.team % TEAMS.length], bx = x - r * 0.72, by = y - r * 0.72;
         ctx.fillStyle = this.teamColor(b.team); ctx.strokeStyle = '#0a0612'; ctx.lineWidth = 4;
         ctx.beginPath(); ctx.arc(bx, by, 20, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -638,6 +657,7 @@ var Battle = (function () {
 
     // 인원 수에 맞춰 1열/2열, 패널 높이 자동 조절
     drawHUD(ctx, time) {
+      if (this.bossMode) return this.drawBossHUD(ctx, time);
       var self = this, n = this.balls.length, top = 14, area = 372;
       var cols = n <= 3 ? 1 : 2, rows = Math.ceil(n / cols), gap = 8;
       var ph = Math.min(108, (area - (rows - 1) * gap) / rows), pw = (1040 - (cols - 1) * 10) / cols;
@@ -705,6 +725,7 @@ var Battle = (function () {
       if (this.guardMult(b) < 1) icons.push(['🛡️', '']);
       if (s.slow > 0) icons.push(['🐌', s.slow.toFixed(1)]);
       if (s.haste > 0) icons.push(['💨', s.haste.toFixed(1)]);
+      if (s.atk > 0) icons.push([s.atkMul < 1 ? '😞' : '🔥', s.atk.toFixed(1)]);
       icons.forEach(function (ic, q) {
         var isz = wide ? 34 : Math.round(26 * k), step = isz * 1.7;
         var ix = wide ? 760 + q * 60 : x + w - 14 - (icons.length - q) * step;

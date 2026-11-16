@@ -15,10 +15,12 @@ var Assets = {
   exts: ['.png', '.jpg', '.jpeg', '.webp'],
   load: function () {
     if (typeof Image === 'undefined') return;
-    var self = this;
-    Object.keys(CHARACTERS).forEach(function (id) {
-      var def = CHARACTERS[id];
-      Object.keys(def.images || {}).forEach(function (key) { self.loadOne(id + ':' + key, def.images[key]); });
+    var self = this, all = [CHARACTERS].concat(typeof BOSSES !== 'undefined' ? [BOSSES] : []);   // 보스 사진도
+    all.forEach(function (reg) {
+      Object.keys(reg).forEach(function (id) {
+        var def = reg[id];
+        Object.keys(def.images || {}).forEach(function (key) { self.loadOne(id + ':' + key, def.images[key]); });
+      });
     });
   },
   // 지정 파일이 없으면 같은 이름의 다른 확장자를 차례로 시도, 전부 없으면 null → 색+글자 원으로 대체

@@ -4,7 +4,7 @@ const fs = require('fs'), path = require('path'), vm = require('vm'), assert = r
 const ctx = { console, Math, Set, Object, Array, JSON };
 ctx.window = ctx;
 vm.createContext(ctx);
-for (const f of ['config.js', 'fx.js', 'battle.js', 'characters.js', 'records.js']) {
+for (const f of ['config.js', 'fx.js', 'fxsheets.js', 'battle.js', 'characters.js', 'boss.js', 'records.js']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'src', f), 'utf8'), ctx, { filename: f });
 }
 const { CONFIG, Battle, CHARACTERS, Ents, SYNERGIES } = ctx;
@@ -1124,6 +1124,58 @@ test('스킬 쿨타임 배율(cdRate)이 쿨타임 도는 속도를 바꿈', () 
   for (let k = 0; k < 60; k++) bt.updateBall(i, DT);
   assert(i.skills[0].cd < 1.1, 'cd ' + i.skills[0].cd);
   CONFIG.battle.contactDamage = 5;
+});
+// ---------- 보스전 ----------
+test('보스전: 보스 혼자 0팀, 도전자는 작아짐, 체력은 인원·난이도에 따라', () => {
+  const C = CONFIG.bosses.heroBaton;
+  const e = new Battle(['ibi', 'gym', 'ch'], 'boss', { boss: 'heroBaton', difficulty: 'easy' });
+  const h = new Battle(['ibi', 'gym', 'ch'], 'boss', { boss: 'heroBaton', difficulty: 'hard' });
+  assert(e.boss && e.balls[0] === e.boss && e.boss.team === 0 && e.balls.slice(1).every(b => b.team === 1));
+  assert.strictEqual(e.boss.r, C.radius);
+  assert(Math.abs(e.balls[1].r - CONFIG.chars.ibi.radius * CONFIG.boss.playerScale) < 1e-9, 'players smaller');
+  assert.strictEqual(e.boss.maxHp, Math.round(C.easy.hpPerPlayer * Math.pow(3, C.hpExp)));
+  assert.strictEqual(h.boss.cfg.roll.rolls, C.hard.roll.rolls); assert.strictEqual(e.boss.cfg.roll.rolls, C.roll.rolls);
+  assert(h.boss.cfg.song.at > 0 && !(e.boss.cfg.song.at > 0), '노광석의 힘은 하드 전용');
+});
+test('히어로 바통: 울분(IZK +10%), 페이즈마다 끼야아아악, 페이즈 3에 씻고 와서 회복', () => {
+  const C = CONFIG.bosses.heroBaton;
+  const bt = new Battle(['ibi', 'gym'], 'boss', { boss: 'heroBaton', difficulty: 'easy' });
+  const [b, ibi, gym] = bt.balls;
+  [ibi, gym].forEach(o => { o.hp = o.maxHp = 1e6; });
+  assert(Math.abs(bt.damage(ibi, 10, b) - 10 * b.dmgMult * C.izkRage) < 1e-9, 'izk rage');
+  assert(Math.abs(bt.damage(gym, 10, b) - 10 * b.dmgMult) < 1e-9);
+  b.hp = b.maxHp * 0.6; bt.freeze = 0; bt.hitstop = 0;
+  for (let i = 0; i < 120; i++) bt.update(DT);
+  assert.strictEqual(b.phase, 2); assert(count(bt, 'bossScream') >= 1, 'scream on phase 2');
+  b.hp = b.maxHp * 0.3;
+  for (let i = 0; i < 60 * (C.wash.time + 4) && !count(bt, 'bossWash'); i++) bt.update(DT);
+  assert.strictEqual(b.phase, 3); assert.strictEqual(count(bt, 'bossScream'), 2);
+  const w = bt.log.find(e => e.type === 'bossWash');
+  assert(w && w.healed > 0, 'washed and healed');
+});
+test('히어로 바통: 지갑·자학개그는 IZK에게 무효, 아니면 스턴/공격력 감소', () => {
+  const C = CONFIG.bosses.heroBaton;
+  const bt = new Battle(['ibi', 'gym'], 'boss', { boss: 'heroBaton', difficulty: 'easy' });
+  const [b, ibi, gym] = bt.balls;
+  [ibi, gym].forEach(o => { o.hp = o.maxHp - 20; o.speed = 0; o.vx = o.vy = 0; });
+  const shoot = (Cls, cfg, tgt) => { const s = bt.add(new Cls(bt, b, 0, cfg)); s.x = tgt.x; s.y = tgt.y; s.update(DT); };
+  shoot(Ents.CoinShot, b.cfg.wallet, ibi); shoot(Ents.CoinShot, b.cfg.wallet, gym);
+  assert.strictEqual(ibi.status.stun, 0, 'IZK should ignore wallet');
+  assert(gym.status.stun > 0 && gym.hp > gym.maxHp - 20, 'wallet heals and stuns');
+  shoot(Ents.JokeShot, b.cfg.joke, ibi); shoot(Ents.JokeShot, b.cfg.joke, gym);
+  assert.strictEqual(ibi.status.atk, 0); assert(gym.status.atk > 0 && gym.status.atkMul < 1);
+  gym.status.stun = 0; const before = bt.damage(b, 10, gym);   // 같은 팀끼리는 피해가 없으니 보스에게
+  assert(Math.abs(before - 10 * gym.status.atkMul) < 1e-9, 'atk debuff applies');
+});
+test('보스전 여러 판: 이지·하드 모두 끝까지, 모든 스킬 사용', () => {
+  const ids = Object.keys(CHARACTERS), seen = new Set();
+  for (const diff of ['easy', 'hard']) for (let k = 0; k < 6; k++) {
+    const bt = new Battle(Array.from({ length: 3 + (k % 3) }, (_, i) => ids[(k * 5 + i * 3) % ids.length]), 'boss', { boss: 'heroBaton', difficulty: diff });
+    for (let i = 0; i < (bt.maxTime + 60) * 90 && !bt.over; i++) bt.update(DT);
+    assert(bt.over, 'not over');
+    bt.log.forEach(e => { if (e.type === 'bossSkill') seen.add(e.skill); });
+  }
+  ['roll', 'hot6', 'wallet', 'origin', 'scream', 'wash', 'joke', 'baccarat'].forEach(k => assert(seen.has(k), 'never used ' + k));
 });
 test('밸런스 참고: 3인 개인전 200판', () => {
   const wins = {}, lens = [];

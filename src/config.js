@@ -36,6 +36,40 @@ var CONFIG = {
 
   speeds: [0.5, 1, 1.5, 2, 3],   // 전투 배속 (전투 화면 버튼 / 숫자키 1~5)
 
+  // ---------- 보스전 ----------
+  boss: { playerScale: 0.7 },   // 보스전에서 도전자 크기 배율
+  // 보스 수치: 기본값 위에 easy / hard 값을 덮어씀. 체력 = hpPerPlayer x 도전자 수^hpExp (인원 많으면 광역기가 나눠 맞아서)
+  bosses: {
+    heroBaton: {   // 히어로 바통
+      hpPerPlayer: 180, hpExp: 1.45, speed: 250, radius: 150, color: '#ffd400', phase2Color: '#ff8a00', phase3Color: '#ff2b3b',
+      contactDamage: 6, dmgMult: 1, maxTime: 300,
+      izkRage: 1.1,              // 패시브 울분: IZK 소속에게 주는 피해 배율
+      phases: [0.66, 0.33],      // 이 체력 비율 이하로 페이즈 2, 3
+      ccCap: 0.4,                // 스턴·빙결은 최대 이 시간까지만
+      cd: 3.2, firstCast: 2.0,   // 스킬 사이 간격, 첫 스킬까지
+      pools: { 1: ['roll', 'hot6'], 2: ['wallet', 'origin'], 3: ['joke', 'baccarat'] },
+      cumulative: false,         // true면 이전 페이즈 스킬도 섞어 씀
+      scream: { damage: 14 },                                   // 패시브 끼야아아악: 페이즈 바뀔 때 맵 전체
+      wash: { time: 3.5, heal: 0.15 },                          // 패시브 일단 씻고 오겠습니다: 페이즈 3에서 최대 체력의 heal만큼 회복
+      roll: { rolls: 2, speed: 1500, damage: 18, windup: 0.45, aoe: 130, aoeDamage: 8 },
+      hot6: { boxes: 2, life: 14, damage: 12, bullets: 10, bulletDamage: 4, bulletSpeed: 520, buffTime: 6, buffSpeed: 1.4, buffAtk: 1.3 },
+      wallet: { coins: 5, speed: 700, heal: 6, stun: 1.5 },     // IZK 소속은 무효
+      origin: { passes: 1, speed: 1700, damage: 24, knock: 1500, warn: 0.8, out: 0.7 },
+      joke: { count: 5, speed: 600, damage: 8, atkMul: 0.75, time: 6 },   // IZK 소속은 무효
+      baccarat: { flip: 1.2, playerRadius: 380, playerDamage: 22, bankerDamage: 45, bankerDelay: 0.75, bankerRadius: 110 },
+      song: { at: 0 },           // 하드 전용 노광석의 힘 (0 = 안 씀)
+      easy: { hpPerPlayer: 180, dmgMult: 0.95, cd: 3.4 },
+      hard: {
+        hpPerPlayer: 125, dmgMult: 0.85, cd: 3.4, contactDamage: 7, cumulative: true,
+        scream: { damage: 20 }, wash: { heal: 0.25 },
+        roll: { rolls: 3 }, hot6: { boxes: 3, bullets: 12 }, wallet: { coins: 8, stun: 2 },
+        origin: { passes: 2 }, joke: { count: 8, atkMul: 0.65 }, baccarat: { bankerDamage: 55 },
+        // 노광석의 힘: 체력 at 이하에서 한 번, 맵 위 가운데서 time초 동안 every초마다 파장 (gaps개의 틈으로 피할 수 있음)
+        song: { at: 0.25, time: 7, every: 0.9, speed: 430, width: 38, gaps: 2, gapDeg: 62, damage: 12 },
+      },
+    },
+  },
+
   // 팀전 시너지 (조건은 이름 기준: 같은 이름의 이격도 그 사람으로 침)
   synergy: {
     uninvited: { hp: 3, damage: 3, speed: 3 },                     // 초대받지 못한 손님: 팀에 유재후 또는 ???가 혼자일 때 배율 (2스킬 끼야아아악은 피해 배율 없이 확정 2연타)

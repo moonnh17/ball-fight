@@ -9,6 +9,7 @@
   }
   window.addEventListener('resize', fit); fit();
   Assets.load();
+  FxImg.preload();   // 보스전 픽셀 이펙트 시트
 
   var IDS = Object.keys(CHARACTERS), TEAMS = Battle.TEAMS;
   // 이름이 같은 캐릭터(이격)는 한 그룹: 선택창에선 카드 하나 + 모습 탭
@@ -22,7 +23,7 @@
   function shortSub(id) { return CHARACTERS[id].sub.replace(/의 모습$/, ''); }
   function idOfName(n) { var g = GROUPS.filter(function (q) { return q.name === n; })[0]; return g ? g.ids[0] : null; }
   var G = window.Game = {
-    scene: 'title', record: false, mode: 'ffa', pick: {}, speedIdx: CONFIG.speeds.indexOf(1), roster: [], curTeam: 0, tourSeed: 'manual', swapSel: null, tour: null, focus: IDS[0], battle: null,
+    scene: 'title', record: false, mode: 'ffa', pick: {}, bossId: 'heroBaton', bossDiff: 'easy', speedIdx: CONFIG.speeds.indexOf(1), roster: [], curTeam: 0, tourSeed: 'manual', swapSel: null, tour: null, focus: IDS[0], battle: null,
     phase: '', pt: 0, time: 0, fps: 60, hits: [], titleBalls: [],
   };
   var roundRect = Battle.roundRect, outlined = FX.outlined;
@@ -122,7 +123,7 @@
     return t.sort();
   }
   function canStart() {
-    return G.mode === 'team' ? teamsInRoster().length >= 2 : G.roster.length >= 2;
+    return G.mode === 'team' ? teamsInRoster().length >= 2 : G.mode === 'boss' ? G.roster.length >= 1 : G.roster.length >= 2;
   }
   function startBattle() {
     if (G.mode === 'tour') {   // 토너먼트: 진행 중인 경기가 있으면 그 경기 재시작, 아니면 새 대진
@@ -131,7 +132,9 @@
     }
     if (!canStart()) return;
     FX.reset();
-    G.battle = new Battle(G.roster.map(function (e) { return { id: e.id, team: e.team }; }), G.mode);
+    G.battle = G.mode === 'boss'
+      ? new Battle(G.roster.map(function (e) { return e.id; }), 'boss', { boss: G.bossId, difficulty: G.bossDiff })
+      : new Battle(G.roster.map(function (e) { return { id: e.id, team: e.team }; }), G.mode);
     G.scene = 'battle'; G.phase = 'intro'; G.pt = 0; G.lastCount = -1;
     G.battle.synergies.forEach(function (s, i) {
       FX.banner(s.name, { color: s.color || '#ffe14d', sub: TEAMS[s.team % TEAMS.length].label + '팀 시너지', size: 100, life: 2.2, y: 560 + i * 170 });
@@ -206,9 +209,10 @@
     outlined(ctx, '캐릭터 선택', W / 2, 74, 76, '#ffffff', '#ff2bd6');
 
     // 모드
-    chip(40, 128, 320, 76, '개인전', G.mode === 'ffa', '#00c2ff', function () { G.mode = 'ffa'; G.swapSel = null; });
-    chip(380, 128, 320, 76, '팀전', G.mode === 'team', '#ff2b6a', function () { G.mode = 'team'; G.swapSel = null; });
-    chip(720, 128, 320, 76, '토너먼트', G.mode === 'tour', '#ffd400', function () { G.mode = 'tour'; G.swapSel = null; });
+    chip(30, 128, 240, 76, '개인전', G.mode === 'ffa', '#00c2ff', function () { G.mode = 'ffa'; G.swapSel = null; });
+    chip(285, 128, 240, 76, '팀전', G.mode === 'team', '#ff2b6a', function () { G.mode = 'team'; G.swapSel = null; });
+    chip(540, 128, 240, 76, '토너먼트', G.mode === 'tour', '#ffd400', function () { G.mode = 'tour'; G.swapSel = null; });
+    chip(795, 128, 255, 76, '👑 보스전', G.mode === 'boss', '#ff8a00', function () { G.mode = 'boss'; G.swapSel = null; });
 
     // 캐릭터 카드(사람 단위): 누를 때마다 지금 보이는 모습으로 참가자 추가 (중복 가능)
     // 이격이 있으면 카드 아래 모습 탭으로 바꿈
@@ -266,6 +270,14 @@
       TEAMS.forEach(function (T, i) {
         chip(240 + i * 205, ty, 185, 70, T.label + '팀', G.curTeam === i, T.color, function () { G.curTeam = i; });
       });
+    } else if (G.mode === 'boss') {
+      // 보스 · 난이도
+      var bd = BOSSES[G.bossId], bcol = CONFIG.bosses[G.bossId].color;
+      Assets.drawBall(ctx, bd, 'base', 76, ty + 35, 34, 0, bcol);
+      ctx.lineWidth = 4; ctx.strokeStyle = '#ffd400'; ctx.beginPath(); ctx.arc(76, ty + 35, 34, 0, Math.PI * 2); ctx.stroke();
+      ctx.textAlign = 'left'; ctx.font = '700 30px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffd400'; ctx.fillText(bd.name, 122, ty + 46);
+      chip(560, ty, 230, 70, '이지', G.bossDiff === 'easy', '#39c46a', function () { G.bossDiff = 'easy'; });
+      chip(810, ty, 230, 70, '하드', G.bossDiff === 'hard', '#ff2b3b', function () { G.bossDiff = 'hard'; });
     } else if (G.mode === 'tour') {
       outlined(ctx, '대진', 110, ty + 36, 32, '#ffffff');
       chip(190, ty, 280, 70, '직접 배치', G.tourSeed === 'manual', '#ffd400', function () { G.tourSeed = 'manual'; });
@@ -281,7 +293,7 @@
     ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 3; ctx.stroke();
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     ctx.font = '700 28px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff';
-    var modeTxt = G.mode === 'team' ? '팀전 · ' + teamsInRoster().length + '팀' : G.mode === 'tour' ? '토너먼트 1:1' : '개인전';
+    var modeTxt = G.mode === 'team' ? '팀전 · ' + teamsInRoster().length + '팀' : G.mode === 'tour' ? '토너먼트 1:1' : G.mode === 'boss' ? '보스전 도전자 (1명부터)' : '개인전';
     var helpTxt = G.mode === 'tour' && G.tourSeed === 'manual' ? '(같은 사람 두 번 누르면 제외)' : '(누르면 제외)';
     ctx.fillText('참가자 ' + G.roster.length + '명 · ' + modeTxt + '   ' + helpTxt, 60, py + 44);
     function portrait(e, idx, x, y, r) {
@@ -509,6 +521,7 @@
   function randomRoster() {
     var n = 2 + Math.floor(Math.random() * 5), pick = function () { return IDS[Math.floor(Math.random() * IDS.length)]; };
     if (G.mode === 'tour') n = [4, 8][Math.floor(Math.random() * 2)];
+    if (G.mode === 'boss') n = 3 + Math.floor(Math.random() * 3);
     G.roster = []; G.swapSel = null;
     for (var i = 0; i < n; i++) G.roster.push({ id: pick(), team: G.mode === 'team' ? i % 2 : 0 });
     G.focus = G.roster[0].id;
@@ -796,6 +809,11 @@
     }
 
     background();
+    if (bt.bossMode) {   // 보스전: 붉은 기운이 도는 배경
+      var bg = ctx.createRadialGradient(W / 2, H * 0.45, 200, W / 2, H * 0.45, H * 0.8);
+      bg.addColorStop(0, 'rgba(60,10,20,0.1)'); bg.addColorStop(1, 'rgba(90,10,25,0.6)');
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    }
     ctx.save(); ctx.translate(FX.ox, FX.oy);
     bt.draw(ctx, G.time);
     FX.drawWorld(ctx);
@@ -804,8 +822,8 @@
     bt.drawHUD(ctx, G.time);
 
     // 남은 시간
-    var left = Math.max(0, B.maxTime - bt.time);
-    outlined(ctx, Math.ceil(left) + '', W / 2, CONFIG.arena.y + CONFIG.arena.h + 52, 56, left < 10 ? '#ff2b6a' : '#ffffff');
+    var left = Math.max(0, (bt.maxTime || B.maxTime) - bt.time);
+    if (!bt.bossMode) outlined(ctx, Math.ceil(left) + '', W / 2, CONFIG.arena.y + CONFIG.arena.h + 52, 56, left < 10 ? '#ff2b6a' : '#ffffff');   // 보스전은 보스 이름판에 시간
     if (speed() !== 1 && !G.record) outlined(ctx, '⏩ ' + speedLabel(), W / 2 + 150, CONFIG.arena.y + CONFIG.arena.h + 52, 36, '#ff8c42');
 
     if (G.phase === 'intro') drawIntro(introDur);
@@ -836,7 +854,8 @@
       outlined(ctx, b.name, 690, 890, 100, col, col);
       outlined(ctx, b.def.sub, 690, 985, 38, '#ffffff');
       outlined(ctx, 'HP ' + Math.round(b.maxHp), 690, 1045, 38, '#ff6b8a');
-      if (bt.mode === 'team') outlined(ctx, TEAMS[b.team % TEAMS.length].label + '팀', 690, 1105, 40, band);
+      if (bt.bossMode) outlined(ctx, b.isBoss ? '👑 BOSS · ' + (bt.difficulty === 'hard' ? 'HARD' : 'EASY') : '도전자', 690, 1105, 40, b.isBoss ? '#ffd400' : '#7dd3ff');
+      else if (bt.mode === 'team') outlined(ctx, TEAMS[b.team % TEAMS.length].label + '팀', 690, 1105, 40, band);
       ctx.restore();
       // 해당 공 하이라이트
       FX.ring(b.x, b.y, b.r, b.r * 1.5, 0.15, col, 6);
@@ -874,7 +893,8 @@
     var s = Math.min(1, G.pt * 3), pul = 1 + Math.sin(G.time * 5) * 0.04;
     if (w) {
       ctx.save(); ctx.translate(cx, 400); ctx.scale(pul * s, pul * s); ctx.rotate(-0.05);
-      outlined(ctx, 'WINNER', 0, 0, 200, '#ffd400', '#ff2bd6'); ctx.restore();
+      var lost = bt.bossMode && bt.winnerTeam === 0;
+      outlined(ctx, lost ? 'DEFEAT' : bt.bossMode ? 'CLEAR!' : 'WINNER', 0, 0, 200, lost ? '#ff2b3b' : '#ffd400', lost ? '#550000' : '#ff2bd6'); ctx.restore();
       if (team) {
         // 이긴 팀 전원 (탈락한 팀원은 흐리게)
         var mem = bt.balls.filter(function (b) { return b.team === bt.winnerTeam; });
@@ -887,7 +907,7 @@
           outlined(ctx, b.name, x, cy + r + 40, Math.min(44, r * 0.5), '#ffffff');
           ctx.restore();
         });
-        outlined(ctx, TEAMS[bt.winnerTeam % TEAMS.length].label + '팀 승리', cx, 1180, 120, col, col);
+        outlined(ctx, bt.bossMode ? (lost ? bt.boss.name + ' 승리' : '보스 격파!') : TEAMS[bt.winnerTeam % TEAMS.length].label + '팀 승리', cx, 1180, 120, col, col);
       } else {
         ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = 80; ctx.fillStyle = col;
         ctx.beginPath(); ctx.arc(cx, cy, 260 * s, 0, Math.PI * 2); ctx.fill(); ctx.restore();
@@ -895,7 +915,7 @@
         ctx.lineWidth = 16; ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(cx, cy, 260 * s, 0, Math.PI * 2); ctx.stroke();
         outlined(ctx, w.name, cx, 1180, 120, col, col);
       }
-      outlined(ctx, bt.timeUp ? '시간 종료 · 판정승' : 'K.O. 승리', cx, 1290, 48, '#ffffff');
+      outlined(ctx, bt.bossMode ? (bt.difficulty === 'hard' ? 'HARD' : 'EASY') + ' · ' + (bt.timeUp ? '시간 초과' : Math.round(bt.time) + '초') : bt.timeUp ? '시간 종료 · 판정승' : 'K.O. 승리', cx, 1290, 48, '#ffffff');
     } else {
       outlined(ctx, 'DRAW', cx, 700, 200, '#ffffff', '#00f0ff');
     }

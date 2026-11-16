@@ -20,6 +20,7 @@ var Records = {
   battle: function (bt) {
     if (!bt || !bt.over || bt.recorded) return;
     bt.recorded = true;
+    if (bt.bossMode) return;   // 보스전은 전적에 안 넣음
     var self = this, base = function (b) { return b.baseId || b.def.id; };
     if (bt.mode === 'team') {
       if (bt.winnerTeam == null) return;
