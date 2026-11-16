@@ -1017,7 +1017,9 @@ test('새 시너지: 화정듀오 / 정발산(IZK 수치 꺼짐, 피해 보너�
   assert(h1.hasSynergy('hwajeong', 0));
   assert(near(h1.balls[0].maxHp, CONFIG.chars.baton.hp * S.hwajeong.hp) && near(h1.balls[1].dmgMult, S.hwajeong.damage));
   assert(!new Battle(team([['baton', 0], ['ibi', 0], ['gym', 1]]), 'team').hasSynergy('hwajeong', 0), '이비 한규성은 화정듀오 아님');
-  assert(!new Battle(team([['baton', 0], ['predator', 0], ['seori', 0], ['gym', 1]]), 'team').hasSynergy('hwajeong', 0), '화정듀오는 둘만 있을 때만');
+  const h3 = new Battle(team([['baton', 0], ['predator', 0], ['hau', 0], ['ibi', 0], ['gym', 1]]), 'team');
+  assert(h3.hasSynergy('hwajeong', 0) && near(h3.balls[1].dmgMult, S.hwajeong.damage), '팀원이 더 있어도 발동');
+  assert(near(h3.balls[2].dmgMult, 1) && near(h3.balls[3].maxHp, CONFIG.chars.ibi.hp), '화정듀오는 두 사람만 받음');
   // 정발산
   const j = new Battle(team([['ibi', 0], ['samsik', 0], ['ch', 0], ['hxpwm', 0], ['baton', 0], ['gym', 1]]), 'team');
   assert(j.hasSynergy('jeongbalsan', 0) && j.hasSynergy('izk', 0), 'izk still listed for 긴급소집');

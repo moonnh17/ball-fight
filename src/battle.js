@@ -133,14 +133,17 @@ var Battle = (function () {
         var ids = mem.map(function (b) { return b.def.id; });          // needIds: 특정 모습이 꼭 있어야 하는 시너지 (화정듀오)
         var on = SYNERGIES.filter(function (sy) {
           if (sy.solo) return mem.length === 1 && sy.solo.indexOf(names[0]) >= 0;
-          if (sy.exact && mem.length !== sy.members().length) return false;   // 화정듀오: 둘만
           return sy.members().every(function (n) { return names.indexOf(n) >= 0; })
             && (!sy.needIds || sy.needIds().every(function (id) { return ids.indexOf(id) >= 0; }));
         });
         var keys = on.map(function (sy) { return sy.key; });
         on.forEach(function (sy) {
           var c = CONFIG.synergy[sy.key], off = sy.suppressedBy && keys.indexOf(sy.suppressedBy) >= 0;   // 정발산이면 IZK 수치 효과 꺼짐
-          if (!off) mem.forEach(function (b) {
+          var got = !sy.onlyMembers ? mem : mem.filter(function (b) {   // 화정듀오: 조건 멤버(필요한 모습)만 효과
+            var need = sy.needIds ? sy.needIds() : [], grp = need.some(function (id) { return CHARACTERS[id] && CHARACTERS[id].name === b.def.name; });
+            return sy.members().indexOf(b.def.name) >= 0 && (!grp || need.indexOf(b.def.id) >= 0);
+          });
+          if (!off) got.forEach(function (b) {
             [c, c.per && c.per[b.def.name]].forEach(function (m) {   // 팀 전체 효과 → 이 사람만 받는 효과
               if (!m) return;
               if (m.hp) { b.maxHp *= m.hp; b.hp = b.hpShown = b.maxHp; }

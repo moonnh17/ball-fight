@@ -60,10 +60,10 @@ var CONFIG = {
       hot6: { boxes: 1, size: 1.35, life: 14, damage: 12, bullets: 12, bulletDamage: 4,   // 한 박스 (size: 크기 배율)
               bulletSpeed: 520, buffTime: 6, buffSpeed: 1.4, buffAtk: 1.3 },
       wallet: { coins: 5, speed: 700, heal: 6, stun: 1.5, money: 20 },   // 지폐 (IZK 소속은 무효). money: 최휘 잔고에 들어가는 돈
-      origin: { passes: 1, speed: 1700, damage: 24, knock: 1500, warn: 0.8, out: 0.7 },
+      origin: { chain: [0.7, 0.3], speed: 1700, damage: 24, knock: 1500, warn: 0.8, out: 0.7 },   // chain: 이동 후 다시 이동할 확률 (차례대로)
       joke: { count: 5, speed: 600, damage: 8, atkMul: 0.75, time: 6 },   // IZK 소속은 무효
       // 바지 강림: 페이즈 3부터 first초 뒤, 이후 cd초마다. 플 = blasts번 원형 폭발(반경 blastRadius, blastGap초 간격) / 뱅 = 추적 번개 (근처는 splash배)
-      baccarat: { cd: 7, first: 2, flip: 1.0, tieChance: 0.1, tieDamage: 16, blasts: 6, blastRadius: 170, blastDelay: 0.8, blastGap: 0.15, playerDamage: 18, bankerDamage: 45, bankerDelay: 0.8, bankerRadius: 210, splash: 0.6, strikeScale: 2.8 },
+      baccarat: { cd: 7, first: 2, flip: 1.0, tieChance: 0.1, tieDamage: 22, tieBlasts: 10, tieBlastRadius: 160, tieBlastDamage: 12, tieTint: 2.4, blasts: 6, blastRadius: 170, blastDelay: 0.8, blastGap: 0.15, playerDamage: 18, bankerDamage: 45, bankerDelay: 0.8, bankerRadius: 210, splash: 0.6, strikeScale: 2.8 },
       song: { at: 0 },           // 하드 전용 노광석의 힘 (0 = 안 씀)
       synergyBonus: null,        // 도전자 팀 시너지 하나당 도전자 { damage, hp } 상승 (이지 전용)
       easy: { hpPerPlayer: 185, dmgMult: 1.1, cd: 3.3, baccarat: { cd: 9, blasts: 4 } },   // 이지 기준: 4명 + 시너지 하나로 30% 안팎
@@ -71,7 +71,7 @@ var CONFIG = {
         hpPerPlayer: 135, dmgMult: 1.1, cd: 3.25, contactDamage: 8, cumulative: true, phaseCd: [1, 0.9, 0.78],   // 하드 기준: 8명 + 시너지 두 개 팀
         scream: { damage: 20 }, wash: { heal: 0.25 },
         roll: { rolls: 3 }, hot6: { bullets: 16 }, wallet: { coins: 8, stun: 2 },
-        origin: { passes: 2 }, joke: { count: 8, atkMul: 0.65 }, baccarat: { cd: 5.5, blasts: 10, bankerDamage: 55 },
+        joke: { count: 8, atkMul: 0.65 }, baccarat: { cd: 5.5, blasts: 10, bankerDamage: 55 },
         // 노광석의 힘: 체력 at 이하에서 한 번, 맵 위 가운데서 time초 동안 every초마다 파장 (gaps개의 틈으로 피할 수 있음)
         song: { at: 0.25, time: 7, every: 0.7, speed: 560, width: 52, gaps: 1, gapDeg: 44, damage: 7 },   // 틈 하나, 좁고 빠르게 (대신 한 번 피해는 작게)
       },
@@ -236,7 +236,7 @@ var CONFIG = {
       yeopo: { cutscene: 1.4, reviveHp: 20, every: 0.12, speed: 720, radius: 105, damage: 11, relatedMul: 1.5, shake: 9 },
     },
     chief: {  // 문남휘 (이장님의 모습) — 팀전 버프형
-      hp: 150, speed: 420, radius: 70, color: '#f0e6a0', phase2Color: '#8b5a2b',
+      hp: 150, speed: 350, radius: 70, color: '#f0e6a0', phase2Color: '#8b5a2b',
       ffaTaken: 3,         // 캐릭터 패시브: 개인전(토너먼트 포함)에서 받는 피해 배율
       // 1스킬 웰우스 개방(패시브): 시작부터 같은 팀(본인 포함) 초당 hps 회복
       wellus: { hps: 1.4 },

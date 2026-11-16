@@ -265,8 +265,34 @@ function baccaratPlayer(bt, b, c) {
     });
   })(i);
 }
-// 무승부(초록): 맵이 크게 흔들리며 도전자 전원 피해
+// 무승부 연출: 경기장이 초록으로 물들었다가 빠짐
+class TieTint {
+  constructor(life) { this.t = 0; this.life = life; this.z = 2; }
+  update(dt) { this.t += dt; if (this.t >= this.life) this.dead = true; }
+  draw(ctx) {
+    var A = CONFIG.arena, k = this.t / this.life, a = (k < 0.1 ? k / 0.1 : 1 - (k - 0.1) / 0.9) * 0.38;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    var g = ctx.createRadialGradient(A.x + A.w / 2, A.y + A.h / 2, 0, A.x + A.w / 2, A.y + A.h / 2, Math.max(A.w, A.h) * 0.75);
+    g.addColorStop(0, 'rgba(57,255,136,' + a * 0.6 + ')'); g.addColorStop(1, 'rgba(57,255,136,' + a + ')');
+    ctx.fillStyle = g; ctx.fillRect(A.x, A.y, A.w, A.h);
+    ctx.restore();
+  }
+}
+// 무승부(초록): 맵이 크게 흔들리고 초록으로 물들며 곳곳이 폭발, 도전자 전원 피해
 function baccaratTie(bt, b, c) {
+  var A = CONFIG.arena;
+  bt.add(new TieTint(c.tieTint));
+  for (var i = 0; i < c.tieBlasts; i++) (function (k) {
+    var p = { x: _rnd(A.x + 60, A.x + A.w - 60), y: _rnd(A.y + 60, A.y + A.h - 60) }, delay = 0.45 + k * 0.13;
+    bt.add(new BankMark(p.x, p.y, delay, c.tieBlastRadius, null, '#39ff88'));
+    bt.after(delay, function () {
+      bfx(bt, 'blast_gold', p.x, p.y, { scale: c.tieBlastRadius / 75 });
+      FX.ring(p.x, p.y, 20, c.tieBlastRadius * 1.2, 0.4, '#39ff88', 14);
+      FX.burst(p.x, p.y, '#39ff88', 18, 650, 12, 0.6, 'square'); FX.burst(p.x, p.y, '#eaffef', 8, 400, 8, 0.4);
+      FX.shake(16); FX.sfx('thump');
+      _bPlayers(bt, b).forEach(function (o) { if (Math.hypot(o.x - p.x, o.y - p.y) < c.tieBlastRadius + o.r * 0.5) bt.damage(o, c.tieBlastDamage, b, { color: '#7dff9a', kind: 'baccaratT' }); });
+    });
+  })(i);
   FX.banner('무승부!!', { color: '#39ff88', sub: '바지 강림 · 판이 뒤집힌다', size: 150, life: 1.5 });
   FX.flash('#39ff88', 0.35, 0.35); FX.sfx('quake'); FX.sfx('scream');
   [0, 0.25, 0.5, 0.75].forEach(function (d) { bt.after(d, function () { FX.shake(55 - d * 30); FX.sfx('slam'); }); });
@@ -442,7 +468,7 @@ var BATON_SKILLS = {
   },
   // 2-2 바통의 근원: 맵 밖으로 나갔다가 킥보드 타고 소주 마시며 일직선 돌격
   origin: function (bt, b) {
-    var c = b.cfg.origin, A = CONFIG.arena, passes = c.passes, st = 'out', t = 0, line = null, hit, gt = 0;
+    var c = b.cfg.origin, A = CONFIG.arena, done = 0, st = 'out', t = 0, line = null, hit, gt = 0;
     bossCast(bt, b, '바통의 근원', '#7dff9a');
     bfx(bt, 'implode', b.x, b.y, { scale: 1.3 }); FX.sfx('vanish');
     b.hidden = true; b.phasing = true; b.vx = b.vy = 0;
@@ -482,7 +508,7 @@ var BATON_SKILLS = {
           bt.emit('bossKickHit', { who: o.def.id });
         });
         if ((b.x - line.x1) * ux + (b.y - line.y1) * uy < 0) return false;
-        if (--passes > 0) { b.hidden = true; b.data.kick = false; st = 'out'; t = c.out * 0.5; return false; }
+        if (Math.random() < (c.chain[done++] || 0)) { b.hidden = true; b.data.kick = false; st = 'out'; t = c.out * 0.5; FX.text(b.x, b.y, '한 번 더!', '#7dff9a', 46, 0.8); return false; }
         return true;
       },
       end: function () {
@@ -655,9 +681,9 @@ var BOSSES = {
         { key: 'roll', phase: 1, name: '끝까지 구르기', desc: function (c) { return '예고 화살표 방향으로 굴러 부딪힌 도전자에게 피해, 멈추면 쿵! 연속 ' + c.roll.rolls + '번'; } },
         { key: 'hot6', phase: 1, name: '핫식스 한 박스 쟁여놓기', desc: function (c) { return '핫식스 한 박스를 깜. 보스가 먹으면 이속·공격력 상승, 도전자가 먹으면 터지며 탄막 ' + c.hot6.bullets + '발'; } },
         { key: 'wallet', phase: 2, name: '지갑전사 바통', desc: function (c) { return '지폐 ' + c.wallet.coins + '장을 뿌림. 맞으면 체력이 조금 차지만 ' + c.wallet.stun + '초 동안 아무것도 못 함 (IZK·진형권 무효, 최휘는 잔고 +' + c.wallet.money + ')'; } },
-        { key: 'origin', phase: 2, name: '바통의 근원', desc: function (c) { return '맵 밖으로 나갔다가 예고된 차선으로 킥보드를 타고 소주를 마시며 돌격. 맞으면 피해와 넉백' + (c.origin.passes > 1 ? ' (' + c.origin.passes + '번 왕복)' : ''); } },
+        { key: 'origin', phase: 2, name: '바통의 근원', desc: function (c) { return '맵 밖으로 나갔다가 예고된 차선으로 킥보드를 타고 소주를 마시며 돌격. 맞으면 피해와 넉백. ' + Math.round(c.origin.chain[0] * 100) + '% 확률로 한 번 더, 그다음 ' + Math.round(c.origin.chain[1] * 100) + '% 확률로 또 한 번'; } },
         { key: 'joke', phase: 3, name: '자학개그', desc: function (c) { return '자학개그 ' + c.joke.count + '개를 날림. 맞으면 공격력 ' + Math.round((1 - c.joke.atkMul) * 100) + '% 감소 (IZK·진형권 무효)'; } },
-        { key: 'baccarat', phase: 3, name: '바지 강림 (고유 쿨타임)', desc: function (c) { return c.baccarat.cd + '초마다 다른 스킬과 함께 바카라! 플(파랑)이면 맵 곳곳에 원형 폭발 ' + c.baccarat.blasts + '번(각 ' + c.baccarat.playerDamage + '), 뱅(빨강)이면 한 명을 끝까지 쫓는 거대한 번개 ' + c.baccarat.bankerDamage + ' (근처도 휘말림). ' + Math.round(c.baccarat.tieChance * 100) + '% 확률로 초록 무승부: 맵이 흔들리며 전원 ' + c.baccarat.tieDamage; } },
+        { key: 'baccarat', phase: 3, name: '바지 강림 (고유 쿨타임)', desc: function (c) { return c.baccarat.cd + '초마다 다른 스킬과 함께 바카라! 플(파랑)이면 맵 곳곳에 원형 폭발 ' + c.baccarat.blasts + '번(각 ' + c.baccarat.playerDamage + '), 뱅(빨강)이면 한 명을 끝까지 쫓는 거대한 번개 ' + c.baccarat.bankerDamage + ' (근처도 휘말림). ' + Math.round(c.baccarat.tieChance * 100) + '% 확률로 초록 무승부: 맵이 흔들리고 초록으로 물들며 전원 ' + c.baccarat.tieDamage + ', 곳곳에 폭발 ' + c.baccarat.tieBlasts + '번(각 ' + c.baccarat.tieBlastDamage + ')'; } },
       ],
       hard: { key: 'song', name: '노광석의 힘', desc: function (c) { return '체력 ' + Math.round(c.song.at * 100) + '% 이하에서 맵 맨 위로 올라가 노래 (그동안 무적). 빠르고 두꺼운 파장이 쏟아지고 좁은 틈으로만 피할 수 있음'; } },
     },
