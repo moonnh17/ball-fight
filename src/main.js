@@ -1240,10 +1240,10 @@
 
   // ---------- 메인 루프 ----------
   var last = performance.now();
-  // ---------- 로비 배경음악: 시작 화면 · 캐릭터 선택에서만 (다른 화면에선 서서히 꺼지고, 돌아오면 이어서) ----------
+  // ---------- 로비 배경음악: 전투 화면만 빼고 계속 (전투에선 서서히 꺼지고, 돌아오면 이어서) ----------
   var bgm = typeof Audio !== 'undefined' ? new Audio('assets/bgm_lobby.mp3') : null;
   if (bgm) { bgm.loop = true; bgm.volume = 0; }
-  function bgmWant() { return (G.scene === 'title' || G.scene === 'select') && !FX.muted ? CONFIG.sound.bgm : 0; }
+  function bgmWant() { return G.scene !== 'battle' && !FX.muted ? CONFIG.sound.bgm : 0; }
   // 브라우저는 사용자가 한 번 누르기 전엔 소리를 못 냄 → 첫 입력 때 바로 재생
   function bgmUnlock() { if (!bgm || G.bgmOk) return; G.bgmOk = true; if (bgmWant() > 0) bgm.play().catch(function () { G.bgmOk = false; }); }
   function bgmUpdate(dt) {
