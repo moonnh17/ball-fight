@@ -210,7 +210,7 @@ class JokeShot {
 }
 // 뱅커 조준 표시
 class BankMark {
-  constructor(x, y, life, r, follow) { this.x = x; this.y = y; this.life = life; this.t = 0; this.r = r; this.z = -1; this.follow = follow || null; }
+  constructor(x, y, life, r, follow, color) { this.x = x; this.y = y; this.life = life; this.t = 0; this.r = r; this.z = -1; this.follow = follow || null; this.col = color || '#ff2b3b'; }
   update(dt) {
     this.t += dt;
     if (this.follow && this.follow.alive && this.t < this.life - 0.1) { this.x = this.follow.x; this.y = this.follow.y; }   // 거의 끝까지 따라감
@@ -218,13 +218,70 @@ class BankMark {
   }
   draw(ctx) {
     var k = this.t / this.life;
-    ctx.save(); ctx.strokeStyle = '#ff2b3b'; ctx.lineWidth = 6; ctx.shadowColor = '#ff2b3b'; ctx.shadowBlur = 20;
+    ctx.save(); ctx.strokeStyle = this.col; ctx.lineWidth = 6; ctx.shadowColor = this.col; ctx.shadowBlur = 20;
     ctx.globalAlpha = 0.5 + Math.sin(this.t * 30) * 0.3;
     ctx.beginPath(); ctx.arc(this.x, this.y, this.r * (1.6 - k * 0.6), 0, Math.PI * 2); ctx.stroke();
-    ctx.globalAlpha = 0.25; ctx.fillStyle = '#ff2b3b'; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.25; ctx.fillStyle = this.col; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 }
+// 바지 강림 (패시브, 고유 쿨타임): 보스 머리 위에서 카드가 뒤집히고
+//   플(파랑) = 맵 전체에 원형 폭발이 무작위로 / 뱅(빨강) = 한 명을 끝까지 쫓는 큰 번개 (근처도 휘말림)
+class Baccarat {
+  constructor(bt, b, force) { this.bt = bt; this.b = b; this.force = force; this.t = 0; this.done = false; this.z = 3; b.data.bac = { t: 0, res: null }; }
+  update(dt) {
+    var b = this.b, bt = this.bt, c = b.cfg.baccarat;
+    this.t += dt;
+    if (!b.alive) { this.dead = true; b.data.bac = null; return; }
+    b.data.bac.t = this.t;
+    if (this.t < c.flip) { if (Math.random() < dt * 10) FX.sfx('click'); return; }
+    if (!this.done) {
+      this.done = true;
+      var res = this.force || (Math.random() < 0.5 ? 'P' : 'B'); b.data.bac.res = res;
+      if (res === 'P') baccaratPlayer(bt, b, c); else baccaratBanker(bt, b, c);
+      bt.emit('baccarat', { res: res });
+    }
+    if (this.t >= c.flip + 0.8) { this.dead = true; b.data.bac = null; }
+  }
+  draw() {}
+}
+function startBaccarat(bt, b, force) {
+  if (b.data.bac) return;
+  bossCast(bt, b, '바지 강림', '#ff2b3b');
+  bt.add(new Baccarat(bt, b, force));
+  bt.emit('bossSkill', { skill: 'baccarat' });
+}
+function baccaratPlayer(bt, b, c) {
+  var A = CONFIG.arena;
+  FX.text(b.x, b.y - b.r - 90, '플레이어!', '#3b8bff', 70, 1.2); FX.sfx('freeze'); FX.shake(14);
+  for (var i = 0; i < c.blasts; i++) (function (k) {
+    var p = { x: _rnd(A.x + c.blastRadius * 0.5, A.x + A.w - c.blastRadius * 0.5), y: _rnd(A.y + c.blastRadius * 0.5, A.y + A.h - c.blastRadius * 0.5) };
+    var delay = c.blastDelay + k * c.blastGap;
+    bt.add(new BankMark(p.x, p.y, delay, c.blastRadius, null, '#3b8bff'));
+    bt.after(delay, function () {
+      bfx(bt, 'burst_blue', p.x, p.y, { scale: c.blastRadius / 70 });
+      FX.ring(p.x, p.y, 20, c.blastRadius, 0.35, '#7fb3ff', 12); FX.shake(10); FX.sfx('shatter');
+      _bPlayers(bt, b).forEach(function (o) { if (Math.hypot(o.x - p.x, o.y - p.y) < c.blastRadius + o.r * 0.5) bt.damage(o, c.playerDamage, b, { color: '#7fb3ff', kind: 'baccaratP' }); });
+    });
+  })(i);
+}
+function baccaratBanker(bt, b, c) {
+  var tgt = _bPick(bt, b);
+  FX.text(b.x, b.y - b.r - 90, '뱅커!!', '#ff2b3b', 76, 1.2);
+  if (!tgt) return;
+  var mark = bt.add(new BankMark(tgt.x, tgt.y, c.bankerDelay, c.bankerRadius, tgt));
+  bfx(bt, 'strike_red', tgt.x, tgt.y, { scale: c.strikeScale, follow: tgt });
+  bt.after(c.bankerDelay, function () {
+    var mx = mark.x, my = mark.y;
+    FX.shake(40); FX.flash('#ff2b3b', 0.35, 0.3); FX.sfx('ddakbam'); FX.sfx('bigHit');
+    bfx(bt, 'smash_red', mx, my, { scale: c.bankerRadius / 32 });
+    for (var i = 0; i < 3; i++) FX.ring(mx, my, 20, c.bankerRadius * (1 + i * 0.15), 0.4 + i * 0.12, i % 2 ? '#ffffff' : '#ff2b3b', 16 - i * 4);
+    if (tgt.alive) bt.damage(tgt, c.bankerDamage, b, { color: '#ff5a50', kind: 'baccaratB' });
+    _bPlayers(bt, b).forEach(function (o) { if (o !== tgt && Math.hypot(o.x - mx, o.y - my) < c.bankerRadius + o.r * 0.5) bt.damage(o, c.bankerDamage * c.splash, b, { color: '#ff5a50', kind: 'baccaratB' }); });
+    bt.emit('banker', { who: tgt.def.id });
+  });
+}
+
 // 노광석의 힘 파장: 틈(gap)으로 피할 수 있는 고리
 class SongWave {
   constructor(bt, owner, x, y, c) {
@@ -439,49 +496,8 @@ var BATON_SKILLS = {
       end: function () { _restoreSpeed(b, b.vx, b.vy); },
     };
   },
-  // 3-2 바지 강림: 바카라 — 플(파랑) = 주위 범위 / 뱅(빨강) = 한 명에게 강한 한 방
-  baccarat: function (bt, b, force) {   // force: 'P' | 'B' (테스트용)
-    var c = b.cfg.baccarat, t = 0, done = false;
-    bossCast(bt, b, '바지 강림', '#ff2b3b');
-    b.data.bac = { t: 0, res: null };
-    b.vx = b.vy = 0;
-    return {
-      moves: false,
-      update: function (dt) {
-        t += dt; b.data.bac.t = t;
-        if (t < c.flip) { if (Math.random() < dt * 10) FX.sfx('click'); return false; }
-        if (!done) {
-          done = true;
-          var res = force || (Math.random() < 0.5 ? 'P' : 'B'); b.data.bac.res = res;
-          if (res === 'P') {
-            FX.text(b.x, b.y - b.r - 90, '플레이어!', '#3b8bff', 70, 1.2);
-            bfx(bt, 'burst_blue', b.x, b.y, { scale: 3.4 }); FX.sfx('freeze'); FX.shake(20);
-            for (var i = 0; i < 3; i++) FX.ring(b.x, b.y, b.r, c.playerRadius * (1 + i * 0.05), 0.5 + i * 0.12, i % 2 ? '#ffffff' : '#3b8bff', 14);
-            _bPlayers(bt, b).forEach(function (o) { if (_dist(o, b) < c.playerRadius + o.r * 0.5) bt.damage(o, c.playerDamage, b, { color: '#7fb3ff', kind: 'baccaratP' }); });
-            bt.emit('baccarat', { res: 'P' });
-          } else {
-            var tgt = _bPick(bt, b);
-            FX.text(b.x, b.y - b.r - 90, '뱅커!!', '#ff2b3b', 76, 1.2);
-            if (tgt) {   // 번개가 대상을 따라가서 거의 확정으로 맞음 (근처 다른 도전자도 휘말림)
-              var mark = bt.add(new BankMark(tgt.x, tgt.y, c.bankerDelay, c.bankerRadius, tgt));
-              bfx(bt, 'strike_red', tgt.x, tgt.y, { scale: 1.6, follow: tgt });
-              bt.after(c.bankerDelay, function () {
-                var mx = mark.x, my = mark.y;
-                FX.shake(34); FX.flash('#ff2b3b', 0.3, 0.25); FX.sfx('ddakbam');
-                bfx(bt, 'smash_red', mx, my, { scale: 2.6 });
-                if (tgt.alive) bt.damage(tgt, c.bankerDamage, b, { color: '#ff5a50', kind: 'baccaratB' });
-                _bPlayers(bt, b).forEach(function (o) { if (o !== tgt && Math.hypot(o.x - mx, o.y - my) < c.bankerRadius + o.r * 0.5) bt.damage(o, c.bankerDamage * 0.5, b, { color: '#ff5a50', kind: 'baccaratB' }); });
-                bt.emit('banker', { who: tgt.def.id });
-              });
-            }
-            bt.emit('baccarat', { res: 'B' });
-          }
-        }
-        return t >= c.flip + 0.6;
-      },
-      end: function () { b.data.bac = null; _restoreSpeed(b, b.vx || 1, b.vy); },
-    };
-  },
+  // 3-2 바지 강림: 이제 고유 쿨타임 패시브 (다른 스킬과 동시에). 여기선 시작만 하고 행동은 안 막음
+  baccarat: function (bt, b, force) { startBaccarat(bt, b, force); return null; },
   // 패시브 2 끼야아아악: 페이즈 바뀔 때 맵 전체
   scream: function (bt, b) {
     var c = b.cfg.scream, t = 0;
@@ -508,8 +524,12 @@ var BATON_SKILLS = {
           b.data.towel = Math.min(1, t / 0.7); b.jy = Math.sin(t * 14) * 3;
           if (Math.random() < dt * 20) FX.particle({ x: b.x + _rnd(-b.r, b.r), y: b.y + _rnd(-b.r, b.r) * 0.6, vx: _rnd(-30, 30), vy: _rnd(-120, -60), life: 0.8, size: _rnd(6, 12), color: '#cdeeff', shape: 'dot' });
           if (t >= 1.1) {
-            st = 'away'; t = 0; b.jy = 0; b.data.towel = 0; b.hidden = true;
+            st = 'away'; t = 0; b.jy = 0; b.data.towel = 0;
             bfx(bt, 'implode', b.x, b.y, { scale: 1.3 }); FX.burst(b.x, b.y, '#fff4f8', 24, 500, 14, 0.6, 'smoke'); FX.sfx('vanish');
+            var healed = bt.heal(b, b.maxHp * c.heal);   // 맵 밖으로 나가는 순간 씻고 회복
+            FX.text(b.x, b.y - b.r - 40, '샤워 중… +' + Math.round(healed), '#78ccf4', 52, 1.2);
+            bt.emit('bossWash', { healed: healed });
+            b.hidden = true;
           }
           return false;
         }
@@ -534,9 +554,7 @@ var BATON_SKILLS = {
         if (to) { b.x = to.x; b.y = to.y; } else { b.x = A.x + A.w / 2; b.y = A.y + A.h * 0.35; }
         bfx(bt, 'heal_water', b.x, b.y + b.r * 0.6, { scale: 3 });
         FX.burst(b.x, b.y, '#78ccf4', 40, 700, 10, 0.8);
-        var healed = bt.heal(b, b.maxHp * c.heal);
         bt.skillText(b, '개운하다~', '#78ccf4');
-        bt.emit('bossWash', { healed: healed });
         _restoreSpeed(b, 0, 1);
       },
     };
@@ -608,7 +626,7 @@ var BOSSES = {
         { name: '울분', desc: function (c) { return 'IZK 1기 멤버에게 주는 피해 +' + Math.round((c.izkRage - 1) * 100) + '%'; } },
         { name: '끼야아아악', desc: function (c) { return '페이즈가 바뀔 때마다 맵 전체에 비명 (도전자 전원 ' + c.scream.damage + ' 피해)'; } },
         { name: '점점 빨라짐', desc: function (c) { return '스킬 간격 ' + c.cd + '초 → 페이즈 2 x' + c.phaseCd[1] + ' → 페이즈 3 x' + c.phaseCd[2]; } },
-        { name: '일단 씻고 오겠습니다', desc: function (c) { return '페이즈 3이 되면 ' + c.wash.time + '초 동안 자리를 비우고, 씻고 와서 최대 체력의 ' + Math.round(c.wash.heal * 100) + '% 회복'; } },
+        { name: '일단 씻고 오겠습니다', desc: function (c) { return '페이즈 3이 되면 ' + c.wash.time + '초 동안 자리를 비우고, 씻고 와서 최대 체력의 ' + Math.round(c.wash.heal * 100) + '% 회복 (맵 밖으로 나가는 순간)'; } },
       ],
       skills: [
         { key: 'roll', phase: 1, name: '끝까지 구르기', desc: function (c) { return '예고 화살표 방향으로 굴러 부딪힌 도전자에게 피해, 멈추면 쿵! 연속 ' + c.roll.rolls + '번'; } },
@@ -616,7 +634,7 @@ var BOSSES = {
         { key: 'wallet', phase: 2, name: '지갑전사 바통', desc: function (c) { return '지폐 ' + c.wallet.coins + '장을 뿌림. 맞으면 체력이 조금 차지만 ' + c.wallet.stun + '초 동안 아무것도 못 함 (IZK·진형권 무효, 최휘는 잔고 +' + c.wallet.money + ')'; } },
         { key: 'origin', phase: 2, name: '바통의 근원', desc: function (c) { return '맵 밖으로 나갔다가 예고된 차선으로 킥보드를 타고 소주를 마시며 돌격. 맞으면 피해와 넉백' + (c.origin.passes > 1 ? ' (' + c.origin.passes + '번 왕복)' : ''); } },
         { key: 'joke', phase: 3, name: '자학개그', desc: function (c) { return '자학개그 ' + c.joke.count + '개를 날림. 맞으면 공격력 ' + Math.round((1 - c.joke.atkMul) * 100) + '% 감소 (IZK·진형권 무효)'; } },
-        { key: 'baccarat', phase: 3, name: '바지 강림', desc: function (c) { return '바카라! 플(파랑)이면 주위 전체 ' + c.baccarat.playerDamage + ' 피해, 뱅(빨강)이면 한 명을 끝까지 쫓는 번개 ' + c.baccarat.bankerDamage + ' 피해'; } },
+        { key: 'baccarat', phase: 3, name: '바지 강림 (고유 쿨타임)', desc: function (c) { return c.baccarat.cd + '초마다 다른 스킬과 함께 바카라! 플(파랑)이면 맵 곳곳에 원형 폭발 ' + c.baccarat.blasts + '번(각 ' + c.baccarat.playerDamage + '), 뱅(빨강)이면 한 명을 끝까지 쫓는 거대한 번개 ' + c.baccarat.bankerDamage + ' (근처도 휘말림)'; } },
       ],
       hard: { key: 'song', name: '노광석의 힘', desc: function (c) { return '체력 ' + Math.round(c.song.at * 100) + '% 이하에서 맵 맨 위로 올라가 노래 (그동안 무적). 빠르고 두꺼운 파장이 쏟아지고 좁은 틈으로만 피할 수 있음'; } },
     },
@@ -635,6 +653,10 @@ var BOSSES = {
       if (b.phase === 1 && b.hp <= b.maxHp * c.phases[0]) bossPhase(bt, b, 2);
       else if (b.phase === 2 && b.hp <= b.maxHp * c.phases[1]) bossPhase(bt, b, 3);
       if (c.song.at > 0 && !d.sang && b.phase >= 3 && b.hp <= b.maxHp * c.song.at) { d.sang = true; d.queue.push('song'); }
+      if (b.phase >= 3 && !b.hidden && !d.bac) {   // 바지 강림: 고유 쿨타임, 다른 스킬 중에도 발동
+        d.bacT = (d.bacT == null ? c.baccarat.first : d.bacT) - dt;
+        if (d.bacT <= 0) { d.bacT = c.baccarat.cd; startBaccarat(bt, b); }
+      }
       if (!b.action && !b.hidden) d.cur = null;
       if (b.action || b.hidden) return;
       if (d.queue.length) { var q = d.queue.shift(); d.cur = q; b.action = BATON_SKILLS[q](bt, b); bt.emit('bossSkill', { skill: q }); return; }
@@ -776,10 +798,11 @@ Battle.prototype.drawBossHUD = function (ctx, time) {
   names.scream = '끼야아아악'; names.wash = '일단 씻고 오겠습니다'; names[info.hard.key] = info.hard.name;
   var keys = bossPool(b).slice();
   if (d.cur && keys.indexOf(d.cur) < 0) keys.unshift(d.cur);
+  if (b.phase >= 3) { names.bacc = d.bac ? '🃏 바지 강림!' : '🃏 바지 강림 ' + Math.max(0, d.bacT == null ? b.cfg.baccarat.first : d.bacT).toFixed(1) + 's'; keys.unshift('bacc'); }   // 맨 앞에 (칩이 많아도 안 잘리게)
   ctx.font = '700 20px "Malgun Gothic",sans-serif'; ctx.textAlign = 'left';
   var cx2 = 190, cy2 = 140;
   keys.forEach(function (k) {
-    var on = d.cur === k, label = (on ? '▶ ' : '') + names[k], w2 = ctx.measureText(label).width + 26;
+    var on = d.cur === k || (k === 'bacc' && !!d.bac), label = (on ? '▶ ' : '') + names[k], w2 = ctx.measureText(label).width + 26;
     if (cx2 + w2 > W - 190) return;
     ctx.save();
     if (on) { ctx.shadowColor = col; ctx.shadowBlur = 20; ctx.fillStyle = col; } else ctx.fillStyle = 'rgba(255,255,255,0.08)';

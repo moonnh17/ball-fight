@@ -52,7 +52,7 @@ var CONFIG = {
       ccCap: 0.4,                // 스턴·빙결은 최대 이 시간까지만
       cd: 3.2, firstCast: 2.0,   // 스킬 사이 간격, 첫 스킬까지
       phaseCd: [1, 0.82, 0.65],  // 페이즈 1·2·3의 스킬 간격 배율 (갈수록 빨라짐)
-      pools: { 1: ['roll', 'hot6'], 2: ['wallet', 'origin'], 3: ['joke', 'baccarat'] },
+      pools: { 1: ['roll', 'hot6'], 2: ['wallet', 'origin'], 3: ['joke', 'roll'] },   // 바지 강림은 페이즈 3 고유 쿨타임 (baccarat.cd)
       cumulative: false,         // true면 이전 페이즈 스킬도 섞어 씀
       scream: { damage: 14 },                                   // 패시브 끼야아아악: 페이즈 바뀔 때 맵 전체
       wash: { time: 3.5, heal: 0.15 },                          // 패시브 일단 씻고 오겠습니다: 페이즈 3에서 최대 체력의 heal만큼 회복
@@ -62,15 +62,16 @@ var CONFIG = {
       wallet: { coins: 5, speed: 700, heal: 6, stun: 1.5, money: 20 },   // 지폐 (IZK 소속은 무효). money: 최휘 잔고에 들어가는 돈
       origin: { passes: 1, speed: 1700, damage: 24, knock: 1500, warn: 0.8, out: 0.7 },
       joke: { count: 5, speed: 600, damage: 8, atkMul: 0.75, time: 6 },   // IZK 소속은 무효
-      baccarat: { flip: 1.2, playerRadius: 380, playerDamage: 22, bankerDamage: 45, bankerDelay: 0.75, bankerRadius: 110 },
+      // 바지 강림: 페이즈 3부터 first초 뒤, 이후 cd초마다. 플 = blasts번 원형 폭발(반경 blastRadius, blastGap초 간격) / 뱅 = 추적 번개 (근처는 splash배)
+      baccarat: { cd: 7, first: 2, flip: 1.0, blasts: 6, blastRadius: 170, blastDelay: 0.8, blastGap: 0.15, playerDamage: 18, bankerDamage: 45, bankerDelay: 0.8, bankerRadius: 210, splash: 0.6, strikeScale: 2.8 },
       song: { at: 0 },           // 하드 전용 노광석의 힘 (0 = 안 씀)
       synergyBonus: null,        // 도전자 팀 시너지 하나당 도전자 { damage, hp } 상승 (이지 전용)
-      easy: { hpPerPlayer: 195, dmgMult: 1.0, cd: 3.3, synergyBonus: { damage: 0.3, hp: 0.25 } },
+      easy: { hpPerPlayer: 185, dmgMult: 1.0, cd: 3.3, synergyBonus: { damage: 0.45, hp: 0.3 }, baccarat: { cd: 9, blasts: 4 } },
       hard: {
-        hpPerPlayer: 120, dmgMult: 0.91, cd: 3.25, contactDamage: 8, cumulative: true, phaseCd: [1, 0.9, 0.78],
+        hpPerPlayer: 135, dmgMult: 1.0, cd: 3.25, contactDamage: 8, cumulative: true, phaseCd: [1, 0.9, 0.78],   // 하드 기준: 8명 + 시너지 두 개 팀
         scream: { damage: 20 }, wash: { heal: 0.25 },
         roll: { rolls: 3 }, hot6: { bullets: 16 }, wallet: { coins: 8, stun: 2 },
-        origin: { passes: 2 }, joke: { count: 8, atkMul: 0.65 }, baccarat: { bankerDamage: 55 },
+        origin: { passes: 2 }, joke: { count: 8, atkMul: 0.65 }, baccarat: { cd: 5.5, blasts: 10, bankerDamage: 55 },
         // 노광석의 힘: 체력 at 이하에서 한 번, 맵 위 가운데서 time초 동안 every초마다 파장 (gaps개의 틈으로 피할 수 있음)
         song: { at: 0.25, time: 7, every: 0.7, speed: 560, width: 52, gaps: 1, gapDeg: 44, damage: 7 },   // 틈 하나, 좁고 빠르게 (대신 한 번 피해는 작게)
       },
@@ -143,7 +144,7 @@ var CONFIG = {
       hp: 165, speed: 420, radius: 70, color: '#c6ff00', phase2Color: '#ff2bd6',
       contactDamage: 5,    // 몸통 박치기 데미지 (기본 5 대신)
       // 1스킬 밸런스 패치(패시브): 닿을 때마다 상대 스탯 x(1-rate), 본인 x(1+rate). 최대 maxStacks회까지 중첩
-      patch: { rate: 0.05, maxStacks: 15 },
+      patch: { rate: 0.05, bossRate: 0.02, maxStacks: 15 },   // bossRate: 보스에게 주는 스탯 감소
       // 2스킬 치트: charge초 조준 후 fire초 동안 굵은 레이저
       // damage x (1 + perPatch x 패치 횟수): 0회 5 → 15회 약 16 (공격력 배율은 따로)
       cheat: { cd: 9, charge: 0.6, fire: 0.35, width: 70, damage: 5, perPatch: 0.15, shake: 26 },

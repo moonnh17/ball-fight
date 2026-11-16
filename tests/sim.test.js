@@ -1232,6 +1232,16 @@ test('노광석의 힘 동안 보스 무적, 진형권은 보스 바통에게 2�
   const pc = b.cfg.phaseCd;
   assert(pc[1] < pc[0] && pc[2] < pc[1]);
 });
+test('문남휘 밸런스 패치: 보스에게는 2%만 깎음, 바지 강림은 다른 스킬 중에도 발동', () => {
+  const bt = new Battle(['dev', 'ibi'], 'boss', { boss: 'heroBaton', difficulty: 'easy' });
+  const [b, d] = bt.balls;
+  const hp = b.maxHp; ctx.devPatch(bt, d, b);
+  assert(Math.abs(b.maxHp - hp * (1 - CONFIG.chars.dev.patch.bossRate)) < 1e-6, 'boss patch 2%');
+  b.phase = 3; b.data.bacT = 0.01;
+  b.action = { moves: false, update: () => false };   // 다른 스킬 사용 중
+  for (let i = 0; i < 10; i++) bt.update(DT);
+  assert(count(bt, 'bossSkill', e => e.skill === 'baccarat') === 1, 'baccarat should fire during another action');
+});
 test('밸런스 참고: 3인 개인전 200판', () => {
   const wins = {}, lens = [];
   for (let i = 0; i < 200; i++) {

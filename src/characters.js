@@ -698,11 +698,12 @@ function _scaleStats(b, k) { b.maxHp *= k; b.hp *= k; b.hpShown *= k; b.speed *=
 function devPatch(bt, s, t) {
   var c = s.cfg.patch;
   if ((s.data.patches || 0) >= c.maxStacks) return;   // 최대 maxStacks회까지 중첩
-  _scaleStats(t, 1 - c.rate); t.data.patchF = (t.data.patchF || 1) * (1 - c.rate);
+  var tr = t.isBoss ? c.bossRate : c.rate;   // 보스에겐 감소가 조금만
+  _scaleStats(t, 1 - tr); t.data.patchF = (t.data.patchF || 1) * (1 - tr);
   _scaleStats(s, 1 + c.rate); s.data.patchF = (s.data.patchF || 1) * (1 + c.rate);
   s.data.patches = (s.data.patches || 0) + 1;
   if (s.data.patches === c.maxStacks) bt.skillText(s, '패치 MAX', '#c6ff00');
-  FX.text(t.x, t.y - t.r - 50, '-' + Math.round(c.rate * 100) + '%', '#ff5577', 48, 0.9);
+  FX.text(t.x, t.y - t.r - 50, '-' + Math.round(tr * 100) + '%', '#ff5577', 48, 0.9);
   FX.text(s.x, s.y - s.r - 50, '+' + Math.round(c.rate * 100) + '%', '#c6ff00', 48, 0.9);
   for (var i = 0; i < 14; i++) FX.particle({ x: t.x + _rnd(-t.r, t.r), y: t.y + _rnd(-t.r, t.r), vx: _rnd(-200, 200), vy: _rnd(-60, 60), life: 0.35, size: _rnd(6, 16), color: i % 2 ? '#c6ff00' : '#ff2bd6', shape: 'square' });
   FX.sfx('patch');
