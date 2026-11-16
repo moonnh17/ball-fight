@@ -89,7 +89,7 @@ var CONFIG = {
     // 서울방송고: 팀 전체 받는 회복 x heal, 스킬 쿨타임이 cdr배 빨리 돎 / per: 그 사람만 추가
     seoulbc: { members: ['최휘', '문남휘', '유재운', '차승민'], heal: 1.1, cdr: 1.15, per: { '최휘': { damage: 1.2 } } },
     // 디마디영디: 한규성(이비만)·문남휘·유재운·진형권·이윤빈·??? 한 팀. 팀 체력 x hp + 멤버별 고유 효과
-    dmdyd: { members: ['한규성', '문남휘', '유재운', '진형권', '이윤빈', '???'], needIds: ['ibi'], hp: 1.1, chiefMul: 2, devAlly: 0.02, devAllyMax: 10, gyusuniCd: 1.3, stinkMul: 2, gymSpawn: 0.75, chinoGrow: 0.5, ripleyCall: 10 },
+    dmdyd: { members: ['한규성', '문남휘', '유재운', '진형권', '이윤빈', '???'], needIds: ['ibi'], hp: 1.1, chiefMul: 1.5, chiefTaken: 1.3, devAlly: 0.02, devAllyMax: 10, gyusuniCd: 1.3, stinkMul: 2, gymSpawn: 0.75, chinoGrow: 0.5, ripleyCall: 10 },
     dogowner: { members: ['유재후', '서리'], droolRate: 1.6, per: { '서리': { speed: 1.3, damage: 1.1 }, '유재후': { speed: 0.8 } } },   // 개와 주인 (droolRate: 서리 침흘리기 빈도 배율)
   },
 

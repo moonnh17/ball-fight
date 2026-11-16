@@ -259,8 +259,8 @@ function rollDye() { return _pickWeighted(CONFIG.dyeChances); }
 
 // ---------- 이비 규순이 각성 하위 스킬 ----------
 var GYUSUN_SKILLS = {
-  birds: function (bt, b) {
-    var c = b.cfg.birds, birds = [];
+  birds: function (bt, b, combo) {   // combo(풀코스): 새를 날리고 잠깐 뒤 바로 다음 패턴으로
+    var c = b.cfg.birds, birds = [], wait = 0;
     FX.banner('새가 너무 좋아', { color: '#e6c8ff', size: 100, life: 1.2 });
     FX.sfx('bird');
     var foes = bt.enemies(b).filter(function (o) { return o.targetable; })
@@ -271,7 +271,7 @@ var GYUSUN_SKILLS = {
       birds.push(bt.add(new Bird(bt, b, t, miss ? bt.randomPoint() : null, c, i)));
       FX.burst(b.x, b.y, '#ffffff', 8, 400, 10, 0.5, 'feather');
     }
-    return { moves: true, update: function () { return birds.every(function (x) { return x.dead; }); } };
+    return { moves: true, update: function (dt) { wait += dt; return combo ? wait >= 0.4 : birds.every(function (x) { return x.dead; }); } };
   },
 
   lucha: function (bt, b) {
@@ -519,7 +519,7 @@ function ibiAwaken(bt, b, seq) {
         if (keep) { b.vx = keep.vx; b.vy = keep.vy; keep = null; }
         var pick = queue.shift();
         bt.emit('awakenPick', { pick: pick, combo: !!seq });
-        sub = GYUSUN_SKILLS[pick](bt, b);
+        sub = GYUSUN_SKILLS[pick](bt, b, !!seq);
         this.moves = sub.moves; this.uninterruptible = !!sub.uninterruptible;
         return false;
       }
@@ -2866,7 +2866,10 @@ var CHARACTERS = {
       { name: '이장님은 팀이 필요해', desc: function () { return '개인전·토너먼트에서 받는 피해 ' + Math.round(CONFIG.chars.chief.ffaTaken * 100) + '%'; } },
       { name: '부랄딱밤', desc: '개인전·토너먼트에서 한규성의 공격에 맞으면 부랄딱밤! 즉사 (팀전은 안전)' },
     ],
-    init: function (bt, b) { b.data.tick = 0; if (bt.mode !== 'team') b.takenMult = b.cfg.ffaTaken; bt.add(new WellusField(bt, b)); },
+    init: function (bt, b) {
+      b.data.tick = 0; if (bt.mode !== 'team') b.takenMult = b.cfg.ffaTaken; bt.add(new WellusField(bt, b));
+      if (_dmdyd(bt, b)) b.synTaken *= CONFIG.synergy.dmdyd.chiefTaken;   // 디마디영디: 효과가 세진 대신 받는 피해 증가
+    },
     absorb: function (bt, t, amt, src) {
       if (bt.mode === 'team' || !src || src.def.name !== '한규성') return false;   // 팀전에선 즉사 없음
       chiefDdakbam(bt, t, src);
@@ -3076,7 +3079,7 @@ var SYNERGIES = [
     desc: function () { var c = CONFIG.synergy.seoulbc; return '받는 회복 ' + _pct(c.heal) + ', 스킬 쿨타임 ' + Math.round((1 - 1 / c.cdr) * 100) + '% 단축. 최휘 주는 피해 ' + _pct(c.per['최휘'].damage); } },
   { key: 'dmdyd', color: '#9cff57', name: '디마디영디', members: function () { return CONFIG.synergy.dmdyd.members; }, needIds: function () { return CONFIG.synergy.dmdyd.needIds; },
     note: '한규성은 이비의 모습일 때만',
-    desc: function () { var c = CONFIG.synergy.dmdyd; return '체력 ' + _pct(c.hp) + '. 멤버별: 이장님 웰우스 효과 x' + c.chiefMul + ' / 개발자 아군과 닿으면 아군 스탯 +' + Math.round(c.devAlly * 100) + '% / 한규성 규순이를 페이즈 1부터 (쿨타임 x' + c.gyusuniCd + ') / 유재운 발냄새 범위 x' + c.stinkMul + ' / 진형권 헬스 메이트 + 아령·프로틴 생성 x' + c.gymSpawn + ' / 이윤빈 전담을 평생 못 찾음, 짜증 x' + c.chinoGrow + ' / ??? 변신 안 하고 ' + c.ripleyCall + '초 뒤 사업 전화 받으러 퇴장'; } },
+    desc: function () { var c = CONFIG.synergy.dmdyd; return '체력 ' + _pct(c.hp) + '. 멤버별: 이장님 웰우스 효과 x' + c.chiefMul + ' (대신 받는 피해 ' + _pct(c.chiefTaken) + ') / 개발자 아군과 닿으면 아군 스탯 +' + Math.round(c.devAlly * 100) + '% / 한규성 규순이를 페이즈 1부터 (쿨타임 x' + c.gyusuniCd + ') / 유재운 발냄새 범위 x' + c.stinkMul + ' / 진형권 헬스 메이트 + 아령·프로틴 생성 x' + c.gymSpawn + ' / 이윤빈 전담을 평생 못 찾음, 짜증 x' + c.chinoGrow + ' / ??? 변신 안 하고 ' + c.ripleyCall + '초 뒤 사업 전화 받으러 퇴장'; } },
   { key: 'dogowner', color: '#a1887f', name: '개와 주인', members: function () { return CONFIG.synergy.dogowner.members; },
     desc: function () { var p = CONFIG.synergy.dogowner.per; var c = CONFIG.synergy.dogowner; return '서리 이동속도 ' + _pct(p['서리'].speed) + ', 주는 피해 ' + _pct(p['서리'].damage) + ', 침흘리기 빈도 x' + c.droolRate + ' / 유재후 이동속도 ' + _pct(p['유재후'].speed); } },
 ];

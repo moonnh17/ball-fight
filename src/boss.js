@@ -588,6 +588,16 @@ var BATON_SKILLS = {
           return false;
         }
         b.x = to.x; b.y = to.y; b.vx = b.vy = 0;
+        if (Math.random() < dt * 22) {   // 흔들리며 퍼지는 음표
+          var na = _rnd(0.1, 0.9) * Math.PI, nv = _rnd(160, 320), nc = ['#ff7ad9', '#c684ff', '#7dd3ff', '#ffe066'][Math.floor(Math.random() * 4)], ch = ['♪', '♫', '♬', '♩'][Math.floor(Math.random() * 4)], ph = _rnd(0, 6);
+          FX.particle({ x: b.x + Math.cos(na) * b.r, y: b.y + Math.sin(na) * b.r, vx: Math.cos(na) * nv, vy: Math.sin(na) * nv, drag: 0.985, life: _rnd(1.2, 2), size: _rnd(40, 70), color: nc, shape: 'custom', vr: _rnd(-2, 2),
+            draw: function (ctx2, px, py, k, p) {
+              ctx2.save(); ctx2.translate(px + Math.sin(p.rot * 3 + ph) * 18, py); ctx2.rotate(Math.sin(p.rot * 2) * 0.4);
+              ctx2.font = '700 ' + Math.round(p.size) + 'px "Segoe UI Symbol","Malgun Gothic",sans-serif'; ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle';
+              ctx2.lineWidth = 6; ctx2.strokeStyle = 'rgba(0,0,0,0.6)'; ctx2.strokeText(ch, 0, 0);
+              ctx2.fillStyle = p.color; ctx2.shadowColor = p.color; ctx2.shadowBlur = 18; ctx2.fillText(ch, 0, 0); ctx2.restore();
+            } });
+        }
         fire += dt;
         if (fire >= c.every) {
           fire -= c.every;
@@ -751,7 +761,21 @@ var BOSSES = {
           ctx.fillText(face === 'T' ? '무' : face, 0, 4); ctx.restore();
         });
       }
-      if (d.singing) { ctx.font = '70px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🎤', x + r * 0.9, y + r * 0.2); }
+      if (d.singing) {
+        // 노광석의 힘: 무대 조명 + 이퀄라이저 막대 + 마이크
+        ctx.save();
+        var sp = ctx.createLinearGradient(x, y - r * 4, x, y + r);
+        sp.addColorStop(0, 'rgba(255,122,217,0)'); sp.addColorStop(1, 'rgba(255,122,217,0.35)');
+        ctx.fillStyle = sp; ctx.beginPath(); ctx.moveTo(x - r * 0.4, y - r * 4); ctx.lineTo(x + r * 0.4, y - r * 4); ctx.lineTo(x + r * 1.6, y + r * 0.9); ctx.lineTo(x - r * 1.6, y + r * 0.9); ctx.closePath(); ctx.fill();
+        var cols = ['#ff7ad9', '#c684ff', '#7dd3ff', '#ffe066'];
+        for (var q = 0; q < 28; q++) {
+          var a = q / 28 * Math.PI * 2, h = r * (0.18 + 0.32 * Math.abs(Math.sin(time * 9 + q * 1.7) * Math.sin(time * 4.3 + q)));
+          ctx.save(); ctx.translate(x + Math.cos(a) * (r + 22), y + Math.sin(a) * (r + 22)); ctx.rotate(a);
+          ctx.fillStyle = cols[q % 4]; ctx.shadowColor = cols[q % 4]; ctx.shadowBlur = 14; ctx.fillRect(0, -7, h, 14); ctx.restore();
+        }
+        ctx.restore();
+        ctx.font = '84px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🎤', x + r * 0.85, y + r * 0.15 + Math.sin(time * 8) * 6);
+      }
     },
   },
 };

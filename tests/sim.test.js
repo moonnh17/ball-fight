@@ -1257,7 +1257,7 @@ test('디마디영디: 이장 2배·개발자 아군 버프·규순이 페이즈
   assert(bt.hasSynergy('dmdyd', 0), 'synergy on');
   assert(!mk('predator').hasSynergy('dmdyd', 0), '포식자 한규성은 안 됨');
   const [ibi, chief, rock, gym, chino, rip, foe] = bt.balls;
-  foe.hp = foe.maxHp = 1e6;
+  foe.hp = foe.maxHp = 1e6; rip.hp = rip.maxHp = 1e6;   // ???가 전화 전에 맞아서 탈락하지 않게
   // 한규성: 규순이 쿨타임 1.3배, 페이즈 1에도 발동 가능
   assert(Math.abs(ibi.skills[1].max - CONFIG.chars.ibi.awaken.cd * S.gyusuniCd) < 1e-9 && ibi.def.earlySkill2(bt, ibi));
   // 진형권: 생성 주기 0.75배
@@ -1269,6 +1269,7 @@ test('디마디영디: 이장 2배·개발자 아군 버프·규순이 페이즈
   // 이장 2배 회복
   rock.hp = rock.maxHp - 100; const h0 = rock.hp; chief.data.tick = 0.5; bt.withArena(() => chief.def.update(bt, chief, 0));
   assert(Math.abs((rock.hp - h0) - CONFIG.chars.chief.wellus.hps * 0.5 * S.chiefMul * rock.synHeal) < 1e-6, 'chief x2');
+  assert(Math.abs(chief.synTaken - S.chiefTaken) < 1e-9, '이장 받는 피해 증가');
   // ???: 10초 뒤 퇴장, 이윤빈 전담 안 나옴
   for (let i = 0; i < 60 * (S.ripleyCall + 1); i++) bt.update(DT);
   assert(!rip.alive && count(bt, 'ripleyCall') === 1 && count(bt, 'ripley') === 0, 'ripley left without transforming');
@@ -1286,6 +1287,15 @@ test('노광석 포코: 같은 팀은 밀려나며 회복', () => {
     const w = bt.add(new Ents.GuitarWave(bt, n, 0, P)); for (let i = 0; i < 60 && !w.dead; i++) w.update(DT); });
   assert(g.hp > g.maxHp - 50 && g.vx > 0, 'ally healed and pushed');
   assert.strictEqual(count(bt, 'pocoAlly'), 1);
+});
+test('규순이 풀코스: 새를 날리고 바로 다음 패턴으로', () => {
+  const bt = new Battle(['ibi', 'gym']); const [i, g] = bt.balls;
+  g.hp = g.maxHp = 1e6; i.hp = i.maxHp = 1e6;
+  i.action = ctx.ibiAwaken(bt, i, ['birds', 'lucha', 'toka']);
+  let t = 0;
+  for (let k = 0; k < 60 * 3 && count(bt, 'awakenPick', e => e.pick === 'lucha') === 0; k++) { bt.update(DT); t += DT; }
+  assert(count(bt, 'awakenPick', e => e.pick === 'lucha') === 1, 'lucha never started');
+  assert(t < CONFIG.chars.ibi.awaken.introTime + 1.2, 'waited too long after birds: ' + t.toFixed(2));
 });
 test('밸런스 참고: 3인 개인전 200판', () => {
   const wins = {}, lens = [];
