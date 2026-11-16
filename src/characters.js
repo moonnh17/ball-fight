@@ -2586,7 +2586,7 @@ var CHARACTERS = {
     id: 'gym', name: '진형권', sub: '헬스장의 모습',
     flavor: "\"어 형권이형이야~\"",
     images: {
-      base: { src: 'assets/gym.jpg', fx: 0.34, fy: 0.39, s: 0.7 },
+      base: { src: 'assets/psych.jpg', fx: 0.25, fy: 0.31, s: 0.3 },   // 노래 부르는 사진 (얼굴 크게)
       p2:   { src: 'assets/gym_p2.jpg', fx: 0.585, fy: 0.32, s: 0.45 },
     },
     portrait: function (b) { return b.phase >= 2 ? 'p2' : 'base'; },
@@ -2628,7 +2628,7 @@ var CHARACTERS = {
     id: 'psych', name: '진형권', sub: '심리학자의 모습',
     flavor: "\"노래가 들리면… 넌 이미 맞을 준비가 된 거야.\"",
     images: {
-      base: { src: 'assets/psych.jpg', fx: 0.3, fy: 0.31, s: 0.5 },
+      base: { src: 'assets/gym.jpg', fx: 0.34, fy: 0.39, s: 0.7 },
       p2:   { src: 'assets/psych_p2.jpg', fx: 0.49, fy: 0.45, s: 0.7 },
     },
     portrait: function (b) { return b.phase >= 2 ? 'p2' : 'base'; },

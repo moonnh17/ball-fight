@@ -1240,16 +1240,21 @@
 
   // ---------- 메인 루프 ----------
   var last = performance.now();
-  // ---------- 로비 배경음악: 전투 화면만 빼고 계속 (전투에선 서서히 꺼지고, 돌아오면 이어서) ----------
+  // ---------- 배경음악 ----------
+  // 화면마다 곡: 보스전 대기(보스 로비 · 보스 도전자 고르기) = 보스 곡, 마인드 맵 전투 = 006 하우스, 그 밖의 전투 = 없음, 나머지 = 로비 곡
   // HTML <audio>의 loop는 mp3 앞뒤 무음 때문에 이음매가 끊김 → Web Audio로 디코딩해서 무음을 잘라내고 이음매 없이 반복
-  var bgm = { ctx: null, gain: null, vol: 0 };
-  function bgmWant() { return G.scene !== 'battle' && !FX.muted ? CONFIG.sound.bgm : 0; }
-  // 브라우저는 사용자가 한 번 누르기 전엔 소리를 못 냄 → 첫 입력 때 만들고 재생
-  function bgmUnlock() {
-    var AC = window.AudioContext || window.webkitAudioContext;
-    if (bgm.ctx || !AC) { if (bgm.ctx && bgm.ctx.state === 'suspended' && bgmWant() > 0) bgm.ctx.resume(); return; }
-    bgm.ctx = new AC(); bgm.gain = bgm.ctx.createGain(); bgm.gain.gain.value = 0; bgm.gain.connect(bgm.ctx.destination);
-    fetch('assets/bgm_lobby.mp3').then(function (r) { return r.arrayBuffer(); })
+  var BGM_FILES = { lobby: 'assets/bgm_lobby.mp3', boss: 'assets/bgm_boss.mp3', mind: 'assets/bgm_mind.mp3' };
+  var bgm = { ctx: null, tracks: {} };
+  function bgmPick() {
+    if (FX.muted) return null;
+    if (G.scene === 'battle') return G.battle && G.battle.map && G.battle.map.id === 'mind' ? 'mind' : null;
+    if (G.scene === 'bossLobby' || (G.scene === 'select' && G.mode === 'boss')) return 'boss';
+    return 'lobby';
+  }
+  function bgmLoad(key) {
+    var tr = bgm.tracks[key] = { vol: 0, gain: bgm.ctx.createGain() };
+    tr.gain.gain.value = 0; tr.gain.connect(bgm.ctx.destination);
+    fetch(BGM_FILES[key]).then(function (r) { return r.arrayBuffer(); })
       .then(function (a) { return new Promise(function (res, rej) { bgm.ctx.decodeAudioData(a, res, rej); }); })
       .then(function (buf) {
         var ch = [], th = 0.002, s0 = 0, e0 = buf.length - 1, c;
@@ -1259,19 +1264,31 @@
         while (e0 > s0 && !loud(e0)) e0--;
         var src = bgm.ctx.createBufferSource();
         src.buffer = buf; src.loop = true; src.loopStart = s0 / buf.sampleRate; src.loopEnd = (e0 + 1) / buf.sampleRate;
-        src.connect(bgm.gain); src.start(0, src.loopStart);
-        G.bgmLoop = [src.loopStart, src.loopEnd, buf.duration];   // 디버그용
+        src.connect(tr.gain); src.start(0, src.loopStart); tr.src = src;
       })
-      .catch(function (err) { console.warn('[볼파이트] 배경음악 로딩 실패', err); });
+      .catch(function (err) { console.warn('[볼파이트] 배경음악 로딩 실패: ' + key, err); });
+    return tr;
   }
-  // 전투에선 서서히 줄이고 다 줄면 멈춤(그 자리에서 정지) → 돌아오면 이어서
+  // 브라우저는 사용자가 한 번 누르기 전엔 소리를 못 냄 → 첫 입력 때 만들기
+  function bgmUnlock() {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!bgm.ctx) bgm.ctx = new AC();
+    else if (bgm.ctx.state === 'suspended' && bgmPick()) bgm.ctx.resume();
+  }
+  // 곡이 바뀌면 서로 교차해서 바뀜. 전부 꺼지면 그 자리에서 멈춤 → 돌아오면 이어서
   function bgmUpdate(dt) {
     if (!bgm.ctx) return;
-    var want = bgmWant();
-    bgm.vol += Math.max(-dt * 0.8, Math.min(dt * 0.8, want - bgm.vol));
-    bgm.gain.gain.value = bgm.vol;
-    if (want > 0 && bgm.ctx.state === 'suspended') bgm.ctx.resume();
-    else if (want === 0 && bgm.vol <= 0.001 && bgm.ctx.state === 'running') bgm.ctx.suspend();
+    var want = bgmPick(), any = false;
+    if (want && !bgm.tracks[want]) bgmLoad(want);
+    Object.keys(bgm.tracks).forEach(function (k) {
+      var tr = bgm.tracks[k], to = k === want ? CONFIG.sound.bgm : 0;
+      tr.vol += Math.max(-dt * 0.8, Math.min(dt * 0.8, to - tr.vol));
+      tr.gain.gain.value = tr.vol;
+      if (tr.vol > 0.001) any = true;
+    });
+    if (want && bgm.ctx.state === 'suspended') bgm.ctx.resume();
+    else if (!want && !any && bgm.ctx.state === 'running') bgm.ctx.suspend();
   }
 
   function frame(now) {
