@@ -329,7 +329,7 @@ var Battle = (function () {
       b.phase = 2; b.pulse = B.phaseFreeze + 0.4;
       this.freeze = Math.max(this.freeze, B.phaseFreeze);
       if (b.skills[1]) b.skills[1].cd = B.phase2FirstDelay;
-      FX.banner('PHASE 2', { color: b.cfg.phase2Color, sub: b.name + ' 각성', size: 150, life: 1.6 });
+      FX.banner('PHASE 2', { color: b.cfg.phase2Color, sub: (b.def.sub ? b.def.sub.replace(/의 모습$/, '') : b.name) + ' 각성', size: 150, life: 1.6 });   // 이명으로 (바통 각성, 노광석 각성)
       for (var i = 0; i < 3; i++) FX.ring(b.x, b.y, b.r, b.r * (2.5 + i), 0.7 + i * 0.2, i % 2 ? '#ffffff' : col, 14);
       FX.burst(b.x, b.y, col, 40, 900, 10, 0.8);
       FX.flash('#ffffff', 0.35, 0.3); FX.shake(22); FX.sfx('phase');

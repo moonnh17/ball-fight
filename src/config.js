@@ -202,6 +202,13 @@ var CONFIG = {
       // 2스킬 단백질 먹방(패시브): 프로틴. 본인: heal 회복 + hasteTime초 이동속도 x hasteMul / 다른 사람: otherHeal 회복
       protein: { interval: 6, max: 2, heal: 15, hasteTime: 4, hasteMul: 1.5, otherHeal: 5 },
     },
+    psych: {   // 진형권 (심리학자의 모습)
+      hp: 240, speed: 420, radius: 76, color: '#7ad1ff', phase2Color: '#ffe680',
+      contactDamage: 7, antiUninvited: 2,   // 특성 손님 사냥꾼은 헬스장 진형권과 같음
+      // 1스킬: 고정 타겟에게 돌진 (같은 적 marks번 맞히면 표식), turn: 돌진 중 타겟 쪽으로 꺾는 정도(라디안/초)
+      pavlov: { cd: 3.5, speed: 1500, distance: 900, damage: 14, marks: 3, turn: 4 },
+      pavlov2: { cd: 7 },   // 2스킬: 표식 찍힌 적 전원에게 pavlov.damage
+    },
     ripley: {   // ??? (리플리의 모습)
       hp: 175, speed: 460, radius: 70, color: '#5a5a7a', phase2Color: '#ff2bd6',
       firstChange: 1.5,   // 시작 후 첫 변신까지(초)

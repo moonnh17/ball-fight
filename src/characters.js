@@ -440,6 +440,28 @@ class Puddle {
     ctx.restore();
   }
 }
+// ---------- 진형권(심리학자) 파블로프의 개 ----------
+// 타겟은 하나로 고정. 표식이 찍혔거나 못 노리게 되면 표식 없는 가장 가까운 적 (다 찍혔으면 가장 가까운 적)
+function psychTarget(bt, b) {
+  var d = b.data, t = d.target;
+  if (t && t.alive && t.targetable && !d.marks[t.id] && t.team !== b.team) return t;
+  var foes = bt.enemies(b).filter(function (o) { return o.targetable; }).sort(function (p, q) { return _dist(p, b) - _dist(q, b); });
+  d.target = foes.filter(function (o) { return !d.marks[o.id]; })[0] || foes[0] || null;
+  return d.target;
+}
+// 돌진으로 같은 적을 marks번 맞히면 표식 → 다음 타겟
+function psychHit(bt, b, o) {
+  var d = b.data, c = b.cfg.pavlov;
+  if (d.marks[o.id]) return;
+  d.hits[o.id] = (d.hits[o.id] || 0) + 1;
+  if (d.hits[o.id] < c.marks) return;
+  d.marks[o.id] = true;
+  FX.text(o.x, o.y - o.r - 80, '조건 형성! 🔔', '#ffe680', 50, 1.2); FX.sfx('ding');
+  FX.ring(o.x, o.y, o.r, o.r * 2.5, 0.5, '#ffe680', 10);
+  bt.emit('pavlovMark', { who: o.def.id });
+  d.target = null; psychTarget(bt, b);
+}
+
 // ---------- 삼식이 헬퍼 ----------
 function samsikDye(bt, b) {
   var c = b.cfg.dye, color = rollDye();
@@ -1667,7 +1689,7 @@ function syShy(bt, b) {
         var x0 = b.x, y0 = b.y, x1 = e.x, y1 = e.y;
         FX.particle({ x: 0, y: 0, vx: 0, vy: 0, life: 0.3, size: 0, color: '#ff8fb1', shape: 'custom',
           draw: function (ctx) { ctx.strokeStyle = '#ff8fb1'; ctx.lineWidth = 6; ctx.setLineDash([12, 10]); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]); } });
-        FX.text(b.x, b.y - b.r - 40, '...안녕', '#ffffff', 40, 0.8);
+        FX.text(b.x, b.y - b.r - 40, '...안녕하세요', '#ffffff', 40, 0.8);
         bt.emit('shyHit', { who: e.def.id });
       }
       return true;
@@ -2602,6 +2624,109 @@ var CHARACTERS = {
       return null;
     },
   },
+  psych: {
+    id: 'psych', name: '진형권', sub: '심리학자의 모습',
+    flavor: "\"노래가 들리면… 넌 이미 맞을 준비가 된 거야.\"",
+    images: {
+      base: { src: 'assets/psych.jpg', fx: 0.3, fy: 0.31, s: 0.5 },
+      p2:   { src: 'assets/psych_p2.jpg', fx: 0.49, fy: 0.45, s: 0.7 },
+    },
+    portrait: function (b) { return b.phase >= 2 ? 'p2' : 'base'; },
+    blurb: '이동 보통 · 표식형',
+    intro: '노래로 상대를 길들이는 심리학자. 노래를 틀어 두다가 쿨타임이 되면 한 명만 노려 돌진하고, 세 번 맞힌 상대에겐 표식(🔔)을 찍은 뒤 표식 없는 다음 상대로 넘어간다. 페이즈 2에서는 노래를 맵 전체에 울려 표식 찍힌 적 모두에게 돌진과 같은 피해를 준다.',
+    init: function (bt, b) { b.data.marks = {}; b.data.hits = {}; b.data.target = null; b.data.note = 0; },
+    passives: [
+      { name: '손님 사냥꾼', desc: function () { return '초대받지 못한 손님에게 주는 피해 x' + CONFIG.chars.psych.antiUninvited + ' (개인전에선 유재후·???에게, 보스 히어로 바통에게도)'; } },
+    ],
+    dealMult: function (bt, s, t) { return bt.isUninvited(t) || t.def.batonBoss ? s.cfg.antiUninvited : 1; },
+    skills: [
+      {
+        key: 'pavlov', name: '파블로프의 개(준비)',
+        desc: '쿨타임 동안 노래를 틀다가, 쿨타임이 되면 고정한 한 명에게 돌진해 ' + CONFIG.chars.psych.pavlov.damage + ' 피해. 같은 적을 ' + CONFIG.chars.psych.pavlov.marks + '번 맞히면 표식(🔔)을 찍고, 표식 없는 적으로 타겟을 바꾼다',
+        cd: function (c) { return c.pavlov.cd; },
+        start: function (bt, b) {
+          var c = b.cfg.pavlov, t = psychTarget(bt, b);
+          if (!t) return null;
+          var p = bt.aim(b, t.x, t.y), track = p.miss ? null : t, dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy) || 1;
+          b.vx = dx / d * c.speed; b.vy = dy / d * c.speed; b.phasing = true;
+          bt.skillText(b, '돌진!', '#7ad1ff'); FX.sfx('roll');
+          var traveled = 0, gt = 0;
+          return {
+            moves: false,
+            update: function (dt) {
+              if (track && track.targetable) {   // 타겟 쪽으로 살짝 꺾음
+                var cur = Math.atan2(b.vy, b.vx), want = Math.atan2(track.y - b.y, track.x - b.x);
+                var diff = Math.atan2(Math.sin(want - cur), Math.cos(want - cur)), turn = Math.max(-c.turn * dt, Math.min(c.turn * dt, diff));
+                cur += turn; b.vx = Math.cos(cur) * c.speed; b.vy = Math.sin(cur) * c.speed;
+              }
+              b.x += b.vx * dt; b.y += b.vy * dt; bt.walls(b);
+              traveled += c.speed * dt;
+              gt += dt; if (gt > 0.03) { gt = 0; _ghost(b); }
+              var o = bt.enemies(b).find(function (e) { return e.targetable && !e.air && _dist(e, b) < e.r + b.r; });
+              if (o) {
+                bt.damage(o, c.damage, b, { color: '#7ad1ff', kind: 'pavlov' });
+                var a = Math.atan2(o.y - b.y, o.x - b.x); o.vx += Math.cos(a) * 600; o.vy += Math.sin(a) * 600;
+                FX.ring(o.x, o.y, o.r, o.r * 2, 0.3, '#7ad1ff', 10); FX.shake(10);
+                psychHit(bt, b, o);
+                return true;
+              }
+              return traveled >= c.distance;
+            },
+            end: function () { b.phasing = false; _restoreSpeed(b, -b.vx, -b.vy); },
+          };
+        },
+      },
+      {
+        key: 'pavlov2', name: '파블로프의 개(완성)',
+        desc: '노래를 크게 틀어 맵 전체에 울린다. 표식이 찍힌 적은 1스킬과 같은 피해, 표식이 없으면 피해 없음',
+        cd: function (c) { return c.pavlov2.cd; },
+        start: function (bt, b) {
+          var c = b.cfg.pavlov, n = 0;
+          FX.banner('파블로프의 개', { color: '#7ad1ff', sub: '🎵 노래가 울려 퍼진다', size: 110, life: 1.3 });
+          FX.sfx('guitar'); FX.shake(12);
+          for (var i = 0; i < 4; i++) FX.ring(b.x, b.y, b.r, 1600, 0.7 + i * 0.15, i % 2 ? '#ffffff' : '#7ad1ff', 16 - i * 3);
+          bt.enemies(b).forEach(function (o) {
+            if (!o.targetable || !b.data.marks[o.id]) return;
+            bt.damage(o, c.damage, b, { color: '#7ad1ff', kind: 'pavlov2' });
+            FX.text(o.x, o.y - o.r - 70, '🔔 딸랑!', '#ffe680', 44, 0.9);
+            n++;
+          });
+          bt.emit('pavlovRing', { hit: n });
+          return null;
+        },
+      },
+    ],
+    // 쿨타임 동안 노래 (음표)
+    update: function (bt, b, dt) {
+      if (b.action || b.hidden) return;
+      b.data.note += dt;
+      if (b.data.note < (b.phase >= 2 ? 0.22 : 0.35)) return;
+      b.data.note = 0;
+      FX.text(b.x + _rnd(-b.r, b.r), b.y - b.r * 0.6, Math.random() < 0.5 ? '♪' : '♫', Math.random() < 0.5 ? '#7ad1ff' : '#ffffff', b.phase >= 2 ? 44 : 34, 0.9);
+    },
+    // 고정 타겟 점선 + 맞힌 횟수, 표식 찍힌 적 머리 위 종
+    drawExtra: function (ctx, b, bt, x, y, r, time) {
+      var t = b.data.target, c = b.cfg.pavlov;
+      ctx.save();
+      if (t && t.alive && !t.hidden) {
+        ctx.setLineDash([12, 14]); ctx.lineDashOffset = -time * 40; ctx.strokeStyle = 'rgba(122,209,255,0.35)'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(t.x, t.y); ctx.stroke(); ctx.setLineDash([]);
+        var n = b.data.hits[t.id] || 0;
+        for (var i = 0; i < c.marks; i++) {
+          ctx.fillStyle = i < n ? '#7ad1ff' : 'rgba(255,255,255,0.25)';
+          ctx.beginPath(); ctx.arc(t.x + (i - (c.marks - 1) / 2) * 20, t.y + t.r + 18, 7, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      ctx.font = '40px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      bt.balls.forEach(function (o) { if (b.data.marks[o.id] && o.alive && !o.hidden) ctx.fillText('🔔', o.x - o.r * 0.75, o.y - o.r * 0.75 + Math.sin(time * 6 + o.id) * 4); });
+      ctx.restore();
+    },
+    gauge: function (b, k) {
+      if (k === 0) { var n = Object.keys(b.data.marks).length; return { label: '파블로프 · 표식 ' + n }; }
+      return null;
+    },
+  },
+
   chino: {
     id: 'chino', name: '이윤빈', sub: '치노의 모습',
     flavor: "\"내 전담이 어디갔지?\"",

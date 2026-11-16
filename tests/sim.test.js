@@ -1519,5 +1519,24 @@ test('마을회관: 이장님이 컴퓨터를 끄고, 다른 사람이 닿으면
   c2.data.pcCd = 0; touch(c2); assert(c2.data.pc, '다음엔 게임');
 });
 
+test('진형권(심리학자): 고정 타겟 3번 맞히면 표식 → 표식 없는 적으로, 2스킬은 표식 찍힌 적만 피해', () => {
+  const bt = new Battle(['psych', 'hau', 'ibi', 'seori']);   // 유재후는 손님 사냥꾼 2배라 뺌
+  const p = bt.balls[0], c = CONFIG.chars.psych.pavlov;
+  bt.balls.forEach(b => { b.maxHp = b.hp = 1e5; });
+  const t = vm.runInContext('psychTarget', ctx)(bt, p);
+  for (let i = 0; i < c.marks - 1; i++) vm.runInContext('psychHit', ctx)(bt, p, t);
+  assert(!p.data.marks[t.id] && p.data.target === t, '아직 같은 타겟');
+  vm.runInContext('psychHit', ctx)(bt, p, t);
+  assert(p.data.marks[t.id] && p.data.target && p.data.target !== t && !p.data.marks[p.data.target.id], '표식 후 표식 없는 적으로');
+  bt.hitstop = 0;
+  const hp = bt.balls.map(b => b.hp);
+  p.def.skills[1].start(bt, p);
+  bt.balls.forEach((b, i) => { if (i === 0) return; if (b === t) assert(Math.abs(hp[i] - b.hp - c.damage) < 1e-6, '표식: 같은 피해'); else assert(b.hp === hp[i], '표식 없으면 피해 없음'); });
+  // 실제 전투에서도 돌진이 맞고 표식이 찍힘
+  const b2 = new Battle(['psych', 'gym']); b2.balls.forEach(b => { b.maxHp = b.hp = 1e5; });
+  run(b2, 40);
+  assert(count(b2, 'damage', e => e.kind === 'pavlov') >= 3 && count(b2, 'pavlovMark') === 1, '돌진 ' + count(b2, 'damage', e => e.kind === 'pavlov'));
+});
+
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);

@@ -1241,17 +1241,37 @@
   // ---------- 메인 루프 ----------
   var last = performance.now();
   // ---------- 로비 배경음악: 전투 화면만 빼고 계속 (전투에선 서서히 꺼지고, 돌아오면 이어서) ----------
-  var bgm = typeof Audio !== 'undefined' ? new Audio('assets/bgm_lobby.mp3') : null;
-  if (bgm) { bgm.loop = true; bgm.volume = 0; }
+  // HTML <audio>의 loop는 mp3 앞뒤 무음 때문에 이음매가 끊김 → Web Audio로 디코딩해서 무음을 잘라내고 이음매 없이 반복
+  var bgm = { ctx: null, gain: null, vol: 0 };
   function bgmWant() { return G.scene !== 'battle' && !FX.muted ? CONFIG.sound.bgm : 0; }
-  // 브라우저는 사용자가 한 번 누르기 전엔 소리를 못 냄 → 첫 입력 때 바로 재생
-  function bgmUnlock() { if (!bgm || G.bgmOk) return; G.bgmOk = true; if (bgmWant() > 0) bgm.play().catch(function () { G.bgmOk = false; }); }
+  // 브라우저는 사용자가 한 번 누르기 전엔 소리를 못 냄 → 첫 입력 때 만들고 재생
+  function bgmUnlock() {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (bgm.ctx || !AC) { if (bgm.ctx && bgm.ctx.state === 'suspended' && bgmWant() > 0) bgm.ctx.resume(); return; }
+    bgm.ctx = new AC(); bgm.gain = bgm.ctx.createGain(); bgm.gain.gain.value = 0; bgm.gain.connect(bgm.ctx.destination);
+    fetch('assets/bgm_lobby.mp3').then(function (r) { return r.arrayBuffer(); })
+      .then(function (a) { return new Promise(function (res, rej) { bgm.ctx.decodeAudioData(a, res, rej); }); })
+      .then(function (buf) {
+        var ch = [], th = 0.002, s0 = 0, e0 = buf.length - 1, c;
+        for (c = 0; c < buf.numberOfChannels; c++) ch.push(buf.getChannelData(c));
+        function loud(i) { for (var k = 0; k < ch.length; k++) if (Math.abs(ch[k][i]) > th) return true; return false; }
+        while (s0 < e0 && !loud(s0)) s0++;
+        while (e0 > s0 && !loud(e0)) e0--;
+        var src = bgm.ctx.createBufferSource();
+        src.buffer = buf; src.loop = true; src.loopStart = s0 / buf.sampleRate; src.loopEnd = (e0 + 1) / buf.sampleRate;
+        src.connect(bgm.gain); src.start(0, src.loopStart);
+        G.bgmLoop = [src.loopStart, src.loopEnd, buf.duration];   // 디버그용
+      })
+      .catch(function (err) { console.warn('[볼파이트] 배경음악 로딩 실패', err); });
+  }
+  // 전투에선 서서히 줄이고 다 줄면 멈춤(그 자리에서 정지) → 돌아오면 이어서
   function bgmUpdate(dt) {
-    if (!bgm) return;
-    var want = bgmWant(), d = want - bgm.volume;
-    bgm.volume = Math.max(0, Math.min(1, bgm.volume + Math.max(-dt * 0.8, Math.min(dt * 0.8, d))));
-    if (want > 0 && bgm.paused && G.bgmOk) bgm.play().catch(function () {});
-    else if (want === 0 && bgm.volume <= 0.001 && !bgm.paused) bgm.pause();
+    if (!bgm.ctx) return;
+    var want = bgmWant();
+    bgm.vol += Math.max(-dt * 0.8, Math.min(dt * 0.8, want - bgm.vol));
+    bgm.gain.gain.value = bgm.vol;
+    if (want > 0 && bgm.ctx.state === 'suspended') bgm.ctx.resume();
+    else if (want === 0 && bgm.vol <= 0.001 && bgm.ctx.state === 'running') bgm.ctx.suspend();
   }
 
   function frame(now) {
