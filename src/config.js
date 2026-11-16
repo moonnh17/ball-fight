@@ -39,13 +39,13 @@ var CONFIG = {
   // 팀전 시너지 (조건은 이름 기준: 같은 이름의 이격도 그 사람으로 침)
   synergy: {
     uninvited: { hp: 3, damage: 3, speed: 3 },                     // 초대받지 못한 손님: 팀에 유재후 또는 ???가 혼자일 때 배율 (2스킬 끼야아아악은 피해 배율 없이 확정 2연타)
-    izk: { members: ['한규성', '김선율', '조우연', '조하람'], damage: 1.2, speed: 1.1 }, // IZK 1기: 네 명이 같은 팀이면 주는 피해 +20%, 이동속도 +10%
-    ssabang: { members: ['문남휘', '진형권', '한규성', '유재운'], hp: 1.2, speed: 1.2 }, // 싸방: 문남휘·진형권·한규성·유재운이 같은 팀이면 체력·이동속도 +20%
+    izk: { members: ['한규성', '김선율', '조우연', '조하람'], damage: 1.2, taken: 0.9 }, // IZK 1기: 네 명이 같은 팀이면 주는 피해 +20%, 받는 피해 -10%
+    ssabang: { members: ['문남휘', '진형권', '한규성', '유재운'], hp: 1.2, heal: 1.15 }, // 싸방: 문남휘·진형권·한규성·유재운이 같은 팀이면 체력 +20%, 받는 회복 +15%
     hwajeong: { members: ['유재후', '한규성'], needIds: ['predator'], damage: 1.2, hp: 1.15 },   // 화정듀오: 유재후 + 한규성(포식자의 모습)
     // 정발산: IZK 넷 + 유재후. 이동속도 x speed, 주는 피해 x decayDamage에서 decayTime초에 걸쳐 1까지 감소. IZK는 긴급소집 효과만 남음
     jeongbalsan: { members: ['한규성', '김선율', '조우연', '조하람', '유재후'], speed: 1.4, decayDamage: 1.3, decayTime: 120 },
-    // 서울방송고: 팀 전체 받는 회복 x heal, 이동속도 x speed / per: 그 사람만 추가
-    seoulbc: { members: ['최휘', '문남휘', '유재운', '차승민'], heal: 1.1, speed: 1.2, per: { '최휘': { damage: 1.3 }, '문남휘': { damage: 0.7 } } },
+    // 서울방송고: 팀 전체 받는 회복 x heal, 스킬 쿨타임이 cdr배 빨리 돎 / per: 그 사람만 추가
+    seoulbc: { members: ['최휘', '문남휘', '유재운', '차승민'], heal: 1.1, cdr: 1.15, per: { '최휘': { damage: 1.3 }, '문남휘': { damage: 0.7 } } },
     dogowner: { members: ['유재후', '서리'], droolRate: 1.6, per: { '서리': { speed: 1.3, damage: 1.1 }, '유재후': { speed: 0.8 } } },   // 개와 주인 (droolRate: 서리 침흘리기 빈도 배율)
   },
 
@@ -158,7 +158,7 @@ var CONFIG = {
       set: { delay: 0.22, mult: 1.5 },
       // 2스킬 강펀치: 쿨이 차면 준비 → 상대가 범위에 들어오면 charge초 기 모으고 타격. 위력 = base + 받은 피해 x perTaken (최대 max)
       //   가운데일수록 x centerMul, 가장자리일수록 x edgeMul. center: 정타 줄 폭(비율)
-      punch: { cd: 6, base: 12, perTaken: 0.8, max: 55, length: 420, near: 90, far: 280, grow: 0.6, charge: 0.35, fade: 0.4, centerMul: 1.35, edgeMul: 0.6, center: 0.3 },
+      punch: { cd: 6, base: 12, perTaken: 0.8, max: 55, length: 420, near: 130, far: 400, grow: 0.6, charge: 0.35, fade: 0.4, centerMul: 1.35, edgeMul: 0.6, center: 0.3 },
     },
     hau: {    // 최휘 (사랑하우의 모습)
       hp: 190, speed: 450, radius: 70, color: '#57d36b', contactDamage: 7, phase2Color: '#ff3b3b',

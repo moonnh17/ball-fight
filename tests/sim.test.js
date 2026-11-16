@@ -620,7 +620,7 @@ test('싸방: 문남휘+진형권+한규성+유재운 한 팀이면 체력·속�
   assert(bt.hasSynergy('ssabang', 0) && !bt.hasSynergy('ssabang', 1));
   bt.balls.filter(b => b.team === 0).forEach(b => {
     assert(Math.abs(b.maxHp - CONFIG.chars[b.def.id].hp * S.hp) < 1e-9, b.def.id + ' hp');
-    assert(Math.abs(b.speed - CONFIG.chars[b.def.id].speed * S.speed) < 1e-9, b.def.id + ' speed');
+    assert(Math.abs(b.synHeal - S.heal) < 1e-9, b.def.id + ' heal');
   });
   const bt2 = new Battle(team([['dev', 0], ['gym', 0], ['ibi', 0], ['ch', 1]]), 'team');
   assert(!bt2.hasSynergy('ssabang', 0));
@@ -935,13 +935,16 @@ test('김선율 페이즈 1: 모든 피해 1, 낯가림은 적 바로 앞에서 
   s.phase = 2;
   assert.strictEqual(bt.damage(g, 25, s), 75, 'phase 2 should deal full damage');
 });
-test('IZK 이동속도 +10%, 팀전 테두리는 팀 색, 개인전 같은 캐릭터는 번호·색으로 구분', () => {
+test('IZK 받는 피해 -10%, 팀전 테두리는 시너지 색, 개인전 같은 캐릭터는 번호·색으로 구분', () => {
   const z = CONFIG.synergy.izk;
   const bt = new Battle(team([['ibi', 0], ['samsik', 0], ['ch', 0], ['hxpwm', 0], ['baton', 1]]), 'team');
   const ibi = bt.balls[0];
-  assert(Math.abs(ibi.speed - CONFIG.chars.ibi.speed * z.speed) < 1e-9, 'izk speed');
-  assert.strictEqual(bt.rimColor(ibi), Battle.TEAMS[0].color);
-  assert.strictEqual(bt.rimColor(bt.balls[4]), Battle.TEAMS[1].color);
+  assert(Math.abs(ibi.synTaken - z.taken) < 1e-9 && ibi.speed === CONFIG.chars.ibi.speed, 'izk taken, no speed');
+  const col = k => SYNERGIES.find(q => q.key === k).color;
+  assert.strictEqual(bt.rimColor(ibi), col('izk'));
+  assert.strictEqual(bt.rimColor(bt.balls[4]), col('uninvited'), '혼자인 유재후 팀은 초대받지 못한 손님 색');
+  const plain = new Battle(team([['gym', 0], ['ibi', 1]]), 'team');
+  assert.strictEqual(plain.rimColor(plain.balls[0]), Battle.TEAMS[0].color, '시너지 없으면 기본 팀 색');
   const f = new Battle(['baton', 'baton', 'ibi']);
   assert.strictEqual(f.balls[0].dupNo, 1); assert.strictEqual(f.balls[1].dupNo, 2); assert(!f.balls[2].dupNo);
   assert.notStrictEqual(f.rimColor(f.balls[0]), f.rimColor(f.balls[1]));
@@ -1018,7 +1021,8 @@ test('새 시너지: 화정듀오 / 정발산(IZK 수치 꺼짐, 피해 보너�
   const j = new Battle(team([['ibi', 0], ['samsik', 0], ['ch', 0], ['hxpwm', 0], ['baton', 0], ['gym', 1]]), 'team');
   assert(j.hasSynergy('jeongbalsan', 0) && j.hasSynergy('izk', 0), 'izk still listed for 긴급소집');
   const ib = j.balls[0], g = j.balls[5]; g.hp = g.maxHp = 1e6;
-  assert(near(ib.speed, CONFIG.chars.ibi.speed * S.jeongbalsan.speed), 'speed: no izk speed, only 정발산');
+  assert(near(ib.speed, CONFIG.chars.ibi.speed * S.jeongbalsan.speed) && ib.synTaken === 1, 'izk off under 정발산');
+  assert.strictEqual(j.teamColor(0), SYNERGIES.find(q => q.key === 'jeongbalsan').color, '인원 많은 정발산 색');
   assert(near(ib.dmgMult, 1), 'izk damage should be off');
   assert(near(j.damage(g, 10, ib), 10 * S.jeongbalsan.decayDamage), 'full bonus at start');
   j.time = S.jeongbalsan.decayTime / 2;
@@ -1029,7 +1033,7 @@ test('새 시너지: 화정듀오 / 정발산(IZK 수치 꺼짐, 피해 보너�
   const sb = new Battle(team([['hau', 0], ['dev', 0], ['rock', 0], ['seyu', 0], ['gym', 1]]), 'team');
   const [hau, dev, rock, , g2] = sb.balls; g2.hp = g2.maxHp = 1e6;
   assert(sb.hasSynergy('seoulbc', 0));
-  assert(near(rock.speed, CONFIG.chars.rock.speed * S.seoulbc.speed));
+  assert(near(rock.cdRate, S.seoulbc.cdr) && rock.speed === CONFIG.chars.rock.speed, 'cooldown faster, no speed');
   assert(near(sb.damage(rock, 10, g2), 10), 'no extra damage taken');
   rock.hp = rock.maxHp - 50; assert(near(sb.heal(rock, 10), 10 * S.seoulbc.heal), 'heal +20%');
   assert(near(dev.dmgMult, S.seoulbc.per['문남휘'].damage) && near(hau.dmgMult, S.seoulbc.per['최휘'].damage));
@@ -1103,6 +1107,23 @@ test('통계: 3인 이상 개인전은 1등만 승', () => {
   assert.strictEqual(R.get('ibi').ffaW, 1); assert.strictEqual(R.get('baton').ffaL, 1); assert.strictEqual(R.get('ch').ffaL, 1);
   assert.strictEqual(R.get('ibi').duelW, 0);
   R.reset();
+});
+test('전투 후 순위: 살아남은 쪽(체력 비율) → 늦게 탈락한 순', () => {
+  const bt = new Battle(['baton', 'ibi', 'ch', 'gym']);
+  const [a, b, c, d] = bt.balls;
+  bt.time = 10; bt.damage(b, 9999, null);
+  bt.time = 30; bt.damage(c, 9999, null);
+  a.hp = a.maxHp * 0.3; d.hp = d.maxHp * 0.8;
+  assert.deepStrictEqual(bt.ranking().map(x => x.def.id).join(), 'gym,baton,ch,ibi');
+});
+test('스킬 쿨타임 배율(cdRate)이 쿨타임 도는 속도를 바꿈', () => {
+  CONFIG.battle.contactDamage = 0;
+  const bt = new Battle(['ibi', 'gym']); const i = bt.balls[0];
+  bt.balls.forEach(b => { b.hp = b.maxHp = 1e6; });
+  i.cdRate = 2; i.skills[0].cd = 3;
+  for (let k = 0; k < 60; k++) bt.updateBall(i, DT);
+  assert(i.skills[0].cd < 1.1, 'cd ' + i.skills[0].cd);
+  CONFIG.battle.contactDamage = 5;
 });
 test('밸런스 참고: 3인 개인전 200판', () => {
   const wins = {}, lens = [];

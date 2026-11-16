@@ -22,7 +22,9 @@ var Battle = (function () {
       this.dmgMult = 1;     // 주는 피해 배율 (시너지)
       this.takenMult = 1;   // 받는 피해 배율 (hxpwm 해피 등)
       this.synTaken = 1;    // 시너지로 받는 피해 배율
-      this.synHeal = 1;     // 시너지로 받는 회복 배율 (서울방송고)
+      this.synHeal = 1;     // 시너지로 받는 회복 배율
+      this.cdRate = 1;      // 스킬 쿨타임이 도는 속도 배율 (1.15 = 쿨타임 15% 빨리)
+      this.deadAt = -1;     // 탈락한 전투 시간 (순위용)
       this.synDecay = null; // 시간이 지날수록 줄어드는 시너지 피해 보너스 {amt, time} (정발산)
       this.slow = 1;        // 이동 속도 배율
       this.x = 0; this.y = 0; this.vx = 0; this.vy = 0;
@@ -110,11 +112,36 @@ var Battle = (function () {
               if (m.damage) b.dmgMult *= m.damage;
               if (m.taken) b.synTaken *= m.taken;
               if (m.heal) b.synHeal *= m.heal;
+              if (m.cdr) b.cdRate *= m.cdr;
             });
             if (c.decayDamage) b.synDecay = { amt: c.decayDamage - 1, time: c.decayTime };
           });
-          self.synergies.push({ key: sy.key, team: team, name: sy.name + (off ? ' (소집 효과만)' : ''), off: !!off });
+          self.synergies.push({ key: sy.key, team: team, name: sy.name + (off ? ' (소집 효과만)' : ''), off: !!off, color: sy.color, size: sy.solo ? 1 : sy.members().length });
         });
+      });
+    }
+    // 팀 상징 색: 그 팀 시너지 중 조건 인원이 가장 많은 시너지의 색 (없거나 다른 팀이 먼저 쓰면 기본 팀 색)
+    teamColor(team) {
+      if (this.mode !== 'team') return TEAMS[team % TEAMS.length].color;
+      if (!this.teamCols) {
+        var self = this, used = {};
+        this.teamCols = {};
+        this.teamIds().forEach(function (t) {
+          var best = null;
+          self.synergies.forEach(function (s) { if (s.team === t && !s.off && s.color && (!best || s.size > best.size)) best = s; });
+          var c = best && !used[best.color] ? best.color : TEAMS[t % TEAMS.length].color;
+          used[c] = true; self.teamCols[t] = c;
+        });
+      }
+      return this.teamCols[team] || TEAMS[team % TEAMS.length].color;
+    }
+    // 순위: 살아남은 쪽(이긴 팀 먼저, 체력 비율 높은 순) → 늦게 탈락한 순
+    ranking() {
+      var w = this.winnerTeam;
+      return this.balls.slice().sort(function (a, b) {
+        if (a.alive !== b.alive) return a.alive ? -1 : 1;
+        if (a.alive) return ((b.team === w) - (a.team === w)) || (b.hp / b.maxHp - a.hp / a.maxHp);
+        return b.deadAt - a.deadAt;
       });
     }
     // 초대받지 못한 손님 대상: 팀전에선 시너지가 붙은 바통, 개인전에선 바통 (진형권 패시브용)
@@ -253,7 +280,7 @@ var Battle = (function () {
       if (b.def.onPhase2) b.def.onPhase2(this, b);
     }
     kill(b) {
-      b.alive = false;
+      b.alive = false; b.deadAt = this.time;
       if (b.action) { if (b.action.end) b.action.end(); b.action = null; }
       b.hidden = false; this.darkOff(b);
       FX.burst(b.x, b.y, b.color(), 70, 1300, 12, 1.0);
@@ -330,12 +357,12 @@ var Battle = (function () {
         var sk = b.skills[i];
         if (i > 0 && b.phase < 2) continue;              // 2스킬은 페이즈 2부터
         if (sk.def.passive) {                              // 쿨타임과 무관한 패시브 타이머(염색, 충전기)
-          sk.cd -= dt;
+          sk.cd -= dt * b.cdRate;
           if (sk.cd <= 0) { sk.cd += sk.max; this.emit('skill', { who: b.def.id, skill: sk.def.key }); sk.def.start(this, b); }
           continue;
         }
         if (sk.def.holds && sk.def.holds(b)) continue;    // 장전 상태 등에선 쿨타임 정지
-        if (sk.cd > 0) sk.cd -= dt;
+        if (sk.cd > 0) sk.cd -= dt * b.cdRate;
         if (sk.cd <= 0 && !b.action && !b.disabled && !b.hidden) {
           sk.cd = sk.max;
           this.emit('skill', { who: b.def.id, skill: sk.def.key });
@@ -458,16 +485,49 @@ var Battle = (function () {
       for (var gx = A.x + 50; gx < A.x + A.w; gx += 100) { ctx.moveTo(gx, A.y); ctx.lineTo(gx, A.y + A.h); }
       for (var gy = A.y + 60; gy < A.y + A.h; gy += 100) { ctx.moveTo(A.x, gy); ctx.lineTo(A.x + A.w, gy); }
       ctx.stroke();
-      ctx.shadowColor = '#ff2bd6'; ctx.shadowBlur = 30; ctx.lineWidth = 8;
-      var grad = ctx.createLinearGradient(A.x, A.y, A.x + A.w, A.y + A.h);
-      grad.addColorStop(0, '#ff2bd6'); grad.addColorStop(0.5, '#7a5cff'); grad.addColorStop(1, '#00e5ff');
-      ctx.strokeStyle = grad; ctx.strokeRect(A.x, A.y, A.w, A.h);
+      if (this.mode === 'team') this.drawTeamBorder(ctx);
+      else {
+        ctx.shadowColor = '#ff2bd6'; ctx.shadowBlur = 30; ctx.lineWidth = 8;
+        var grad = ctx.createLinearGradient(A.x, A.y, A.x + A.w, A.y + A.h);
+        grad.addColorStop(0, '#ff2bd6'); grad.addColorStop(0.5, '#7a5cff'); grad.addColorStop(1, '#00e5ff');
+        ctx.strokeStyle = grad; ctx.strokeRect(A.x, A.y, A.w, A.h);
+      }
       ctx.restore();
 
       this.ents.forEach(function (e) { if ((e.z || 0) < 0) e.draw(ctx, self); });
       this.balls.forEach(function (b) { if (b.alive) self.drawBall(ctx, b, time); });
       this.ents.forEach(function (e) { if ((e.z || 0) >= 0) e.draw(ctx, self); });
       if (this.dark > 0.01) this.drawDark(ctx);
+    }
+
+    // 팀전 경기장 테두리: 각 팀 색이 남은 체력 비율만큼 둘레를 차지 (이기는 팀 색이 더 많이 보임)
+    drawTeamBorder(ctx) {
+      var A = CONFIG.arena, self = this, teams = this.teamIds();
+      var sc = teams.map(function (t) { return Math.max(0, self.teamScore(t)); }), sum = sc.reduce(function (a, b) { return a + b; }, 0) || 1;
+      if (!this.shares) this.shares = teams.map(function () { return 1 / teams.length; });
+      this.shares = this.shares.map(function (v, i) { return v + (sc[i] / sum - v) * 0.08; });   // 부드럽게 변함
+      var P = 2 * (A.w + A.h), d = 0, lead = 0;
+      function pt(s) {
+        s = ((s % P) + P) % P;
+        if (s < A.w) return [A.x + s, A.y];
+        if (s < A.w + A.h) return [A.x + A.w, A.y + s - A.w];
+        if (s < 2 * A.w + A.h) return [A.x + A.w - (s - A.w - A.h), A.y + A.h];
+        return [A.x, A.y + A.h - (s - 2 * A.w - A.h)];
+      }
+      var corners = [0, A.w, A.w + A.h, 2 * A.w + A.h];
+      teams.forEach(function (t, i) {
+        var len = self.shares[i] * P, col = self.teamColor(t);
+        if (self.shares[i] > self.shares[lead]) lead = i;
+        if (len < 1) return;
+        ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = 30; ctx.lineWidth = 10; ctx.strokeStyle = col; ctx.lineJoin = 'round';
+        ctx.beginPath(); var p0 = pt(d); ctx.moveTo(p0[0], p0[1]);
+        corners.forEach(function (c) { [c, c + P].forEach(function (cc) { if (cc > d && cc < d + len) { var q = pt(cc); ctx.lineTo(q[0], q[1]); } }); });
+        var p1 = pt(d + len); ctx.lineTo(p1[0], p1[1]); ctx.stroke(); ctx.restore();
+        d += len;
+      });
+      // 앞서는 팀 색으로 경기장이 살짝 물듦
+      var lc = this.teamColor(teams[lead]), k = Math.max(0, this.shares[lead] - 1 / teams.length) * 0.5;
+      ctx.save(); ctx.globalAlpha = Math.min(0.18, k); ctx.fillStyle = lc; ctx.fillRect(A.x, A.y, A.w, A.h); ctx.restore();
     }
 
     drawDark(ctx) {
@@ -495,7 +555,7 @@ var Battle = (function () {
 
     // 테두리 색: 팀전은 팀 색, 개인전에서 같은 캐릭터가 여럿이면 번호별 색, 아니면 캐릭터 색
     rimColor(b) {
-      if (this.mode === 'team') return TEAMS[b.team % TEAMS.length].color;
+      if (this.mode === 'team') return this.teamColor(b.team);
       if (b.dupNo) return DUP_COLORS[(b.dupNo - 1) % DUP_COLORS.length];
       return b.color();
     }
@@ -549,7 +609,7 @@ var Battle = (function () {
       // 팀 배지
       if (this.mode === 'team') {
         var T = TEAMS[b.team % TEAMS.length], bx = x - r * 0.72, by = y - r * 0.72;
-        ctx.fillStyle = T.color; ctx.strokeStyle = '#0a0612'; ctx.lineWidth = 4;
+        ctx.fillStyle = this.teamColor(b.team); ctx.strokeStyle = '#0a0612'; ctx.lineWidth = 4;
         ctx.beginPath(); ctx.arc(bx, by, 20, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         FX.outlined(ctx, T.label, bx, by + 1, 26, '#ffffff');
       } else if (b.dupNo) {   // 같은 캐릭터 번호 배지
@@ -586,10 +646,11 @@ var Battle = (function () {
         self.drawPanel(ctx, b, 20 + col * (pw + 10), top + row * (ph + gap), pw, ph, cols === 1, time);
       });
       if (this.synergies.length) {
-        var txt = this.synergies.map(function (s) { return '✦ ' + TEAMS[s.team % TEAMS.length].label + '팀 ' + s.name; }).join('   ');
-        ctx.font = '700 22px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-        ctx.lineWidth = 5; ctx.strokeStyle = '#000'; ctx.fillStyle = '#ffe14d';
-        ctx.strokeText(txt, CONFIG.W / 2, CONFIG.arena.y - 6); ctx.fillText(txt, CONFIG.W / 2, CONFIG.arena.y - 6);
+        // 시너지마다 상징 색으로
+        var parts = this.synergies.map(function (s) { return { t: '✦ ' + TEAMS[s.team % TEAMS.length].label + '팀 ' + s.name, c: s.off ? '#999999' : (s.color || '#ffe14d') }; });
+        ctx.font = '700 22px "Malgun Gothic",sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.lineWidth = 5; ctx.strokeStyle = '#000';
+        var gap = 24, tw = parts.reduce(function (a, p) { return a + ctx.measureText(p.t).width; }, 0) + gap * (parts.length - 1), sx = CONFIG.W / 2 - tw / 2;
+        parts.forEach(function (p) { ctx.fillStyle = p.c; ctx.strokeText(p.t, sx, CONFIG.arena.y - 6); ctx.fillText(p.t, sx, CONFIG.arena.y - 6); sx += ctx.measureText(p.t).width + gap; });
       }
       // 각 캐릭터의 화면 오버레이 (예: 염색 슬롯)
       this.balls.forEach(function (b) { if (b.def.drawOverlay) b.def.drawOverlay(ctx, b, self, time); });
@@ -607,7 +668,7 @@ var Battle = (function () {
       Assets.drawBall(ctx, b.def, b.def.portrait(b), pcx, pcy, pr, 0, col);
       ctx.lineWidth = 5 * k; ctx.strokeStyle = this.rimColor(b); ctx.beginPath(); ctx.arc(pcx, pcy, pr, 0, Math.PI * 2); ctx.stroke();
       if (b.phase >= 2) { ctx.strokeStyle = b.cfg.phase2Color; ctx.lineWidth = 4 * k; ctx.beginPath(); ctx.arc(pcx, pcy, pr + 7 * k, 0, Math.PI * 2); ctx.stroke(); }
-      if (this.mode === 'team') FX.outlined(ctx, TEAMS[b.team % TEAMS.length].label, x + 16, y + 18, 24, TEAMS[b.team % TEAMS.length].color);
+      if (this.mode === 'team') FX.outlined(ctx, TEAMS[b.team % TEAMS.length].label, x + 16, y + 18, 24, this.teamColor(b.team));
       // 이름 / 페이즈
       var tx = x + 28 + pr * 2;
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';

@@ -60,7 +60,8 @@
   canvas.addEventListener('pointerdown', function (e) {
     FX.initAudio();
     var p = toGame(e);
-    drag = { x: p.x, y: p.y, s: G.dexScroll || 0, moved: false };
+    var R = G.descRect, inDesc = G.scene === 'select' && R && p.x >= R.x && p.x <= R.x + R.w && p.y >= R.y && p.y <= R.y + R.h;
+    drag = { x: p.x, y: p.y, s: G.dexScroll || 0, ds: G.descScroll || 0, inDesc: inDesc, moved: false };
     if (canvas.setPointerCapture) try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
   });
   canvas.addEventListener('pointermove', function (e) {
@@ -68,10 +69,11 @@
     var p = toGame(e);
     if (Math.abs(p.y - drag.y) > 18) drag.moved = true;
     if (drag.moved && scrolly()) G.dexScroll = drag.s - (p.y - drag.y);
+    if (drag.moved && drag.inDesc) G.descScroll = drag.ds - (p.y - drag.y);
   });
   canvas.addEventListener('pointerup', function () {
     var d = drag; drag = null;
-    if (!d || (d.moved && scrolly())) return;
+    if (!d || (d.moved && (scrolly() || d.inDesc))) return;
     for (var i = G.hits.length - 1; i >= 0; i--) {
       var h = G.hits[i];
       if (d.x >= h.x && d.x <= h.x + h.w && d.y >= h.y && d.y <= h.y + h.h) { h.fn(); return; }
@@ -79,9 +81,15 @@
   });
   canvas.addEventListener('pointercancel', function () { drag = null; });
   canvas.addEventListener('wheel', function (e) {
+    var dyw = e.deltaY * (e.deltaMode === 1 ? 40 : 1) * 1.5;
+    if (G.scene === 'select') {   // 선택 화면: 설명 패널 위에서만
+      var p = toGame(e), R = G.descRect;
+      if (R && p.x >= R.x && p.x <= R.x + R.w && p.y >= R.y && p.y <= R.y + R.h) { e.preventDefault(); G.descScroll = (G.descScroll || 0) + dyw; }
+      return;
+    }
     if (!scrolly()) return;
     e.preventDefault();
-    G.dexScroll = (G.dexScroll || 0) + e.deltaY * (e.deltaMode === 1 ? 40 : 1) * 1.5;
+    G.dexScroll = (G.dexScroll || 0) + dyw;
   }, { passive: false });
   window.addEventListener('keydown', function (e) {
     FX.initAudio();
@@ -126,7 +134,7 @@
     G.battle = new Battle(G.roster.map(function (e) { return { id: e.id, team: e.team }; }), G.mode);
     G.scene = 'battle'; G.phase = 'intro'; G.pt = 0; G.lastCount = -1;
     G.battle.synergies.forEach(function (s, i) {
-      FX.banner(s.name, { color: '#ffe14d', sub: TEAMS[s.team % TEAMS.length].label + '팀 시너지', size: 100, life: 2.2, y: 560 + i * 170 });
+      FX.banner(s.name, { color: s.color || '#ffe14d', sub: TEAMS[s.team % TEAMS.length].label + '팀 시너지', size: 100, life: 2.2, y: 560 + i * 170 });
     });
   }
   G.start = startBattle;   // 콘솔 디버그용: Game.roster=[{id:'baton',team:0},{id:'ibi',team:1}]; Game.start()
@@ -334,10 +342,21 @@
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     ctx.font = '700 32px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.fillStyle = fc.color;
     ctx.fillText(f.name + ' (' + f.sub + ')  ·  체력 ' + fc.hp + ' · ' + f.blurb, 56, dy + 46);
-    ctx.save(); roundRect(ctx, 30, dy, W - 60, dh - 8, 24); ctx.clip();
-    drawDetail(G.focus, 56, dy + 86, W - 112, 0.82);
+    // 설명은 패널 안에서 스크롤 (휠·드래그). 다른 캐릭터를 누르면 맨 위부터
+    var top = dy + 60, bot = dy + dh - 10;
+    G.descRect = { x: 30, y: top, w: W - 60, h: bot - top };
+    if (G.descFor !== G.focus) { G.descFor = G.focus; G.descScroll = 0; G.descEnd = 0; }
+    var maxS = Math.max(0, (G.descEnd || 0) - bot + 20);
+    G.descScroll = Math.max(0, Math.min(maxS, G.descScroll || 0));
+    ctx.save(); ctx.beginPath(); ctx.rect(30, top, W - 60, bot - top); ctx.clip(); ctx.translate(0, -G.descScroll);
+    G.descEnd = drawDetail(G.focus, 56, dy + 86, W - 112, 0.82);
     ctx.restore();
-    outlined(ctx, '전체 설명·스탯은 도감에서', W - 200, dy + dh - 18, 20, '#888888');
+    if (maxS > 0) {
+      var th = (bot - top) * (bot - top) / (bot - top + maxS), sy = top + (bot - top - th) * G.descScroll / maxS;
+      ctx.fillStyle = 'rgba(255,255,255,0.12)'; roundRect(ctx, W - 50, top, 8, bot - top, 4); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.6)'; roundRect(ctx, W - 50, sy, 8, th, 4); ctx.fill();
+      if (G.descScroll < maxS - 5) outlined(ctx, '▼ 스크롤해서 더 보기', W / 2, bot - 4, 20, 'rgba(255,255,255,0.7)');
+    }
 
     button(40, 1625, 300, 120, '랜덤', randomRoster, { color: '#00c2ff', color2: '#7a5cff' });
     button(360, 1625, 300, 120, '비우기', function () { G.roster = []; }, { color: '#555577', color2: '#333355', enabled: G.roster.length > 0 });
@@ -713,10 +732,14 @@
       ctx.font = '500 25px "Malgun Gothic",sans-serif';
       var lines = Math.max(1, Math.ceil(ctx.measureText(q.desc()).width / (W - 120)) + 1), ch = 300 + lines * 34;
       ctx.fillStyle = 'rgba(18,10,36,0.95)'; roundRect(ctx, 30, y, W - 60, ch, 24); ctx.fill();
-      ctx.strokeStyle = '#ffe14d'; ctx.lineWidth = 4; ctx.stroke();
+      ctx.strokeStyle = q.color || '#ffe14d'; ctx.lineWidth = 4; ctx.stroke();
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-      ctx.font = '700 44px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffe14d';
+      ctx.font = '700 44px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.fillStyle = q.color || '#ffe14d';
       ctx.fillText('✦ ' + q.name, 60, y + 60);
+      ctx.font = '700 20px "Malgun Gothic",sans-serif'; ctx.textAlign = 'right'; ctx.fillStyle = '#999999';
+      ctx.fillText('팀전 테두리 색', W - 110, y + 54);
+      ctx.fillStyle = q.color || '#ffe14d'; ctx.beginPath(); ctx.arc(W - 80, y + 47, 16, 0, Math.PI * 2); ctx.fill();
+      ctx.textAlign = 'left';
       ctx.font = '700 24px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#bbbbbb';
       ctx.fillText(q.solo ? '조건: ' + q.solo.join(' 또는 ') + '가 팀에 혼자 (모습 상관없음)'
         : '조건: 아래 ' + mem.length + '명이 모두 같은 팀' + (q.note ? ' (' + q.note + ')' : ' (모습 상관없음)'), 60, y + 100);
@@ -804,7 +827,7 @@
       var slide = t < 0.2 ? (1 - t / 0.2) * W : t > 0.85 ? -(t - 0.85) / 0.15 * W : 0;
       ctx.fillStyle = 'rgba(5,3,12,0.65)'; ctx.fillRect(0, 0, W, H);
       ctx.save(); ctx.translate(slide, 0);
-      var band = bt.mode === 'team' ? TEAMS[b.team % TEAMS.length].color : col;
+      var band = bt.mode === 'team' ? bt.teamColor(b.team) : col;
       ctx.fillStyle = band; ctx.globalAlpha = 0.9; ctx.fillRect(0, 760, W, 400); ctx.globalAlpha = 1;
       ctx.fillStyle = '#0a0612'; ctx.fillRect(0, 775, W, 370);
       Assets.drawBall(ctx, b.def, b.def.portrait(b), 280, 960, 150, 0, col);
@@ -834,7 +857,7 @@
     background();
     bt.draw(ctx, G.time);
     ctx.fillStyle = 'rgba(5,3,12,0.78)'; ctx.fillRect(0, 0, W, H);
-    var col = team ? TEAMS[bt.winnerTeam % TEAMS.length].color : w ? w.color() : '#ffffff', cx = W / 2, cy = 820;
+    var col = team ? bt.teamColor(bt.winnerTeam) : w ? w.color() : '#ffffff', cx = W / 2, cy = 820;
     // 회전 광선
     ctx.save(); ctx.translate(cx, cy); ctx.rotate(G.time * 0.4);
     for (var i = 0; i < 14; i++) {
@@ -896,7 +919,8 @@
       ctx.font = '700 28px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
       ctx.fillText(sb[1], lx + 40, 166); lx += 240;
     });
-    var rows = bt.balls.slice().sort(function (a, b) { return b.stats.dealt - a.stats.dealt; });
+    // 순위: 살아남은 쪽(이긴 팀 먼저, 체력 비율 높은 순) → 늦게 탈락한 순. MVP는 준 피해 1등
+    var rows = bt.ranking(), mvp = bt.balls.slice().sort(function (a, b) { return b.stats.dealt - a.stats.dealt; })[0];
     var maxV = 1;
     rows.forEach(function (b) { STAT_BARS.forEach(function (sb) { maxV = Math.max(maxV, b.stats[sb[0]]); }); });
     var top = 200, rh = Math.min(175, (1760 - top) / rows.length), grow = Math.min(1, G.pt * 1.5);
@@ -906,11 +930,16 @@
       ctx.fillStyle = i % 2 ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)'; roundRect(ctx, 24, y + 4, W - 48, rh - 8, 18); ctx.fill();
       ctx.save(); ctx.globalAlpha = b.alive ? 1 : 0.5;
       Assets.drawBall(ctx, b.def, b.def.portrait(b), 100, y + rh * 0.42, pr, 0, col);
-      ctx.lineWidth = 5; ctx.strokeStyle = bt.mode === 'team' ? Battle.TEAMS[b.team % Battle.TEAMS.length].color : col;
+      ctx.lineWidth = 5; ctx.strokeStyle = bt.mode === 'team' ? bt.teamColor(b.team) : col;
       ctx.beginPath(); ctx.arc(100, y + rh * 0.42, pr, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
       outlined(ctx, b.name + (b.alive ? '' : ' ✝'), 100, y + rh * 0.42 + pr + Math.min(26, rh * 0.15), Math.min(28, rh * 0.17), col);
-      if (i === 0 && b.stats.dealt > 0) outlined(ctx, '👑 MVP', 205, y + rh * 0.2, Math.min(26, rh * 0.15), '#ffd400');
+      var medal = ['🥇', '🥈', '🥉'][i] || '', rc = i === 0 ? '#ffd400' : i === 1 ? '#e0e0e0' : i === 2 ? '#e8a060' : '#bbbbbb';
+      outlined(ctx, medal + (i + 1) + '위', 215, y + rh * 0.28, Math.min(38, rh * 0.22), rc);
+      ctx.font = '700 ' + Math.round(Math.min(20, rh * 0.12)) + 'px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = b.alive ? '#7dff9a' : '#ff6b8a';
+      ctx.fillText(b.alive ? '생존 ' + Math.round(Math.max(0, b.hp) / b.maxHp * 100) + '%' : '탈락 ' + Math.round(b.deadAt) + '초', 215, y + rh * 0.55);
+      if (b === mvp && b.stats.dealt > 0) outlined(ctx, '👑 MVP', 215, y + rh * 0.78, Math.min(22, rh * 0.13), '#ffd400');
       STAT_BARS.forEach(function (sb, k) {
         var v = b.stats[sb[0]], by = y + rh * 0.5 + (k - 1) * (bh + Math.max(4, rh * 0.06)) - bh / 2;
         ctx.fillStyle = 'rgba(255,255,255,0.08)'; roundRect(ctx, bx, by, bw, bh, bh / 2); ctx.fill();

@@ -2992,20 +2992,20 @@ var CHARACTERS = {
 // solo: 그 사람이 팀에 혼자일 때 / members: 전원이 한 팀일 때 (팀원 전체에 적용). 조건은 이름 기준 → 이격도 포함
 function _pct(m) { return (m >= 1 ? '+' : '') + Math.round((m - 1) * 100) + '%'; }
 var SYNERGIES = [
-  { key: 'uninvited', name: '초대받지 못한 손님', solo: ['유재후', '???'],
+  { key: 'uninvited', color: '#ff8c1a', name: '초대받지 못한 손님', solo: ['유재후', '???'],
     desc: function () { var u = CONFIG.synergy.uninvited; return '유재후 또는 ???가 팀에 혼자일 때: 체력·이동속도·공격력 x' + u.hp + '. 끼야아아악은 배율 없이 확정 2연타'; } },
-  { key: 'izk', name: 'IZK 1기', members: function () { return CONFIG.synergy.izk.members; }, suppressedBy: 'jeongbalsan',
-    desc: function () { var z = CONFIG.synergy.izk; return '주는 피해 +' + Math.round((z.damage - 1) * 100) + '%, 이동속도 +' + Math.round((z.speed - 1) * 100) + '%. 조하람의 긴급소집 때 추가 효과: 조우연 뱀 3마리 즉시 소환 / 김선율 복합 염색 / 한규성 규순이 3종 연속'; } },
-  { key: 'ssabang', name: '싸방', members: function () { return CONFIG.synergy.ssabang.members; },
-    desc: function () { var c = CONFIG.synergy.ssabang; return '체력 +' + Math.round((c.hp - 1) * 100) + '%, 이동속도 +' + Math.round((c.speed - 1) * 100) + '%'; } },
-  { key: 'hwajeong', name: '화정듀오', members: function () { return CONFIG.synergy.hwajeong.members; }, needIds: function () { return CONFIG.synergy.hwajeong.needIds; },
+  { key: 'izk', color: '#00e5ff', name: 'IZK 1기', members: function () { return CONFIG.synergy.izk.members; }, suppressedBy: 'jeongbalsan',
+    desc: function () { var z = CONFIG.synergy.izk; return '주는 피해 ' + _pct(z.damage) + ', 받는 피해 ' + _pct(z.taken) + '. 조하람의 긴급소집 때 추가 효과: 조우연 뱀 3마리 즉시 소환 / 김선율 복합 염색 / 한규성 규순이 3종 연속'; } },
+  { key: 'ssabang', color: '#b36bff', name: '싸방', members: function () { return CONFIG.synergy.ssabang.members; },
+    desc: function () { var c = CONFIG.synergy.ssabang; return '체력 ' + _pct(c.hp) + ', 받는 회복 ' + _pct(c.heal); } },
+  { key: 'hwajeong', color: '#ff4fa3', name: '화정듀오', members: function () { return CONFIG.synergy.hwajeong.members; }, needIds: function () { return CONFIG.synergy.hwajeong.needIds; },
     note: '한규성은 포식자의 모습일 때만',
     desc: function () { var c = CONFIG.synergy.hwajeong; return '주는 피해 ' + _pct(c.damage) + ', 최대 체력 ' + _pct(c.hp); } },
-  { key: 'jeongbalsan', name: '정발산', members: function () { return CONFIG.synergy.jeongbalsan.members; },
+  { key: 'jeongbalsan', color: '#e8e8ff', name: '정발산', members: function () { return CONFIG.synergy.jeongbalsan.members; },
     desc: function () { var c = CONFIG.synergy.jeongbalsan; return '이동속도 ' + _pct(c.speed) + ', 주는 피해 ' + _pct(c.decayDamage) + ' (' + c.decayTime + '초에 걸쳐 0까지 감소). IZK 1기는 긴급소집 효과만 남음'; } },
-  { key: 'seoulbc', name: '서울방송고', members: function () { return CONFIG.synergy.seoulbc.members; },
-    desc: function () { var c = CONFIG.synergy.seoulbc; return '받는 회복 ' + _pct(c.heal) + ', 이동속도 ' + _pct(c.speed) + '. 최휘 주는 피해 ' + _pct(c.per['최휘'].damage) + ', 문남휘 주는 피해 ' + _pct(c.per['문남휘'].damage); } },
-  { key: 'dogowner', name: '개와 주인', members: function () { return CONFIG.synergy.dogowner.members; },
+  { key: 'seoulbc', color: '#d4a24c', name: '서울방송고', members: function () { return CONFIG.synergy.seoulbc.members; },
+    desc: function () { var c = CONFIG.synergy.seoulbc; return '받는 회복 ' + _pct(c.heal) + ', 스킬 쿨타임 ' + Math.round((1 - 1 / c.cdr) * 100) + '% 단축. 최휘 주는 피해 ' + _pct(c.per['최휘'].damage) + ', 문남휘 주는 피해 ' + _pct(c.per['문남휘'].damage); } },
+  { key: 'dogowner', color: '#a1887f', name: '개와 주인', members: function () { return CONFIG.synergy.dogowner.members; },
     desc: function () { var p = CONFIG.synergy.dogowner.per; var c = CONFIG.synergy.dogowner; return '서리 이동속도 ' + _pct(p['서리'].speed) + ', 주는 피해 ' + _pct(p['서리'].damage) + ', 침흘리기 빈도 x' + c.droolRate + ' / 유재후 이동속도 ' + _pct(p['유재후'].speed); } },
 ];
 function synergiesOf(id) {
