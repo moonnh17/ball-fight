@@ -31,8 +31,8 @@ var Battle = (function () {
       this.phase = 1; this.alive = true; this.action = null;
       this.rot = 0; this.scale = 1; this.pulse = 0; this.lift = 0; this.flash = 0;
       this.air = false; this.phasing = false; this.hidden = false; this.invuln = false; this.jx = 0; this.jy = 0;
-      this.status = { burn: 0, burnDps: 0, stun: 0, freeze: 0, bleed: 0, bleedStacks: 0, bleedDps: 0, blind: 0, slow: 0, slowMul: 1, haste: 0, hasteMul: 1, atk: 0, atkMul: 1 };   // atk: 일시적인 공격력 배율 (자학개그 너프, 핫식스 박스 버프)
-      this.burnTick = 0; this.bleedTick = 0;
+      this.status = { burn: 0, burnDps: 0, stun: 0, freeze: 0, bleed: 0, bleedStacks: 0, bleedDps: 0, blind: 0, slow: 0, slowMul: 1, haste: 0, hasteMul: 1, atk: 0, atkMul: 1, sleep: 0, hold: 0, poison: 0, poisonDps: 0 };   // sleep: 다른 플레이어에게 맞으면 깸 / hold: 표시 없는 행동불능(흡연) / poison: 독   // atk: 일시적인 공격력 배율 (자학개그 너프, 핫식스 박스 버프)
+      this.burnTick = 0; this.bleedTick = 0; this.poisonTick = 0;
       this.stats = { dealt: 0, taken: 0, healed: 0 };   // 결과 화면 그래프용
       this.data = {};
       // 1스킬은 시작 직후 너무 바로 터지지 않게 약간 랜덤 오프셋
@@ -41,7 +41,7 @@ var Battle = (function () {
         return { def: s, max: max, cd: i === 0 ? max * rnd(0.5, 0.9) : max };
       });
     }
-    get disabled() { return this.status.stun > 0 || this.status.freeze > 0; }
+    get disabled() { var s = this.status; return s.stun > 0 || s.freeze > 0 || s.sleep > 0 || s.hold > 0; }
     get targetable() { return this.alive && !this.hidden; }
     color() { return this.def.color ? this.def.color(this) : this.cfg.color; }
   }
@@ -89,6 +89,11 @@ var Battle = (function () {
         var S2 = CONFIG.arena, k2 = CONFIG.teamViewScale;
         this.viewK = k2; this.arena = { x: S2.x, y: S2.y, w: S2.w / k2, h: S2.h / k2 };
       }
+      if (opts && opts.map && !this.bossMode && typeof MAPS !== 'undefined' && MAPS[opts.map]) {
+        var S3 = this.arena || CONFIG.arena;
+        this.arena = { x: S3.x, y: S3.y, w: S3.w, h: S3.h }; this.baseArena = { x: S3.x, y: S3.y, w: S3.w, h: S3.h };
+        this.map = new MapRun(this, opts.map);
+      }
       if (this.mode === 'team') this.applySynergies();
       // 보스전 시너지 보너스 (이지): 도전자 팀에 켜진 시너지 하나당 도전자 전원 공격력·체력 상승
       var sb = this.boss && this.boss.cfg.synergyBonus;
@@ -109,6 +114,7 @@ var Battle = (function () {
         b.vx = Math.cos(va) * b.speed; b.vy = Math.sin(va) * b.speed;
         if (b.def.init) b.def.init(self, b);
       });
+      if (this.map) this.map.init();
       CONFIG.arena = saved;
     }
 
@@ -261,11 +267,13 @@ var Battle = (function () {
       if (src && !o.noMult && src.synDecay) amt *= 1 + src.synDecay.amt * Math.max(0, 1 - this.time / src.synDecay.time);   // 정발산: 점점 줄어듦
       if (src && src.def.dealMult) amt *= src.def.dealMult(this, src, t, amt, o);   // amt: 지금까지 계산된 피해, o.kind로 박치기 구분
       amt *= this.guardMult(t);   // 보호막 (삼식이 하양)
+      if (this.map) { amt *= this.map.taken(t, src, o); if (amt <= 0) return 0; }
       if (t.def.onHurt) t.def.onHurt(this, t, amt, src, o);   // 받은 피해 기록 (차승민 강펀치)
       var real = Math.min(amt, t.hp);   // 오버킬 제외한 실제 피해
       t.stats.taken += real;
       if (src && src !== t) src.stats.dealt += real;
       t.hp -= amt; t.flash = 0.12;
+      if (t.status.sleep > 0 && src && src !== t) { t.status.sleep = 0; FX.text(t.x, t.y - t.r - 60, '번쩍!', '#ffffff', 50, 0.8); this.emit('wake', { who: t.def.id }); }
       FX.num(t.x, t.y - t.r * 0.6 - t.lift * 140, amt, { dot: o.dot, color: o.color || (o.dot ? '#ffb3b3' : '#ffffff'), precise: o.kind === 'contact' && src && src.def.preciseContact });
       if (!o.dot) {
         var big = amt >= CONFIG.battle.bigHitDamage;
@@ -359,6 +367,7 @@ var Battle = (function () {
         var tm = this.timers[i]; tm.t -= dt;
         if (tm.t <= 0) { this.timers.splice(i, 1); tm.fn(); }
       }
+      if (this.map) this.map.update(dt);
       this.balls.forEach(function (b) { if (b.alive) self.updateBall(b, dt); });
       this.collide();
       for (i = this.ents.length - 1; i >= 0; i--) {
@@ -389,7 +398,16 @@ var Battle = (function () {
         if (st.bleed <= 0) { st.bleedStacks = 0; b.bleedTick = 0; }
       }
       if (!b.alive) return;
+      if (st.poison > 0) {
+        st.poison -= dt; b.poisonTick += dt;
+        if (b.poisonTick >= 0.4999) { b.poisonTick -= 0.5; this.damage(b, st.poisonDps * 0.5, null, { dot: true, noMult: true, color: '#9cff57', kind: 'poison' }); }
+        if (Math.random() < dt * 10) FX.particle({ x: b.x + rnd(-b.r, b.r) * 0.6, y: b.y + rnd(-b.r, b.r) * 0.4, vx: rnd(-15, 15), vy: rnd(-120, -60), life: 0.6, size: rnd(6, 11), color: Math.random() < 0.5 ? '#9cff57' : '#4fbf2a' });
+        if (st.poison <= 0) b.poisonTick = 0;
+      }
+      if (!b.alive) return;
       if (st.stun > 0) st.stun -= dt;
+      if (st.sleep > 0) { st.sleep -= dt; if (Math.random() < dt * 1.5) FX.text(b.x + b.r * 0.6, b.y - b.r - 20, 'Z', '#bfe3ff', 40, 1.0); }
+      if (st.hold > 0) st.hold -= dt;
       if (st.freeze > 0) st.freeze -= dt;
       if (st.blind > 0) st.blind -= dt;
       if (st.slow > 0) st.slow -= dt;
@@ -417,6 +435,7 @@ var Battle = (function () {
         if (sk.cd > 0) sk.cd -= dt * b.cdRate;
         if (sk.cd <= 0 && !b.action && !b.disabled && !b.hidden) {
           sk.cd = sk.max;
+          if (this.map && this.map.cancelSkill(b, sk.def.key)) continue;
           this.emit('skill', { who: b.def.id, skill: sk.def.key });
           var act = sk.def.start(this, b);
           if (act) b.action = act;
@@ -461,6 +480,7 @@ var Battle = (function () {
       if (b.x + b.r > A.x + A.w) { b.x = A.x + A.w - b.r; b.vx = -Math.abs(b.vx); hit = true; }
       if (b.y - b.r < A.y) { b.y = A.y + b.r; b.vy = Math.abs(b.vy); hit = true; }
       if (b.y + b.r > A.y + A.h) { b.y = A.y + A.h - b.r; b.vy = -Math.abs(b.vy); hit = true; }
+      if (this.map && this.map.walls(b)) hit = true;   // 맵 벽 (산내 파인 곳, 정발산 2층 칸막이)
       if (hit) {
         // 완전히 수평/수직으로 갇히지 않게 살짝 비틀기
         var a = Math.atan2(b.vy, b.vx), s = Math.hypot(b.vx, b.vy);
@@ -535,13 +555,16 @@ var Battle = (function () {
       var A = CONFIG.arena, self = this;
       // 경기장
       ctx.save();
-      ctx.fillStyle = '#0c0a1d';
-      ctx.fillRect(A.x, A.y, A.w, A.h);
-      ctx.strokeStyle = 'rgba(160,120,255,0.07)'; ctx.lineWidth = 2;
-      ctx.beginPath();
-      for (var gx = A.x + 50; gx < A.x + A.w; gx += 100) { ctx.moveTo(gx, A.y); ctx.lineTo(gx, A.y + A.h); }
-      for (var gy = A.y + 60; gy < A.y + A.h; gy += 100) { ctx.moveTo(A.x, gy); ctx.lineTo(A.x + A.w, gy); }
-      ctx.stroke();
+      if (this.map) this.map.drawFloor(ctx);
+      else {
+        ctx.fillStyle = '#0c0a1d';
+        ctx.fillRect(A.x, A.y, A.w, A.h);
+        ctx.strokeStyle = 'rgba(160,120,255,0.07)'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (var gx = A.x + 50; gx < A.x + A.w; gx += 100) { ctx.moveTo(gx, A.y); ctx.lineTo(gx, A.y + A.h); }
+        for (var gy = A.y + 60; gy < A.y + A.h; gy += 100) { ctx.moveTo(A.x, gy); ctx.lineTo(A.x + A.w, gy); }
+        ctx.stroke();
+      }
       if (this.bossMode) this.drawBossBorder(ctx);
       else if (this.mode === 'team') this.drawTeamBorder(ctx);
       else {
@@ -551,10 +574,12 @@ var Battle = (function () {
         ctx.strokeStyle = grad; ctx.strokeRect(A.x, A.y, A.w, A.h);
       }
       ctx.restore();
+      if (this.map) this.map.drawOver(ctx, time);   // 창문 · 칸막이 · 파인 벽
 
       this.ents.forEach(function (e) { if ((e.z || 0) < 0) e.draw(ctx, self); });
       this.balls.forEach(function (b) { if (b.alive) self.drawBall(ctx, b, time); });
       this.ents.forEach(function (e) { if ((e.z || 0) >= 0) e.draw(ctx, self); });
+      if (this.map) this.map.drawTop(ctx, time);
       if (this.dark > 0.01) this.drawDark(ctx);
     }
 
@@ -661,6 +686,8 @@ var Battle = (function () {
         ctx.moveTo(x - r * 0.1, y + r * 0.1); ctx.lineTo(x + r * 0.1, y + r * 0.7); ctx.stroke();
       }
       if (b.status.blind > 0 && Math.sin(time * 25) > 0.3) { ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
+      if (b.status.poison > 0) { ctx.fillStyle = 'rgba(120,255,60,' + (0.18 + Math.sin(time * 8) * 0.06) + ')'; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
+      if (b.status.sleep > 0) { ctx.fillStyle = 'rgba(20,30,80,0.45)'; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
       ctx.restore();
 
       ctx.lineWidth = this.mode === 'team' || b.dupNo ? 11 : 9; ctx.strokeStyle = this.rimColor(b);
@@ -702,6 +729,10 @@ var Battle = (function () {
       if (b.status.blind > 0) {
         ctx.font = '56px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText('🙈', x, top - (b.status.stun > 0 ? 40 : 0));
+      }
+      if (b.status.sleep > 0) {
+        ctx.font = '54px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('💤', x + r * 0.7, top - 6 + Math.sin(time * 3) * 6);
       }
       if (b.def.drawExtra) b.def.drawExtra(ctx, b, this, x, y, r, time);
     }

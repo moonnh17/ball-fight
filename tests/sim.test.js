@@ -4,7 +4,7 @@ const fs = require('fs'), path = require('path'), vm = require('vm'), assert = r
 const ctx = { console, Math, Set, Object, Array, JSON };
 ctx.window = ctx;
 vm.createContext(ctx);
-for (const f of ['config.js', 'fx.js', 'fxsheets.js', 'battle.js', 'characters.js', 'boss.js', 'records.js']) {
+for (const f of ['config.js', 'fx.js', 'fxsheets.js', 'battle.js', 'characters.js', 'boss.js', 'maps.js', 'records.js']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'src', f), 'utf8'), ctx, { filename: f });
 }
 const { CONFIG, Battle, CHARACTERS, Ents, SYNERGIES } = ctx;
@@ -1310,6 +1310,117 @@ test('밸런스 참고: 3인 개인전 200판', () => {
   }
   lens.sort((a, b) => a - b);
   console.log('    승리', JSON.stringify(wins), '· 전투 길이 중앙값', lens[100].toFixed(1) + 's');
+});
+
+// ---------- 맵 ----------
+const { MAPS, MAP_IDS } = ctx;
+const M = CONFIG.maps;
+test('맵: 모든 맵에서 개인전·팀전이 끝까지 진행된다', () => {
+  for (const id of MAP_IDS) {
+    for (let i = 0; i < 6; i++) {
+      const ids = Object.keys(CHARACTERS).filter(k => k !== 'ripley');
+      const pick = () => ids[Math.floor(Math.random() * ids.length)];
+      const bt = i % 2 ? new Battle([pick(), pick(), pick(), pick()].map((x, j) => ({ id: x, team: j % 2 })), 'team', { map: id })
+        : new Battle([pick(), pick(), pick()], 'ffa', { map: id });
+      runToEnd(bt);
+      assert(bt.over && bt.map && bt.map.id === id, id + ' 끝까지');
+    }
+  }
+});
+test('맵: 작업실은 30초마다 산내/정발산으로 바뀌고, 산내는 정사각형 + 파인 벽', () => {
+  const bt = new Battle([{ id: 'baton', team: 0 }, { id: 'gym', team: 1 }], 'team', { map: 'workroom' });
+  bt.balls.forEach(b => { b.maxHp = b.hp = 1e6; });
+  run(bt, 29); assert(bt.map.sub === 'work');
+  run(bt, 2); assert(['sannae', 'jbs'].includes(bt.map.sub), '30초에 변경');
+  bt.map.setSub('sannae'); run(bt, 2);
+  assert(Math.abs(bt.arena.w - bt.arena.h) < 1, '정사각형');
+  const b = bt.balls[0], n = bt.map.notch();
+  b.x = n.x + n.w / 2; b.y = n.y + n.h / 2; bt.walls(b);
+  assert(!(b.x > n.x && b.y < n.y + n.h), '파인 곳 밖으로 밀림');
+  bt.map.setSub('jbs'); run(bt, 2);
+  assert(Math.abs(bt.arena.h - bt.baseArena.h) < 1, '정발산은 원래 크기');
+});
+test('맵: 산내 금연구역 창문 — 흡연자는 담배(행동불능, 받는 피해 2배), 비흡연자는 그냥 지나감', () => {
+  const bt = new Battle(['gym', 'seori'], 'ffa', { map: 'workroom' });
+  bt.map.setSub('sannae'); run(bt, 2);
+  const [s, n] = bt.balls, A = bt.arena;
+  [s, n].forEach(b => { b.x = A.x + A.w - b.r - 2; b.y = A.y + A.h - b.r - 2; b.maxHp = b.hp = 1e6; });
+  run(bt, 0.1);
+  assert(s.data.smoking > 0 && s.disabled, '진형권(흡연자) 흡연');
+  assert(!(n.data.smoking > 0), '서리(비흡연자)는 안 피움');
+  bt.hitstop = 0;
+  const hp = s.hp; bt.damage(s, 10, null, {}); assert(Math.abs(hp - s.hp - 20) < 1e-6, '흡연 중 피해 2배');
+});
+test('맵: 산내 조하람 월세(최대 20 회복) · 펑크(긴급소집 취소)', () => {
+  const bt = new Battle(['hxpwm', 'gym', 'baton', 'seori', 'ibi', 'samsik'], 'ffa', { map: 'workroom' });
+  bt.map.setSub('sannae');
+  const h = bt.balls[0]; h.hp = h.maxHp - 50;
+  bt.balls.forEach(b => { b.x = bt.arena.x + 200 + b.id * 100; b.y = bt.arena.y + bt.arena.h / 2; });
+  const hp = h.hp; bt.map.clk.rent = M.sannae.rentEvery - 0.001; bt.map.update(DT);
+  assert(count(bt, 'rent') === 1 && Math.abs(h.hp - hp - 20) < 1e-6, '5명 x 5 = 25 → 20만 회복');
+  let canceled = 0; for (let i = 0; i < 400; i++) canceled += bt.map.cancelSkill(h, 'call') ? 1 : 0;
+  assert(canceled > 80 && canceled < 160, '약 30% 펑크 ' + canceled);
+  assert(!bt.map.cancelSkill(bt.balls[1], 'call'), '조하람만');
+});
+test('맵: 담요 수면은 다른 플레이어에게 맞아야 깸', () => {
+  const bt = new Battle(['gym', 'baton'], 'ffa', { map: 'workroom' });
+  const b = bt.balls[0];
+  Ctx_eat('blanket', bt, b);
+  assert(b.status.sleep > 0 && b.disabled);
+  b.status.poison = 1; b.status.poisonDps = 4; run(bt, 1.2);
+  assert(b.status.sleep > 0, '독(출처 없음)으론 안 깸');
+  bt.damage(b, 1, bt.balls[1], {}); assert(b.status.sleep === 0, '맞으면 깸');
+});
+function Ctx_eat(kind, bt, b) { vm.runInContext('ITEM_EAT', ctx)[kind](bt, b); }
+test('맵: 정발산 비흡연자 독 2배 · 2층 분리 중엔 층이 다르면 공격 안 닿음 · 소주', () => {
+  const bt = new Battle(['gym', 'hau'], 'ffa', { map: 'workroom' });
+  bt.map.setSub('jbs');
+  const [g, h] = bt.balls; bt.hitstop = 0;
+  let hp = h.hp; bt.damage(h, 3, null, { dot: true, kind: 'poison' }); assert(Math.abs(hp - h.hp - 6) < 1e-6, '최휘 독 2배');
+  hp = g.hp; bt.damage(g, 3, null, { dot: true, kind: 'poison' }); assert(Math.abs(hp - g.hp - 3) < 1e-6, '진형권 독 1배');
+  const dx = bt.map.divX(); g.x = dx - 200; h.x = dx + 200; bt.map.splitK = 1;
+  hp = h.hp; bt.damage(h, 10, g, {}); assert(h.hp === hp, '분리 중 다른 층');
+  bt.map.split = false; bt.map.splitK = 0; bt.damage(h, 10, g, {}); assert(h.hp < hp, '통합되면 닿음');
+  Ctx_eat('soju', bt, g); hp = g.hp; bt.damage(g, 10, null, {}); assert(Math.abs(hp - g.hp - 10 * M.jbs.king.sojuTaken) < 1e-6, '소주: 받는 피해 감소');
+  const bt2 = new Battle(['baton', 'gym'], 'ffa', { map: 'workroom' }); Ctx_eat('soju', bt2, bt2.balls[0]);
+  assert(bt2.balls[0].status.sleep > 0, '유재후는 소주 먹으면 수면');
+});
+test('맵: 정발산 의자 투척 (김선율 30)', () => {
+  const bt = new Battle(['sy', 'gym'], 'ffa', { map: 'workroom' });
+  bt.map.setSub('jbs'); bt.map.split = false;
+  const [s, t] = bt.balls; s.x = bt.arena.x + 200; s.y = t.y = bt.arena.y + 600; t.x = s.x + 400; t.maxHp = t.hp = 1000;
+  s.vx = s.vy = t.vx = t.vy = 0; s.speed = t.speed = 0;
+  Ctx_eat('chair', bt, s);
+  run(bt, 1.5);
+  const e = bt.log.find(x => x.type === 'chairHit');
+  assert(e && e.dmg === M.jbs.chair.samsik, '김선율 의자 30');
+});
+test('맵: 마인드 리허설 — 1대1은 1명만 사라졌다 5초 뒤 독 · 둔화로 복귀, 주현지 누나 있으면 독 없음, 이비는 규순이', () => {
+  const bt = new Battle(['ibi', 'gym'], 'ffa', { map: 'mind' });
+  assert(bt.ents.some(e => e.kind === 'joo'), '시작하자마자 주현지 누나');
+  bt.balls.forEach(b => { b.maxHp = b.hp = 1e6; });
+  bt.map.clk.rehearsal = M.mind.rehearsal - 0.001; bt.map.update(DT);
+  const gone = bt.balls.filter(b => b.hidden);
+  assert(gone.length === 1, '1명만');
+  run(bt, M.mind.away + 0.2);
+  const g = gone[0];
+  assert(!g.hidden && g.status.slow > 0, '돌아옴');
+  assert(count(bt, 'rehearsalBack', e => e.poisoned) === 1);
+  if (g.def.id === 'ibi') assert(g.data.gyusuni, '이비는 규순이로');
+  const bt2 = new Battle(['baton', 'gym', 'seori', 'hau'], 'ffa', { map: 'mind' });
+  bt2.balls.forEach(b => { b.data.joo = true; b.maxHp = b.hp = 1e6; });
+  bt2.map.clk.rehearsal = M.mind.rehearsal - 0.001; bt2.map.update(DT);
+  const n = bt2.balls.filter(b => b.hidden).length;
+  assert(n >= 1 && n <= 3, '1~3명 ' + n);
+  run(bt2, M.mind.away + 0.2);
+  assert(count(bt2, 'rehearsalBack', e => e.poisoned) === 0, '누나 가호면 독 없음');
+});
+test('맵: 마인드 언데드 촬영팀에 닿으면 5 피해', () => {
+  const bt = new Battle(['gym', 'baton'], 'ffa', { map: 'mind' });
+  bt.balls.forEach(b => { b.maxHp = b.hp = 1e6; });
+  run(bt, 30);
+  assert(count(bt, 'undead') >= 4, '언데드 등장');
+  assert(bt.log.filter(e => e.type === 'damage' && e.kind === 'undead').every(e => e.amt === M.mind.touch));
 });
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');

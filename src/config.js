@@ -41,6 +41,29 @@ var CONFIG = {
   // ---------- 보스전 ----------
   boss: { viewScale: 0.7, maxPlayers: 8 },   // 보스전 화면 배율: 경기장이 1/0.7배 넓어지고 모든 게 0.7배로 보임 / 도전자 최대 인원
   teamViewScale: 0.82,   // 팀전 화면 배율 (보스전보다 조금 크게)
+
+  // ---------- 맵 (개인전·팀전·토너먼트) ----------
+  maps: {
+    nonSmokers: ['서리', '최휘', '조하람'],   // 특성 비흡연자 (이름 기준, 나머지는 흡연자)
+    workroom: { swap: 30 },                   // 작업실: 30초마다 산내/정발산 중 하나로
+    sannae: {
+      notchW: 0.24, notchH: 0.15,             // 오른쪽 위 파인 곳 (경기장 가로 대비)
+      window: 170, smokeTime: 3, smokeCd: 6, smokeTaken: 2,   // 금연구역 창문: 닿으면 흡연(행동불능), 그동안 받는 피해 2배
+      punk: 0.3, rentEvery: 10, rent: 5, rentCap: 20,         // 조하람 전용: 긴급소집 펑크 확률 / 월세 흡수
+      blanket: { every: 9, max: 2, sleepMax: 12 },            // 함정: 수면 (다른 플레이어에게 맞으면 깸, 최대 12초)
+      pizza: { every: 5, max: 4, heal: 20 },
+    },
+    jbs: {
+      smokeEvery: 1.1, smokeMax: 9, smokeRadius: 150, poisonDps: 6, poisonTime: 1.2, vent: 10, nonSmokerPoison: 2,
+      split: 10,                              // 2층 공간: 10초 분리 · 10초 통합 반복
+      chair: { every: 15, max: 2, damage: 20, samsik: 30, speed: 1400 },
+      king: { every: 3, max: 4, heal: 15, soju: 0.1, sojuTaken: 0.7, sojuTime: 8, sleep: 8 },
+    },
+    mind: {
+      spawn: 5, maxUndead: 4, undeadLife: 16, undeadSpeed: 80, orbit: 120, orbitSpeed: 2.4, touch: 5,
+      rehearsal: 20, away: 5, poisonDps: 6, poisonTime: 3, slow: 0.6, slowTime: 3, jooRespawn: 7,
+    },
+  },
   // 보스 수치: 기본값 위에 easy / hard 값을 덮어씀. 체력 = hpPerPlayer x 도전자 수^hpExp (인원 많으면 광역기가 나눠 맞아서)
   bosses: {
     heroBaton: {   // 히어로 바통

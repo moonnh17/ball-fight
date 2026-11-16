@@ -15,7 +15,7 @@ var Assets = {
   exts: ['.png', '.jpg', '.jpeg', '.webp'],
   load: function () {
     if (typeof Image === 'undefined') return;
-    var self = this, all = [CHARACTERS].concat(typeof BOSSES !== 'undefined' ? [BOSSES] : []);   // 보스 사진도
+    var self = this, all = [CHARACTERS].concat(typeof BOSSES !== 'undefined' ? [BOSSES] : [], typeof MAP_BALLS !== 'undefined' ? [MAP_BALLS] : []);   // 보스 · 맵 사람 사진도
     all.forEach(function (reg) {
       Object.keys(reg).forEach(function (id) {
         var def = reg[id];

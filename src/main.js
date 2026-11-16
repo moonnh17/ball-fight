@@ -23,7 +23,7 @@
   function shortSub(id) { return CHARACTERS[id].sub.replace(/의 모습$/, ''); }
   function idOfName(n) { var g = GROUPS.filter(function (q) { return q.name === n; })[0]; return g ? g.ids[0] : null; }
   var G = window.Game = {
-    scene: 'title', record: false, mode: 'ffa', pick: {}, bossId: 'heroBaton', bossDiff: 'easy', speedIdx: CONFIG.speeds.indexOf(1), roster: [], curTeam: 0, tourSeed: 'manual', swapSel: null, tour: null, focus: IDS[0], battle: null,
+    scene: 'title', record: false, mode: 'ffa', pick: {}, bossId: 'heroBaton', bossDiff: 'easy', speedIdx: CONFIG.speeds.indexOf(1), roster: [], curTeam: 0, tourSeed: 'manual', mapSel: 'none', swapSel: null, tour: null, focus: IDS[0], battle: null,
     phase: '', pt: 0, time: 0, fps: 60, hits: [], titleBalls: [],
   };
   var roundRect = Battle.roundRect, outlined = FX.outlined;
@@ -136,8 +136,9 @@
     if (G.mode === 'boss') G.roster = G.roster.slice(0, CONFIG.boss.maxPlayers);
     G.battle = G.mode === 'boss'
       ? new Battle(G.roster.map(function (e) { return e.id; }), 'boss', { boss: G.bossId, difficulty: G.bossDiff })
-      : new Battle(G.roster.map(function (e) { return { id: e.id, team: e.team }; }), G.mode);
+      : new Battle(G.roster.map(function (e) { return { id: e.id, team: e.team }; }), G.mode, { map: pickMap() });
     G.scene = 'battle'; G.phase = 'intro'; G.pt = 0; G.lastCount = -1;
+    mapBanner(G.battle);
     G.battle.synergies.forEach(function (s, i) {
       FX.banner(s.name, { color: s.color || '#ffe14d', sub: TEAMS[s.team % TEAMS.length].label + '팀 시너지', size: 100, life: 2.2, y: 560 + i * 170 });
     });
@@ -396,8 +397,48 @@
     button(40, 1780, 200, 90, '◀ 뒤로', function () { if (G.mode === 'boss') openBossLobby(); else go('title'); }, { size: 36, color: '#555577', color2: '#333355' });
     button(260, 1780, 220, 90, '📖 도감', function () { openDex(G.focus); }, { size: 36, color: '#7a5cff', color2: '#333355' });
     button(500, 1780, 220, 90, '📊 통계', openRecords, { size: 36, color: '#ffb000', color2: '#333355' });
+    var mapOk = G.mode !== 'boss';
+    button(740, 1780, 300, 90, mapOk ? '🗺 ' + mapLabel(G.mapSel) : '🗺 보스전 전용', function () { G.mapPick = true; }, { size: 32, color: G.mapSel === 'none' ? '#3a6a5a' : (MAPS[G.mapSel] || { color: '#ff8c42' }).color, color2: '#223344', enabled: mapOk });
     hint();
     if (G.synPick && synOk) synPickOverlay(); else G.synPick = false;
+    if (G.mapPick && mapOk) mapPickOverlay(); else G.mapPick = false;
+  }
+  // ---------- 맵 ----------
+  function mapLabel(id) { return id === 'random' ? '랜덤 맵' : MAPS[id] ? MAPS[id].name : '기본 경기장'; }
+  function pickMap() { return G.mapSel === 'random' ? MAP_IDS[Math.floor(Math.random() * MAP_IDS.length)] : MAPS[G.mapSel] ? G.mapSel : null; }   // 랜덤은 전투마다 새로
+  function mapBanner(bt) { if (bt.map) FX.banner('MAP ' + bt.map.def.no + ' · ' + bt.map.def.name, { color: bt.map.def.color, size: 90, life: 2.2, y: CONFIG.screen.y + 160 }); }
+  function mapPickOverlay() {
+    ctx.fillStyle = 'rgba(4,0,12,0.86)'; ctx.fillRect(0, 0, W, H);
+    hit(0, 0, W, H, function () { G.mapPick = false; });
+    ctx.font = '500 24px "Malgun Gothic",sans-serif';
+    var tw0 = W - 80 - 20 - 190 - 26 - 20;   // 설명 칸 너비 (줄 수만큼 카드 높이)
+    var opts = [{ id: 'none', h: 120 }].concat(MAP_IDS.map(function (id) {
+      var n = MAPS[id].lines.reduce(function (a, l) { return a + Math.ceil(ctx.measureText('· ' + l).width / tw0); }, 0);
+      return { id: id, h: 100 + n * 30 + MAPS[id].lines.length * 16 };
+    }), [{ id: 'random', h: 120 }]);
+    var gap = 18, tot = opts.reduce(function (a, o) { return a + o.h + gap; }, 0), y = Math.max(230, (H - tot - 110) / 2 + 40);
+    outlined(ctx, '🗺 맵 고르기', W / 2, y - 70, 60, '#ffffff', '#00e5ff');
+    opts.forEach(function (o) {
+      var m = MAPS[o.id], col = m ? m.color : o.id === 'random' ? '#ff8c42' : '#7a5cff', sel = G.mapSel === o.id, x = 40, w = W - 80;
+      ctx.save(); ctx.fillStyle = 'rgba(22,14,42,0.97)'; roundRect(ctx, x, y, w, o.h, 22); ctx.fill();
+      ctx.lineWidth = sel ? 8 : 3; ctx.strokeStyle = sel ? '#ffffff' : col; ctx.stroke(); ctx.restore();
+      var px = x + 20, pw = m ? 190 : 120, ph = o.h - 40;
+      ctx.save(); roundRect(ctx, px, y + 20, pw, ph, 14); ctx.clip();
+      if (m) drawMapPreview(ctx, o.id, px, y + 20, pw, ph, G.time);
+      else { ctx.fillStyle = o.id === 'random' ? '#2a1a10' : '#0c0a1d'; ctx.fillRect(px, y + 20, pw, ph); ctx.font = '54px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(o.id === 'random' ? '🎲' : '⬛', px + pw / 2, y + 20 + ph / 2); }
+      ctx.restore();
+      var tx = px + pw + 26, tw = x + w - tx - 20;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.font = '700 44px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.fillStyle = col;
+      ctx.fillText(m ? 'MAP ' + m.no + '. ' + m.name : mapLabel(o.id), tx, y + 62);
+      if (sel) { ctx.font = '700 26px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff'; ctx.fillText('✔ 선택됨', x + w - 150, y + 52); }
+      ctx.font = '500 24px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#d8d0ee';
+      if (m) { var ly = y + 108; m.lines.forEach(function (l) { ly = wrap('· ' + l, tx, ly, tw, 30) + 16; }); }
+      else ctx.fillText(o.id === 'random' ? '전투를 시작할 때마다 맵 하나를 무작위로' : '특별한 효과 없는 원래 경기장', tx, y + 100);
+      hit(x, y, w, o.h, function () { FX.sfx('click'); G.mapSel = o.id; G.mapPick = false; });
+      y += o.h + gap;
+    });
+    button(W / 2 - 150, y + 4, 300, 90, '닫기', function () { G.mapPick = false; }, { size: 38, color: '#555577', color2: '#333355' });
   }
   // 시너지 멤버의 캐릭터 id: 모습 조건(needIds)이 있으면 그 모습, 아니면 지금 고른 모습
   function synMemberId(q, nm) {
@@ -504,7 +545,8 @@
     var R = G.tour.rounds, a = R[m.r][2 * m.i], b = R[m.r][2 * m.i + 1];
     G.tour.cur = m;
     FX.reset();
-    G.battle = new Battle([a.id, b.id]);
+    G.battle = new Battle([a.id, b.id], 'ffa', { map: pickMap() });
+    mapBanner(G.battle);
     G.battle.balls[0].name = a.name; G.battle.balls[1].name = b.name;
     G.battle.balls.forEach(function (x) { var m = /(\d+)$/.exec(x.name); if (x.dupNo && m) x.dupNo = +m[1]; });   // 번호 배지를 대진표 이름과 맞춤
     G.battle.tourEntries = [a, b];
@@ -807,9 +849,10 @@
       });
       ly += lh;
     }
-    var ps = f.passives || [];
+    var sm = CONFIG.maps.nonSmokers.indexOf(f.name) < 0;
+    var ps = [sm ? { name: '흡연자 🚬', desc: '산내 금연구역 창문에 닿으면 담배를 피우느라 행동불능 (그동안 받는 피해 2배)' } : { name: '비흡연자 🚭', desc: '정발산 흡연구역의 독 피해 2배' }].concat(f.passives || []);
     if (ps.length) {
-      ly = section('캐릭터 패시브', x, ly + 4, w, '#c6ff00');
+      ly = section('특성', x, ly + 4, w, '#c6ff00');
       ps.forEach(function (p) {
         ctx.font = '700 ' + Math.round(23 * k) + 'px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff';
         ly = wrap('· ' + p.name + ' — ' + txt(p.desc), x, ly, w, lh - 2) + 2;
