@@ -716,6 +716,21 @@
     var y = top + 20, x = 60, w = W - 120;
     ctx.fillStyle = 'rgba(20,6,10,0.85)'; Battle.roundRect(ctx, 30, top + 4, W - 60, (G.lobbyEnd || bot) - top, 24); ctx.fill();
     ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.stroke();
+    y = drawBossInfo(bd, c, x, y, w);
+    G.lobbyEnd = y + 10;
+    ctx.restore();
+    if (maxS > 0) {
+      var th = (bot - top) * (bot - top) / (bot - top + maxS), sy = top + (bot - top - th) * G.dexScroll / maxS;
+      ctx.fillStyle = 'rgba(255,255,255,0.12)'; Battle.roundRect(ctx, W - 22, top, 10, bot - top, 5); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.6)'; Battle.roundRect(ctx, W - 22, sy, 10, th, 5); ctx.fill();
+      if (G.dexScroll < maxS - 5) outlined(ctx, '▼ 스크롤해서 스킬 보기', W / 2, bot - 8, 22, 'rgba(255,255,255,0.75)');
+    }
+    button(40, 1700, 260, 120, '◀ 처음으로', function () { go('title'); }, { size: 36, color: '#555577', color2: '#333355' });
+    button(330, 1690, 710, 140, '도전자 고르기 ▶', function () { G.mode = 'boss'; G.swapSel = null; go('select'); }, { size: 54, color: hard ? '#ff2b3b' : '#ffd400', color2: '#ff2b6a' });
+    hint();
+  }
+  // 보스 소개 · 패시브 · 페이즈별 스킬 · 하드 전용 (보스전 로비 · 도감 공용). 끝난 y를 돌려줌
+  function drawBossInfo(bd, c, x, y, w) {
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     ctx.font = '500 25px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff';
     y = wrap(bd.intro, x, y + 30, w, 36) + 6;
@@ -736,20 +751,10 @@
       head('페이즈 ' + ['Ⅰ', 'Ⅱ', 'Ⅲ'][ph - 1] + (ph === 1 ? ' (체력 100~66%)' : ph === 2 ? ' (66~33%)' : ' (33% 이하)'), [c.color, c.phase2Color, c.phase3Color][ph - 1]);
       bd.info.skills.filter(function (q) { return q.phase === ph; }).forEach(function (q) { item(q.name, q.desc(c), null); });
     });
-    var hc = bossConfig(G.bossId, 'hard', 4);
+    var hc = bossConfig(bd.id || G.bossId, 'hard', 4);
     head('하드 전용', '#ff7ad9');
     item(bd.info.hard.name, bd.info.hard.desc(hc), 'HARD', '#ff2b3b');
-    G.lobbyEnd = y + 10 + G.dexScroll * 0;
-    ctx.restore();
-    if (maxS > 0) {
-      var th = (bot - top) * (bot - top) / (bot - top + maxS), sy = top + (bot - top - th) * G.dexScroll / maxS;
-      ctx.fillStyle = 'rgba(255,255,255,0.12)'; Battle.roundRect(ctx, W - 22, top, 10, bot - top, 5); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.6)'; Battle.roundRect(ctx, W - 22, sy, 10, th, 5); ctx.fill();
-      if (G.dexScroll < maxS - 5) outlined(ctx, '▼ 스크롤해서 스킬 보기', W / 2, bot - 8, 22, 'rgba(255,255,255,0.75)');
-    }
-    button(40, 1700, 260, 120, '◀ 처음으로', function () { go('title'); }, { size: 36, color: '#555577', color2: '#333355' });
-    button(330, 1690, 710, 140, '도전자 고르기 ▶', function () { G.mode = 'boss'; G.swapSel = null; go('select'); }, { size: 54, color: hard ? '#ff2b3b' : '#ffd400', color2: '#ff2b6a' });
-    hint();
+    return y;
   }
 
   // ---------- 캐릭터 상세 (설명창 · 도감 공용) ----------
@@ -830,14 +835,15 @@
   function dexScene() {
     background();
     outlined(ctx, '도감', W / 2, 74, 80, '#ffffff', '#7a5cff');
-    chip(W / 2 - 330, 124, 310, 70, '캐릭터', G.dexTab === 'char', '#00c2ff', function () { G.dexTab = 'char'; G.dexScroll = 0; });
-    chip(W / 2 + 20, 124, 310, 70, '시너지', G.dexTab === 'syn', '#ffe14d', function () { G.dexTab = 'syn'; G.dexScroll = 0; });
+    chip(40, 124, 320, 70, '캐릭터', G.dexTab === 'char', '#00c2ff', function () { G.dexTab = 'char'; G.dexScroll = 0; });
+    chip(380, 124, 320, 70, '시너지', G.dexTab === 'syn', '#ffe14d', function () { G.dexTab = 'syn'; G.dexScroll = 0; });
+    chip(720, 124, 320, 70, '👑 보스', G.dexTab === 'boss', '#ff2b3b', function () { G.dexTab = 'boss'; G.dexScroll = 0; });
     // 스크롤 영역: 탭 아래 ~ 뒤로 버튼 위. 내용 높이는 지난 프레임에 그린 결과로 계산
     var top = 205, bot = 1785, maxS = Math.max(0, (G.dexContentH || 0) - bot + 20);
     G.dexScroll = Math.max(0, Math.min(maxS, G.dexScroll || 0));
     ctx.save(); ctx.beginPath(); ctx.rect(0, top, W, bot - top); ctx.clip(); ctx.translate(0, -G.dexScroll);
     G.hitClip = { dy: -G.dexScroll, top: top, bottom: bot };
-    G.dexContentH = G.dexTab === 'char' ? dexChars() : dexSynergies();
+    G.dexContentH = G.dexTab === 'char' ? dexChars() : G.dexTab === 'boss' ? dexBosses() : dexSynergies();
     G.hitClip = null;
     ctx.restore();
     if (maxS > 0) {   // 스크롤바
@@ -888,6 +894,41 @@
       ctx.fillStyle = '#ffffff'; ctx.textAlign = 'right'; ctx.fillText(String(st[1]), 1010, y + 19);
     });
     G.dexDetailEnd = drawDetail(id, 60, py + 360, W - 120, 1, true);
+    return py + ph;
+  }
+  // 도감 · 보스: 위에 보스 고르기, 아래 상세 (페이즈 초상 · 기본 수치 · 난이도별 설명)
+  function dexBosses() {
+    var ids = Object.keys(BOSSES), per = 5, gx = (W - 80) / per, rr = 60, y0 = 300;
+    if (ids.indexOf(G.dexBoss) < 0) G.dexBoss = ids[0];
+    ids.forEach(function (id, i) {
+      var bc = CONFIG.bosses[id], x = 40 + gx * (i % per) + gx / 2, y = y0 + Math.floor(i / per) * 180, sel = G.dexBoss === id;
+      Assets.drawBall(ctx, BOSSES[id], 'base', x, y, rr, 0, bc.color);
+      ctx.lineWidth = sel ? 8 : 4; ctx.strokeStyle = sel ? '#ffd400' : bc.color; ctx.beginPath(); ctx.arc(x, y, sel ? rr + 4 : rr, 0, Math.PI * 2); ctx.stroke();
+      outlined(ctx, BOSSES[id].name, x, y + rr + 30, 26, sel ? '#ffd400' : bc.color);
+      hit(x - gx / 2, y - rr - 6, gx, 170, function () { FX.sfx('click'); G.dexBoss = id; });
+    });
+    var id = G.dexBoss, bd = BOSSES[id], diff = G.dexBossDiff || 'easy', c = bossConfig(id, diff, 4), col = diff === 'hard' ? '#ff2b3b' : '#ffd400';
+    var py = y0 + Math.ceil(ids.length / per) * 180 + 10, ph = Math.max(900, (G.dexBossEnd || 0) - py + 30);
+    ctx.fillStyle = 'rgba(20,6,10,0.95)'; roundRect(ctx, 30, py, W - 60, ph, 26); ctx.fill();
+    ctx.strokeStyle = col; ctx.lineWidth = 5; ctx.stroke();
+    // 페이즈 초상 세 장
+    var keys = ['base', 'p2', 'p3'], cols = [c.color, c.phase2Color, c.phase3Color];
+    keys.forEach(function (k, i) {
+      var yy = py + 120, r = i ? 52 : 90, xx = i ? 300 + i * 120 : 160;
+      Assets.drawBall(ctx, bd, k, xx, yy + (i ? 40 : 0), r, 0, cols[i]);
+      ctx.lineWidth = 6; ctx.strokeStyle = cols[i]; ctx.beginPath(); ctx.arc(xx, yy + (i ? 40 : 0), r, 0, Math.PI * 2); ctx.stroke();
+      if (i) outlined(ctx, 'PHASE ' + (i + 1), xx, yy + 40 + r + 24, 20, cols[i]);
+    });
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.font = '700 60px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffd400'; ctx.fillText(bd.name, 290, py + 78);
+    ctx.font = '700 26px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff'; ctx.fillText('「' + bd.title + '」', 610, py + 74);
+    // 기본 수치 (도전자 4명 기준)
+    ctx.font = '700 22px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#d8c8c0';
+    ctx.fillText('체력 ' + Math.round(c.hp) + ' (도전자 4명 기준) · 이동속도 ' + c.speed + ' · 크기 ' + c.radius + ' · 박치기 ' + c.contactDamage, 60, py + 296);
+    ctx.fillText('주는 피해 x' + (c.dmgMult || 1) + ' · 제한 시간 ' + c.maxTime + '초 · 최대 도전자 ' + CONFIG.boss.maxPlayers + '명', 60, py + 330);
+    chip(640, py + 124, 180, 64, '이지', diff === 'easy', '#39c46a', function () { G.dexBossDiff = 'easy'; });
+    chip(840, py + 124, 180, 64, '하드', diff === 'hard', '#ff2b3b', function () { G.dexBossDiff = 'hard'; });
+    G.dexBossEnd = drawBossInfo(bd, c, 60, py + 346, W - 120);
     return py + ph;
   }
   function dexSynergies() {
