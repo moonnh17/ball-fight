@@ -73,8 +73,8 @@ test('페이즈 2 진입 시 1·2스킬 모두 사용', () => {
   CONFIG.battle.contactDamage = 5;
 });
 
-test('이비 규순이 각성: 3개 하위 스킬이 모두 랜덤하게 나온다', () => {
-  const picks = { birds: 0, lucha: 0, toka: 0 };
+test('이비 규순이 각성: 4개 하위 스킬이 모두 랜덤하게 나온다', () => {
+  const picks = { birds: 0, lucha: 0, toka: 0, waterbomb: 0 };
   for (let k = 0; k < 40; k++) {
     const bt = new Battle(['ibi', 'baton']);
     const ibi = bt.balls[0];
@@ -1445,10 +1445,64 @@ test('마인드 편의점 라면: 바로 10 + 국물 1씩 20, 마시다 맞으�
   let spilled = 0; for (let i = 0; i < 2000; i++) { g.data.ramen = null; eat(bt, g); if (!g.data.ramen) spilled++; }
   assert(spilled > 50 && spilled < 160, '약 5% 쏟음 ' + spilled);
   g.hp = 500; g.data.ramen = { left: R.soup, t: 0 };
-  for (let i = 0; i < 60 * (R.soup * R.tick + 1); i++) bt.map.updMind(DT);
+  for (let i = 0; i < 60 * (R.soup * R.tick + 1); i++) bt.map.update(DT);
   assert(Math.abs(g.hp - 500 - R.soup) < 1e-6 && !g.data.ramen, '국물 20 ' + g.hp);
   g.data.ramen = { left: R.soup, t: 0 }; bt.hitstop = 0; bt.damage(g, 1, bt.balls[1], {});
   assert(!g.data.ramen && count(bt, 'ramenSpill') > 0, '맞으면 쏟음');
+});
+
+test('한규성 70% 페이즈 2 · 규순이 워터밤 (이장님 멘헤라, 얼음 삼식이 무효, 불 삼식이 2배)', () => {
+  for (const id of ['ibi', 'predator']) {
+    const bt = new Battle([id, 'gym']); const h = bt.balls[0];
+    h.hp = h.maxHp * 0.71; bt.damage(h, h.maxHp * 0.02, null, {}); assert(h.phase === 2, id + ' 70%');
+  }
+  const bt = new Battle([{ id: 'ibi', team: 0 }, { id: 'chief', team: 1 }, { id: 'samsik', team: 1 }, { id: 'samsik', team: 1 }], 'team');
+  const [ibi, chief, ice, fire] = bt.balls;
+  bt.balls.forEach(b => { b.maxHp = b.hp = 1e5; });
+  ice.data.dye = 'blue'; ice.data.dyes = ['blue']; fire.data.dye = 'red'; fire.data.dyes = ['red'];
+  ibi.action = vm.runInContext('GYUSUN_SKILLS', ctx).waterbomb(bt, ibi);
+  assert(count(bt, 'menhera') === 1 && chief.status.slow > 0 && chief.status.poison > 0, '이장님 멘헤라');
+  const P = Ents.Puddle, c = CONFIG.chars.ibi.waterbomb;
+  [ice, fire].forEach(o => { o.speed = 0; o.vx = o.vy = 0; bt.add(new P(bt, ibi, o.x, o.y, c)); });
+  bt.hitstop = 0; run(bt, 0.3);
+  const hits = bt.log.filter(e => e.type === 'waterHit');
+  assert(hits.some(e => e.who === 'samsik' && e.mult === 0) && hits.some(e => e.who === 'samsik' && e.mult === 2), '얼음 0 · 불 2배');
+});
+test('마을회관: 쓰레기 둔화(싸방 면역) · 이장님 대청소로 쓰레기 사라짐 · 웰우스 +30%', () => {
+  const bt = new Battle([{ id: 'baton', team: 0 }, { id: 'gym', team: 0 }, { id: 'chief', team: 1 }, { id: 'seyu', team: 1 }], 'team', { map: 'hall' });
+  bt.balls.forEach(b => { b.maxHp = b.hp = 1e5; });
+  const [y, g] = bt.balls; bt.map.update(DT);   // 테이블에 겹쳐 놓인 공부터 밀어냄
+  bt.map.trash.push({ x: y.x, y: y.y, kind: 'can', rot: 0, t: 1 }, { x: g.x, y: g.y, kind: 'can', rot: 0, t: 1 });
+  bt.map.update(DT);
+  assert(y.status.slow > 0 && !(g.status.slow > 0), '유재후 둔화, 진형권(싸방) 면역');
+  const ch = bt.balls[2]; ch.phase = 2; const n = bt.map.trash.length; run(bt, 3);
+  assert(count(bt, 'trashClean') > 0, '대청소로 쓰레기 사라짐');
+  const b2 = new Battle([{ id: 'chief', team: 0 }, { id: 'gym', team: 1 }], 'team', { map: 'hall' });
+  const c2 = b2.balls[0]; c2.maxHp = 1000; c2.hp = 500; c2.data.tick = 0.5; c2.def.update(b2, c2, 0);
+  assert(Math.abs(c2.hp - 500 - CONFIG.chars.chief.wellus.hps * 0.5 * M.hall.wellusHeal) < 1e-6, '웰우스 +30%');
+});
+test('마을회관 컴퓨터: 오버워치(유재후 2배) · 코딩 +10% · 서리 박살 · 이장님은 안 함', () => {
+  function at(id) { const bt = new Battle([id, 'chino'], 'ffa', { map: 'hall' }); const b = bt.balls[0], T = bt.map.table(); b.maxHp = b.hp = 1000; bt.balls[1].x = T.x + 900; b.x = T.x + T.w / 2; b.y = T.y + T.h + b.r + 2; b.vx = b.vy = 0; bt.map.update(DT); return [bt, b]; }
+  let [bt, b] = at('gym'); assert(b.data.pc && b.data.pc.mode === 'ow' && b.disabled, '진형권 오버워치');
+  let hp = b.hp; bt.hitstop = 0; bt.damage(b, 10, null, {}); assert(Math.abs(hp - b.hp - 20) < 1e-6, '하는 중 피해 2배');
+  [bt, b] = at('baton'); assert(Math.abs(b.data.pc.t - M.hall.pcTime * 2) < 0.05, '유재후 2배');
+  [bt, b] = at('ch'); assert(b.data.pc.mode === 'rb', '조우연 로블록스');
+  [bt, b] = at('dev'); assert(b.data.pc.mode === 'code');
+  const dm = b.dmgMult, mh = b.maxHp; bt.map.pcDone(b, 'code');
+  assert(Math.abs(b.dmgMult - dm * 1.1) < 1e-9 && Math.abs(b.maxHp - mh * 1.1) < 1e-6, '코딩 +10%');
+  [bt, b] = at('chief'); assert(!b.data.pc, '이장님은 컴퓨터 안 함');
+  let smash = 0; for (let i = 0; i < 300; i++) { const r = at('seori'); if (r[0].map.pc.broken > 0) smash++; }
+  assert(smash > 60 && smash < 120, '서리 30% 박살 ' + smash);
+});
+test('육개장 국물 쏟으면 문남휘 개빡침 · 김선율의 모습은 주현지 누나 못 받음', () => {
+  const bt = new Battle(['gym', 'dev', 'chief'], 'ffa', { map: 'hall' });
+  const g = bt.balls[0]; g.data.ramen = { left: 20, t: 0, kind: 'yuk' };
+  vm.runInContext('ramenSpill', ctx)(bt, g);
+  assert(count(bt, 'anger') === 2 && bt.balls[1].status.atkMul === M.hall.angerMul, '문남휘 둘 다');
+  const b2 = new Battle(['sy', 'gym'], 'ffa', { map: 'mind' });
+  const joo = b2.ents.find(e => e.kind === 'joo'), s = b2.balls[0];
+  s.x = joo.x; s.y = joo.y; joo.t = 1; joo.update(DT);
+  assert(!joo.dead && !s.data.joo, '낯가림');
 });
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');

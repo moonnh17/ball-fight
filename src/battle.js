@@ -13,6 +13,13 @@ var Battle = (function () {
   // 개인전에서 같은 캐릭터가 여럿일 때 구분용 색 (번호 순)
   var DUP_COLORS = ['#ff3b5c', '#2f9bff', '#ffd400', '#39ff88', '#ff8c42', '#c77dff', '#ffffff', '#00f0ff'];
 
+  // 회복 표시: 머리 위 연두색 +숫자와 올라가는 빛
+  function healFx(t, amt, small) {
+    FX.text(t.x + rnd(-12, 12), t.y - t.r - 30, '+' + Math.round(amt), '#b2ff3c', small ? 38 : 48, 0.9);
+    for (var i = 0; i < (small ? 4 : 9); i++) FX.particle({ x: t.x + rnd(-t.r, t.r) * 0.7, y: t.y + rnd(-t.r, t.r) * 0.5, vx: rnd(-15, 15), vy: rnd(-160, -80), life: 0.7, size: rnd(7, 12), color: i % 2 ? '#b2ff3c' : '#e6ffb0', shape: 'square' });
+    if (!small) FX.ring(t.x, t.y, t.r, t.r * 1.4, 0.35, '#b2ff3c', 6);
+  }
+
   class Ball {
     constructor(def, idx, team) {
       var c = def.cfgOverride || CONFIG.chars[def.id];   // 보스는 난이도·인원수로 만든 수치
@@ -289,7 +296,7 @@ var Battle = (function () {
         if (!(t.def.onLethal && t.def.onLethal(this, t))) this.kill(t);   // onLethal이 true면 안 죽음 (김선율 방구석 여포)
         return amt;
       }
-      if (t.phase === 1 && !t.def.noAutoPhase2 && t.hp <= t.maxHp * CONFIG.battle.phase2Ratio) this.enterPhase2(t);
+      if (t.phase === 1 && !t.def.noAutoPhase2 && t.hp <= t.maxHp * (t.cfg.phase2Ratio || CONFIG.battle.phase2Ratio)) this.enterPhase2(t);
       return amt;
     }
     // 받는 피해 보호 배율: guard 훅을 가진 캐릭터가 t를 지켜주면 그중 가장 강한 것 하나만 (중첩 없음)
@@ -303,8 +310,8 @@ var Battle = (function () {
       amt = Math.min(amt * t.synHeal, t.maxHp - t.hp);
       if (amt <= 0) return 0;
       t.hp += amt; t.stats.healed += amt;
-      if (quiet) return amt;   // 지속 회복은 숫자 안 띄움
-      FX.text(t.x, t.y - t.r - 30, '+' + Math.round(amt), '#7dff9a', 46, 0.9);
+      if (quiet) { t.healAcc = (t.healAcc || 0) + amt; return amt; }   // 지속 회복은 모아서 띄움 (updateBall)
+      healFx(t, amt, false);
       FX.sfx('heal');
       this.emit('heal', { who: t.def.id, amt: amt });
       return amt;
@@ -417,6 +424,7 @@ var Battle = (function () {
       if (b.flash > 0) b.flash -= dt;
       if (b.pulse > 0) b.pulse -= dt;
       b.hpShown += (b.hp - b.hpShown) * Math.min(1, dt * 4);
+      if (b.healAcc >= 1 && !(b.healAt > this.time)) { var hn = Math.floor(b.healAcc); b.healAcc -= hn; b.healAt = this.time + 0.6; healFx(b, hn, true); }
 
       if (b.def.update) b.def.update(this, b, dt);
 

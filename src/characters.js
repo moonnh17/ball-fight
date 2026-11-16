@@ -330,6 +330,32 @@ var GYUSUN_SKILLS = {
     };
   },
 
+  // 워터밤: 물병을 들고 사방에 물을 뿌림. 이장님은 물에 안 닿아도 멘헤라
+  waterbomb: function (bt, b) {
+    var c = b.cfg.waterbomb, t = 0, next = 0, n = 0;
+    FX.banner('워터밤!', { color: '#4fc3ff', size: 115, life: 1.2 }); FX.sfx('drool');
+    b.data.water = true;
+    bt.enemies(b).forEach(function (o) {
+      if (o.def.id !== 'chief' || !o.targetable) return;
+      o.status.slow = Math.max(o.status.slow, c.menhera.time); o.status.slowMul = c.menhera.slow;
+      o.status.poison = Math.max(o.status.poison, c.menhera.time); o.status.poisonDps = c.menhera.dps;
+      FX.text(o.x, o.y - o.r - 60, '멘헤라 왔다… 💔', '#ff7ad9', 46, 1.3);
+      bt.emit('menhera', { who: o.def.id });
+    });
+    return {
+      moves: true,
+      update: function (dt) {
+        t += dt;
+        while (t >= next && n < c.shots) {
+          n++; next += c.time / c.shots;
+          var a = _rnd(0, Math.PI * 2), d = _rnd(c.minDist, c.maxDist);
+          bt.add(new WaterShot(bt, b, bt.clampPoint({ x: b.x + Math.cos(a) * d, y: b.y + Math.sin(a) * d }, 40), c));
+        }
+        return t >= c.time + 0.3;
+      },
+      end: function () { b.data.water = false; },
+    };
+  },
   toka: function (bt, b) {
     var c = b.cfg.toka, i = 0, t = 0;
     FX.banner('토카토카', { color: '#00f0ff', size: 110, life: 1.2 });
@@ -357,6 +383,61 @@ var GYUSUN_SKILLS = {
   },
 };
 
+// ---------- 규순이 워터밤: 날아가는 물줄기 → 바닥 물웅덩이 ----------
+// 물에 받는 피해 배율: 얼음(파랑) 삼식이 0, 불(빨강) 삼식이 2배
+function _waterMult(o) {
+  if (!_is(o, 'samsik')) return 1;
+  var ds = _dyes(o.data);
+  return ds.indexOf('blue') >= 0 ? 0 : ds.indexOf('red') >= 0 ? 2 : 1;
+}
+class WaterShot {
+  constructor(bt, owner, p, c) { this.bt = bt; this.owner = owner; this.c = c; this.sx = owner.x; this.sy = owner.y; this.tx = p.x; this.ty = p.y; this.t = 0; this.z = 1; this.x = this.sx; this.y = this.sy; }
+  update(dt) {
+    var D = 0.45, k = Math.min(1, (this.t += dt) / D);
+    this.x = this.sx + (this.tx - this.sx) * k; this.y = this.sy + (this.ty - this.sy) * k; this.h = Math.sin(k * Math.PI) * 90;
+    if (Math.random() < 0.6) FX.particle({ x: this.x, y: this.y - this.h, vx: _rnd(-30, 30), vy: _rnd(-20, 40), life: 0.3, size: _rnd(5, 9), color: '#9fe2ff', shape: 'square' });
+    if (k < 1) return;
+    this.dead = true;
+    this.bt.add(new Puddle(this.bt, this.owner, this.tx, this.ty, this.c));
+    FX.burst(this.tx, this.ty, '#7fd8ff', 14, 500, 8, 0.45, 'square'); FX.ring(this.tx, this.ty, 10, this.c.puddleR, 0.3, '#bfefff', 6);
+  }
+  draw(ctx) {
+    ctx.save(); ctx.fillStyle = '#7fd8ff'; ctx.shadowColor = '#4fc3ff'; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.ellipse(this.x, this.y - this.h, 11, 15, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  }
+}
+class Puddle {
+  constructor(bt, owner, x, y, c) { this.bt = bt; this.owner = owner; this.x = x; this.y = y; this.c = c; this.t = 0; this.z = -1; this.cd = {}; this.seed = _rnd(0, 6); }
+  get r() { return this.c.puddleR * Math.min(1, this.t / 0.2); }
+  update(dt) {
+    var bt = this.bt, self = this, c = this.c;
+    if ((this.t += dt) > c.puddleLife) { this.dead = true; return; }
+    bt.balls.forEach(function (o) {
+      if (o.team === self.owner.team || !o.targetable || o.air || Math.hypot(o.x - self.x, o.y - self.y) > self.r + o.r * 0.4) return;
+      if (self.cd[o.id] > bt.time) return;
+      self.cd[o.id] = bt.time + 0.6;
+      var m = _waterMult(o);
+      if (m > 0) bt.damage(o, c.damage * m, self.owner, { color: '#7fd8ff', kind: 'water' });
+      else FX.text(o.x, o.y - o.r - 40, '얼음이라 멀쩡', '#bff0ff', 34, 0.8);
+      var a = _rnd(0, Math.PI * 2), sp = Math.max(Math.hypot(o.vx, o.vy), o.speed) * c.slip;   // 경로가 바뀌며 미끄러짐
+      o.vx = Math.cos(a) * sp; o.vy = Math.sin(a) * sp;
+      o.status.haste = Math.max(o.status.haste, c.slipTime); o.status.hasteMul = c.slip;
+      if (!(o.data.slipMsg > bt.time)) { o.data.slipMsg = bt.time + 1; FX.text(o.x, o.y - o.r - 70, '미끄덩!', '#9fe2ff', 40, 0.7); }
+      bt.emit('waterHit', { who: o.def.id, mult: m });
+    });
+  }
+  draw(ctx) {
+    var fade = Math.min(1, (this.c.puddleLife - this.t) / 0.4), r = this.r;
+    ctx.save(); ctx.globalAlpha = Math.max(0, fade);
+    var g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, r);
+    g.addColorStop(0, 'rgba(90,190,255,0.75)'); g.addColorStop(1, 'rgba(40,130,255,0.45)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(this.x, this.y, r, r * 0.8, this.seed, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(20,90,200,0.8)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(this.x, this.y, r, r * 0.8, this.seed, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(230,248,255,0.8)';
+    var rp = (this.t * 1.5) % 1; ctx.beginPath(); ctx.ellipse(this.x, this.y, r * rp, r * 0.8 * rp, this.seed, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+}
 // ---------- 삼식이 헬퍼 ----------
 function samsikDye(bt, b) {
   var c = b.cfg.dye, color = rollDye();
@@ -1956,7 +2037,7 @@ var CHARACTERS = {
     portrait: function (b) { return b.data.lucha ? 'lucha' : b.data.gyusuni ? 'gyusuni' : 'base'; },
     blurb: '이동 약간 빠름',
     intro: '멀리서 돌을 던져 견제하는 원거리형. 페이즈 2에서는 규순이로 각성해 경기장을 어둡게 만들고 새·점프 공격·충격파 중 하나를 랜덤으로 쓴다. (규순이일 땐 여성 취급)',
-    passives: [{ name: '규순이', desc: '규순이로 각성한 동안은 여성 취급 (조우연의 뱀 피해 2배)' }],
+    passives: [{ name: '규순이', desc: '규순이로 각성한 동안은 여성 취급 (조우연의 뱀 피해 2배)' }, { name: '빠른 각성', desc: '체력 70%에서 페이즈 2' }],
     female: function (b) { return !!b.data.gyusuni; },
     // 디마디영디: 규순이를 페이즈 1부터, 대신 쿨타임 x gyusuniCd
     earlySkill2: function (bt, b) { return _dmdyd(bt, b); },
@@ -1985,7 +2066,7 @@ var CHARACTERS = {
         },
       },
       {
-        key: 'awaken', name: '규순이로 각성', desc: '경기장이 어두워지고 [새가 너무 좋아 / 루차루차 / 토카토카] 중 하나를 랜덤 발동',
+        key: 'awaken', name: '규순이로 각성', desc: '경기장이 어두워지고 [새가 너무 좋아 / 루차루차 / 토카토카 / 워터밤] 중 하나를 랜덤 발동. 워터밤: 물병으로 사방에 물을 뿌려 닿으면 피해 + 미끄러짐 (이장님은 안 닿아도 멘헤라로 둔화 · 지속 피해, 얼음 삼식이 무효 · 불 삼식이 2배)',
         cd: function (c) { return c.awaken.cd; },
         start: function (bt, b) { return ibiAwaken(bt, b, null); },
       },
@@ -2887,7 +2968,7 @@ var CHARACTERS = {
       if (d.tick < 0.4999) return;
       d.tick -= 0.5;
       [b].concat(bt.allies(b)).forEach(function (a) {   // 웰우스 개방: 같은 팀 지속 회복
-        if (bt.heal(a, b.cfg.wellus.hps * 0.5 * (_dmdyd(bt, b) ? CONFIG.synergy.dmdyd.chiefMul : 1), true) > 0 && Math.random() < 0.35)
+        if (bt.heal(a, b.cfg.wellus.hps * 0.5 * (_dmdyd(bt, b) ? CONFIG.synergy.dmdyd.chiefMul : 1) * (bt.map && bt.map.sub === 'hall' ? CONFIG.maps.hall.wellusHeal : 1), true) > 0 && Math.random() < 0.35)
           FX.particle({ x: a.x + _rnd(-a.r, a.r) * 0.6, y: a.y, vx: 0, vy: -90, life: 0.7, size: 12, color: '#7dff9a', shape: 'square' });
       });
       if (b.phase < 2) return;
@@ -2931,6 +3012,7 @@ var CHARACTERS = {
     blurb: '이동 약간 빠름',
     intro: '작업실 비타민의 주인, 포식자 한규성. 부딪히는 곳마다 비타민 껍질을 심어 하얀 탄막으로 터뜨린다. 페이즈 2에서는 포식이 준비될 때마다 덮쳐 물어뜯고 피를 빨아 회복한다. 여성에게는 더 빨리 다가가지만 물지는 않는다.',
     passives: [
+      { name: '빠른 각성', desc: '체력 70%에서 페이즈 2' },
       { name: '기본 공격 8.8', desc: function () { return '몸통 박치기는 항상 ' + CONFIG.chars.predator.baseHit + ' (공격력 증가·감소 영향 없음)'; } },
       { name: '직진', desc: function () { return '여성 캐릭터에게 다가갈 때 이동속도 +' + Math.round((CONFIG.chars.predator.femaleChase - 1) * 100) + '% (분홍 속도선·하트)'; } },
     ],
@@ -3102,4 +3184,4 @@ function synergiesOf(id) {
 }
 
 // 테스트/디버그용
-var Ents = { Ripley: { transform: ripleyTransform }, Vape: Vape, Drool: Drool, Punch: Punch, Hot6: Hot6, GuitarWave: GuitarWave, Joke: Joke, WellusField: WellusField, VitaminShell: VitaminShell, VitaminBullet: VitaminBullet, VitaminSplat: VitaminSplat, Snake: Snake, Stone: Stone, Charger: Charger, Knife: Knife, Ultrasound: Ultrasound, Laser: Laser, StinkZone: StinkZone, Pickup: Pickup, Wave: Wave };
+var Ents = { WaterShot: WaterShot, Puddle: Puddle, Ripley: { transform: ripleyTransform }, Vape: Vape, Drool: Drool, Punch: Punch, Hot6: Hot6, GuitarWave: GuitarWave, Joke: Joke, WellusField: WellusField, VitaminShell: VitaminShell, VitaminBullet: VitaminBullet, VitaminSplat: VitaminSplat, Snake: Snake, Stone: Stone, Charger: Charger, Knife: Knife, Ultrasound: Ultrasound, Laser: Laser, StinkZone: StinkZone, Pickup: Pickup, Wave: Wave };

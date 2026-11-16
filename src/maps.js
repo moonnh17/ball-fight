@@ -1,6 +1,6 @@
 // 맵: 바닥 그림 · 맵 벽 · 주기 이벤트 · 맵 아이템. Battle이 this.map(MapRun)으로 부름 (보스전은 맵 없음)
 // 수치는 CONFIG.maps
-var MAP_IDS = ['workroom', 'mind'];
+var MAP_IDS = ['workroom', 'mind', 'hall'];
 var MAPS = {
   workroom: {
     id: 'workroom', no: '01', name: '작업실', color: '#ffb347',
@@ -20,8 +20,18 @@ var MAPS = {
       '5초마다 언데드 마인드 부원 등장 (한 번에 1명) · 주변을 도는 촬영팀 2명에 닿으면 3 피해',
       '리허설: 15초마다 1~3명(1대1이면 1명)이 사라졌다가 5초 뒤 독 · 둔화 상태로 복귀',
       '한규성(이비)은 리허설에서 돌아오면 규순이로 등장',
-      '아이템: 주현지 누나 — 먹으면 리허설 독에 안 걸림, 10초 뒤 다른 곳에 다시 생김',
+      '아이템: 주현지 누나 — 먹으면 리허설 독에 안 걸림, 20초 뒤 다른 곳에 다시 생김 (김선율의 모습은 낯가려서 못 받음)',
       '아이템: 편의점 라면 — 바로 10 회복 + 국물로 1씩 총 20 회복 (5% 확률로 쏟거나, 마시다 맞으면 쏟음)',
+    ],
+  },
+  hall: {
+    id: 'hall', no: '03', name: '마을회관', color: '#ffd27a',
+    lines: [
+      '시간이 지날수록 옷 · 음료수 병 · 라면 용기 같은 쓰레기가 쌓임, 밟으면 잠시 이동속도 감소 (싸방 멤버는 면역)',
+      '왼쪽 위 컴퓨터: 한규성 · 유재후 · 진형권 · 차승민 · 이윤빈은 오버워치, 유재운 · 김선율 · 조하람 · 조우연은 로블록스 (담배타임처럼 행동불능 + 받는 피해 2배, 유재후는 2배 오래)',
+      '컴퓨터: 개발자 문남휘는 코딩해서 자기 스탯 +10% · 최휘는 주식 (끝나면 한 번 더 등락, 70% 하락, 하락하면 10% 컴퓨터 박살) · 서리는 30% 박살',
+      '이장님 문남휘: 웰우스 개방 회복량 +30% · 웰우스 대청소 중엔 쓰레기가 점점 사라짐',
+      '아이템: 육개장 컵라면 — 편의점 라면과 같음, 국물을 쏟으면 문남휘가 개빡쳐서 공격력 증가',
     ],
   },
 };
@@ -29,6 +39,7 @@ var SUB_MAPS = {
   sannae: { name: '산내', color: '#ff9a3c' },
   jbs:    { name: '정발산', color: '#e8e8ff' },
   mind:   { name: '마인드', color: '#9cff57' },
+  hall:   { name: '마을회관', color: '#ffd27a' },
 };
 // 맵에 나오는 사람 공 (사진은 assets/joohyunji.* 를 넣으면 자동으로 씀, 없으면 글자 원)
 var MAP_BALLS = {
@@ -56,7 +67,7 @@ class MapRun {
     this.bt = bt; this.id = id; this.def = MAPS[id];
     this.sub = id === 'workroom' ? (Math.random() < 0.5 ? 'sannae' : 'jbs') : id;   // 작업실은 시작부터 산내/정발산 중 하나
     this.split = this.sub === 'jbs';
-    this.clk = {}; this.smokes = []; this.split = false; this.splitK = 0; this.splitT = 0; this.vent = 0; this.flash = 0;
+    this.clk = {}; this.smokes = []; this.trash = []; this.pc = { user: null, broken: 0 }; this.split = false; this.splitK = 0; this.splitT = 0; this.vent = 0; this.flash = 0;
     this.swapIn = CONFIG.maps.workroom.swap;
     var T = this.target(); bt.arena.y = T.y; bt.arena.h = T.h;   // 산내로 시작하면 처음부터 정사각형 (배치 전에)
   }
@@ -82,7 +93,7 @@ class MapRun {
   divY() { var A = this.bt.arena; return A.y + A.h * 2 / 3; }   // 아래쪽 1/3이 2층(다락방)
   floorOf(b) { return b.y > this.divY() ? 2 : 1; }
   // 아이템 자리: region 'all' | 'f1'(1층) | 'f2'(2층)
-  spawnPoint(region) {
+  spawnPoint(region, loose) {   // loose: 공 근처여도 됨 (쓰레기)
     var A = this.target(), bt = this.bt, m = 70, y0 = A.y + m, y1 = A.y + A.h - m, p, self = this;
     if (region === 'f1') y1 = A.y + A.h * 2 / 3 - 60;
     if (region === 'f2') y0 = A.y + A.h * 2 / 3 + 60;
@@ -92,7 +103,8 @@ class MapRun {
         if (p.x > A.x + A.w * (1 - c.notchW) - 60 && p.y < A.y + A.w * c.notchH + 60) return true;
         if (Math.hypot(p.x - A.x - A.w, p.y - A.y - A.h) < c.window * k + 90) return true;
       }
-      return bt.balls.some(function (o) { return o.alive && Math.hypot(o.x - p.x, o.y - p.y) < o.r + 90; });
+      if (self.sub === 'hall') { var T = self.table(); if (p.x > T.x - 70 && p.x < T.x + T.w + 70 && p.y > T.y - 70 && p.y < T.y + T.h + 100) return true; }
+      return !loose && bt.balls.some(function (o) { return o.alive && Math.hypot(o.x - p.x, o.y - p.y) < o.r + 90; });
     }
     for (var i = 0; i < 15; i++) { p = { x: _rnd(A.x + m, A.x + A.w - m), y: _rnd(y0, y1) }; if (!bad(p)) break; }
     return p;
@@ -122,11 +134,13 @@ class MapRun {
     ['y', 'h'].forEach(function (k) { var d = T[k] - A[k]; A[k] = Math.abs(d) < 0.5 ? T[k] : A[k] + d * Math.min(1, dt * 5); });
     this.players().forEach(function (b) {
       if (b.data.soju > 0) b.data.soju -= dt;
+      if (b.data.ramen) ramenTick(bt, b, dt);
       if (!b.hidden) bt.walls(b);   // 줄어든 경기장 · 벽 밖으로 밀려난 공 정리
     });
     if (this.sub === 'sannae') this.updSannae(dt);
     else if (this.sub === 'jbs') this.updJbs(dt);
     else if (this.sub === 'mind') this.updMind(dt);
+    else if (this.sub === 'hall') this.updHall(dt);
     var tk = this.splitK + ((this.split ? 1 : 0) - this.splitK) * Math.min(1, dt * 6);
     this.splitK = Math.abs(tk - (this.split ? 1 : 0)) < 0.01 ? (this.split ? 1 : 0) : tk;
   }
@@ -240,15 +254,6 @@ class MapRun {
     }
     // 편의점 라면: 국물 마시는 동안 조금씩 회복
     if (this.every('ramen', c.ramen.every, dt) && this.items('ramen').length < c.ramen.max) this.addItem('ramen', 'all');
-    this.players().forEach(function (b) {
-      var rm = b.data.ramen;
-      if (!rm) return;
-      if ((rm.t += dt) < c.ramen.tick) return;
-      rm.t -= c.ramen.tick; rm.left -= 1;
-      bt.heal(b, 1, true);
-      if (Math.random() < 0.5) FX.particle({ x: b.x + _rnd(-10, 10), y: b.y - b.r * 0.6, vx: _rnd(-10, 10), vy: -90, life: 0.6, size: _rnd(8, 13), color: 'rgba(255,255,255,0.6)', shape: 'smoke' });
-      if (rm.left <= 0) { b.data.ramen = null; FX.text(b.x, b.y - b.r - 50, '국물까지 완뚝!', '#ffcf6b', 40, 0.9); }
-    });
     if (this.every('rehearsal', c.rehearsal, dt)) {
       var pool = this.players().filter(function (b) { return b.targetable && !(b.data.rehearsal > 0); });
       var n = pool.length, k = n <= 2 ? 1 : 1 + Math.floor(Math.random() * 3);
@@ -282,12 +287,88 @@ class MapRun {
   }
   spawnJoo() { if (this.bt.over) return; this.addItem('joo', 'all'); }
 
+  // ---------- 마을회관 ----------
+  table() { var A = this.bt.arena; return { x: A.x + A.w * 0.12, y: A.y + A.h * 0.1, w: A.w * 0.3, h: A.w * 0.13 }; }   // 왼쪽 위(구석 아님) 테이블 + 컴퓨터
+  updHall(dt) {
+    var c = CONFIG.maps.hall, bt = this.bt, self = this, T = this.table(), pc = this.pc;
+    // 쓰레기: 시간이 지날수록 쌓임 (싸방 멤버는 면역)
+    if (this.every('trash', c.trashEvery, dt) && this.trash.length < c.trashMax) {
+      var p = this.spawnPoint('all', true);
+      this.trash.push({ x: p.x, y: p.y, kind: TRASH_KINDS[Math.floor(Math.random() * TRASH_KINDS.length)], rot: _rnd(0, 6.28), t: 0 });
+    }
+    this.trash.forEach(function (tr) { tr.t += dt; });
+    // 이장님 웰우스 대청소(페이즈 2) 중이면 쓰레기가 하나씩 사라짐
+    var cleaning = this.players().some(function (b) { return b.def.id === 'chief' && b.phase >= 2 && !b.hidden; });
+    if (cleaning && this.trash.length && this.every('clean', c.cleanEvery, dt)) {
+      var tr = this.trash.splice(Math.floor(Math.random() * this.trash.length), 1)[0];
+      FX.burst(tr.x, tr.y, '#d8c38a', 12, 300, 10, 0.5, 'smoke'); FX.text(tr.x, tr.y - 30, '✨', '#ffffff', 34, 0.6);
+      bt.emit('trashClean');
+    }
+    var ssabang = CONFIG.synergy.ssabang.members;
+    this.players().forEach(function (b) {
+      if (b.hidden || b.air || ssabang.indexOf(b.def.name) >= 0) return;
+      if (!self.trash.some(function (tr) { return Math.hypot(b.x - tr.x, b.y - tr.y) < b.r + c.trashR; })) return;
+      b.status.slow = Math.max(b.status.slow, c.trashSlowTime); b.status.slowMul = c.trashSlow;
+      if (!(b.data.trashMsg > bt.time)) { b.data.trashMsg = bt.time + 2; FX.text(b.x, b.y - b.r - 40, '쓰레기 밟음…', '#e8d8b8', 34, 0.7); bt.emit('trashSlow', { who: b.def.id }); }
+    });
+    if (this.every('yuk', c.yuk.every, dt) && this.items('yuk').length < c.yuk.max) this.addItem('yuk', 'all');
+    // 컴퓨터
+    if (pc.broken > 0) { pc.broken -= dt; if (pc.broken <= 0) FX.text(T.x + T.w / 2, T.y - 20, '컴퓨터 수리 완료', '#9cff57', 38, 1.0); }
+    this.players().forEach(function (b) {
+      var u = b.data.pc;
+      if (u) {
+        if (b.hidden) { b.data.pc = null; b.status.hold = 0; pc.user = null; return; }
+        u.t -= dt; b.vx *= 0.85; b.vy *= 0.85;
+        if (u.t <= 0) self.pcDone(b, u.mode);
+        return;
+      }
+      if (pc.user || pc.broken > 0 || b.hidden || b.air || b.disabled || (b.data.pcCd || 0) > bt.time || !_touchRect(b, T, 10)) return;
+      var mode = pcMode(b);
+      if (!mode) return;
+      b.data.pcCd = bt.time + c.pcCd;
+      if (mode === 'smash') {   // 서리: 30% 확률로 박살
+        if (Math.random() < c.seoriSmash) self.smashPc('서리가 컴퓨터를 박살냈다!');
+        else FX.text(b.x, b.y - b.r - 40, '킁킁?', '#ffffff', 36, 0.7);
+        return;
+      }
+      var dur = c.pcTime * (b.def.name === '유재후' ? c.yooMul : 1);
+      b.data.pc = { t: dur, mode: mode }; b.status.hold = dur; pc.user = b;
+      if (b.action && !b.action.uninterruptible) { if (b.action.end) b.action.end(); b.action = null; }
+      FX.text(b.x, b.y - b.r - 60, PC_MODES[mode].start, PC_MODES[mode].color, 44, 1.2); FX.sfx('type');
+      bt.emit('pc', { who: b.def.id, mode: mode });
+    });
+    if (pc.user && !pc.user.alive) pc.user = null;
+  }
+  pcDone(b, mode) {
+    var c = CONFIG.maps.hall, bt = this.bt, A = bt.arena;
+    b.data.pc = null; this.pc.user = null; b.data.pcCd = bt.time + c.pcCd;
+    if (mode === 'code') {   // 개발자: 자기 스탯 +10%
+      var k = c.codeBuff, add = b.maxHp * (k - 1);
+      b.dmgMult *= k; b.speed *= k; b.maxHp += add; b.hp += add;
+      FX.text(b.x, b.y - b.r - 60, '코딩 완료! 스탯 +' + Math.round((k - 1) * 100) + '%', '#9cff57', 44, 1.2); FX.sfx('patch');
+    } else if (mode === 'stock') {   // 최휘: 끝나면 주식 한 번 더 (70% 하락, 하락하면 10% 컴퓨터 박살)
+      var up = Math.random() >= c.stockDown;
+      if (typeof hauStock === 'function' && b.data.chart) hauStock(bt, b, up);
+      if (!up && Math.random() < c.stockSmash) this.smashPc('떡락에 빡쳐서 컴퓨터 박살!');
+    } else FX.text(b.x, b.y - b.r - 50, mode === 'ow' ? 'GG… 한 판만 더' : '로블록스 종료', '#dddddd', 38, 0.9);
+    var a = Math.atan2(A.y + A.h / 2 - b.y, A.x + A.w / 2 - b.x); b.vx = Math.cos(a) * b.speed; b.vy = Math.sin(a) * b.speed;
+    bt.emit('pcDone', { who: b.def.id, mode: mode });
+  }
+  smashPc(msg) {
+    var c = CONFIG.maps.hall, T = this.table(), bt = this.bt, u = this.pc.user;
+    if (u) { u.data.pc = null; u.status.hold = 0; this.pc.user = null; }
+    this.pc.broken = c.brokenTime;
+    FX.text(T.x + T.w / 2, T.y - 20, msg, '#ff6b6b', 44, 1.4); FX.sfx('shatter'); FX.shake(14);
+    FX.burst(T.x + T.w * 0.55, T.y + T.h * 0.4, '#9fd8ff', 24, 700, 8, 0.6, 'spark');
+    bt.emit('pcSmash');
+  }
+
   // ---------- Battle 훅 ----------
   taken(t, src, o) {
     var M = CONFIG.maps, m = 1;
     if (src && src !== t && this.splitK > 0.5 && this.split && this.floorOf(src) !== this.floorOf(t)) return 0;   // 분리된 층끼리는 공격 안 닿음
     if (t.data.ramen) ramenSpill(this.bt, t);   // 국물 마시다 맞으면 쏟음
-    if (t.data.smoking > 0) m *= M.sannae.smokeTaken;
+    if (t.data.smoking > 0 || t.data.pc) m *= M.sannae.smokeTaken;   // 담배 · 컴퓨터 하는 중 받는 피해 2배
     if (t.data.soju > 0) m *= M.jbs.king.sojuTaken;
     if (o.kind === 'poison' && this.sub === 'jbs' && !_smoker(t)) m *= M.jbs.nonSmokerPoison;
     return m;
@@ -301,6 +382,7 @@ class MapRun {
   walls(b) {
     var hit = false;
     if (this.sub === 'sannae') hit = _pushRect(b, this.notch());
+    if (this.sub === 'hall') hit = _pushRect(b, this.table());
     if (this.sub === 'jbs' && this.split) {
       var dy = this.divY(), h = 14;
       if (b.y < dy) { if (b.y + b.r > dy - h) { b.y = dy - h - b.r; b.vy = -Math.abs(b.vy); hit = true; } }
@@ -325,6 +407,7 @@ class MapRun {
       drawWindow(ctx, A.x + A.w, A.y + A.h, c.window * k, time);
     }
     if (this.sub === 'jbs') drawDivider(ctx, A, this.divY(), this.splitK, time);
+    if (this.sub === 'hall') { this.trash.forEach(function (tr) { drawTrash(ctx, tr); }); drawTable(ctx, this.table(), this.pc, time); }
     if (this.flash > 0) { ctx.save(); ctx.globalAlpha = Math.min(1, this.flash) * 0.35; ctx.fillStyle = SUB_MAPS[this.sub].color; ctx.fillRect(A.x, A.y, A.w, A.h); ctx.restore(); }
   }
   drawTop(ctx, time) {
@@ -352,6 +435,7 @@ class MapRun {
       if (b.data.chair) { ctx.save(); ctx.translate(x - r * 0.8, y - r - 18); ctx.rotate(-0.3); drawChair(ctx, 0.75); ctx.restore(); }
       if (b.data.soju > 0) ctx.fillText('🍶', x - r * 0.85, y + r * 0.2);
       if (b.data.ramen) ctx.fillText('🍜', x - r * 0.85, y - r * 0.2);
+      if (b.data.pc) ctx.fillText(PC_MODES[b.data.pc.mode].icon, x + r * 0.75, y - r * 0.55);
       if (b.data.joo) { ctx.font = '36px "Segoe UI Emoji",sans-serif'; ctx.fillText('🎀', x + r * 0.72, y + r * 0.72); }
     });
     // 맵 이름 · 다음 이벤트 시간
@@ -359,6 +443,7 @@ class MapRun {
     if (this.id === 'workroom') parts.push('변경 ' + Math.ceil(this.swapIn));
     if (this.sub === 'jbs') { parts.push('환기 ' + this.left('vent', c.jbs.vent)); parts.push((this.split ? '개방 ' : '분리 ') + this.left('split', c.jbs.split)); }
     if (this.sub === 'mind') parts.push('리허설 ' + this.left('rehearsal', c.mind.rehearsal));
+    if (this.sub === 'hall') { parts.push('쓰레기 ' + this.trash.length); if (this.pc.broken > 0) parts.push('컴퓨터 고장'); }
     var txt = '🗺 ' + parts.join('  ·  ');
     ctx.font = '700 26px "Malgun Gothic",sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     var w = ctx.measureText(txt).width + 32;
@@ -452,6 +537,35 @@ var MAP_FLOORS = {
     ctx.restore();
     ctx.restore();
   },
+  // 마을회관: 노란 장판 + 가장자리 방석 + 형광등 빛
+  hall: function (ctx, A, t) {
+    var k = A.w / 1000, s = 160 * k;
+    ctx.save(); ctx.beginPath(); ctx.rect(A.x, A.y, A.w, A.h); ctx.clip();
+    ctx.fillStyle = '#c99550'; ctx.fillRect(A.x, A.y, A.w, A.h);
+    var g = ctx.createLinearGradient(A.x, A.y, A.x + A.w, A.y + A.h);
+    g.addColorStop(0, 'rgba(255,240,200,0.22)'); g.addColorStop(0.5, 'rgba(255,240,200,0)'); g.addColorStop(1, 'rgba(120,70,20,0.18)');
+    ctx.fillStyle = g; ctx.fillRect(A.x, A.y, A.w, A.h);
+    ctx.strokeStyle = 'rgba(120,72,24,0.35)'; ctx.lineWidth = 2;   // 장판 이음새
+    ctx.beginPath();
+    for (var x = A.x + s; x < A.x + A.w; x += s) { ctx.moveTo(x, A.y); ctx.lineTo(x, A.y + A.h); }
+    for (var y = A.y + s * 1.5; y < A.y + A.h; y += s * 1.5) { ctx.moveTo(A.x, y); ctx.lineTo(A.x + A.w, y); }
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(140,90,40,0.18)';   // 장판 무늬
+    for (var py = 0; py < A.h; py += 40 * k) for (var px = ((py / (40 * k)) % 2) * 20 * k; px < A.w; px += 40 * k) ctx.fillRect(A.x + px, A.y + py, 4 * k, 4 * k);
+    var cs = 70 * k;   // 아래쪽 벽을 따라 놓인 방석
+    for (var i = 0; i < 6; i++) {
+      var bx = A.x + A.w * 0.5 + (i - 2.5) * cs * 1.35 - cs / 2, by = A.y + A.h - cs - 18 * k;
+      ctx.fillStyle = i % 2 ? '#b8322e' : '#2f5fb8'; Battle.roundRect(ctx, bx, by, cs, cs, 12 * k); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,230,170,0.5)'; ctx.lineWidth = 2; ctx.setLineDash([6 * k, 5 * k]); Battle.roundRect(ctx, bx + 8 * k, by + 8 * k, cs - 16 * k, cs - 16 * k, 8 * k); ctx.stroke(); ctx.setLineDash([]);
+    }
+    [0.3, 0.7].forEach(function (q) {   // 형광등 빛
+      var lg = ctx.createRadialGradient(A.x + A.w * 0.5, A.y + A.h * q, 0, A.x + A.w * 0.5, A.y + A.h * q, A.w * 0.55);
+      lg.addColorStop(0, 'rgba(255,255,240,' + (0.14 + Math.sin(t * 50) * 0.005) + ')'); lg.addColorStop(1, 'rgba(255,255,240,0)');
+      ctx.fillStyle = lg; ctx.fillRect(A.x, A.y, A.w, A.h);
+    });
+    _logo(ctx, A, '마을회관', '#6a3c12', 0.12);
+    ctx.restore();
+  },
   // 마인드: 어두운 무대 + 스포트라이트 + 촬영 화면 테두리
   mind: function (ctx, A, t) {
     var k = A.w / 1000, pw = 90 * k;
@@ -535,8 +649,8 @@ function drawChair(ctx, s) {
 }
 
 // ---------- 맵 아이템 ----------
-var ITEM_COLOR = { blanket: '#7fa8ff', pizza: '#ffb000', chair: '#c08a5a', king: '#ffd400', soju: '#4fd18b', joo: '#ff8fc8', ramen: '#ff5a3c' };
-var ITEM_R = { blanket: 34, pizza: 32, chair: 34, king: 40, soju: 30, joo: 46, ramen: 32 };
+var ITEM_COLOR = { blanket: '#7fa8ff', pizza: '#ffb000', chair: '#c08a5a', king: '#ffd400', soju: '#4fd18b', joo: '#ff8fc8', ramen: '#ff5a3c', yuk: '#d2321e' };
+var ITEM_R = { blanket: 34, pizza: 32, chair: 34, king: 40, soju: 30, joo: 46, ramen: 32, yuk: 32 };
 var ITEM_DRAW = {
   blanket: function (ctx) {   // 개켜 놓은 체크무늬 담요
     ctx.rotate(-0.12);
@@ -577,16 +691,8 @@ var ITEM_DRAW = {
     ctx.fillStyle = '#ffffff'; ctx.fillRect(-13, 0, 26, 14);
     ctx.fillStyle = '#2f8a58'; ctx.font = '700 10px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('소주', 0, 7);
   },
-  ramen: function (ctx, t) {   // 편의점 컵라면 + 김
-    ctx.shadowColor = '#ff5a3c'; ctx.shadowBlur = 18;
-    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(-26, -14); ctx.lineTo(26, -14); ctx.lineTo(19, 26); ctx.lineTo(-19, 26); ctx.closePath(); ctx.fill();
-    ctx.shadowBlur = 0; ctx.fillStyle = '#e8321e'; ctx.beginPath(); ctx.moveTo(-24, -4); ctx.lineTo(24, -4); ctx.lineTo(22, 8); ctx.lineTo(-22, 8); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#ffffff'; ctx.font = '700 11px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('라면', 0, 2);
-    ctx.fillStyle = '#c98a3a'; ctx.beginPath(); ctx.ellipse(0, -14, 26, 7, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#ffd98a'; ctx.lineWidth = 2; ctx.beginPath(); for (var i = -18; i <= 18; i += 6) { ctx.moveTo(i, -16); ctx.quadraticCurveTo(i + 3, -11, i + 6, -16); } ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 3;
-    for (var s = -1; s <= 1; s++) { var o = Math.sin(t * 3 + s) * 4; ctx.beginPath(); ctx.moveTo(s * 10, -24); ctx.quadraticCurveTo(s * 10 + 6 + o, -32, s * 10 + o, -42); ctx.stroke(); }
-  },
+  yuk: function (ctx, t) { cupRamen(ctx, t, '육개장', '#8a1a10', '#ffe0a0'); },
+  ramen: function (ctx, t) { cupRamen(ctx, t, '라면', '#e8321e', '#ffffff'); },
   joo: function (ctx, t, r) {   // 주현지 누나: 캐릭터와 같은 공
     var g = ctx.createRadialGradient(0, 0, r * 0.8, 0, 0, r * 1.7);
     g.addColorStop(0, 'rgba(255,143,200,0.55)'); g.addColorStop(1, 'rgba(255,143,200,0)');
@@ -623,13 +729,8 @@ var ITEM_EAT = {
     }
     FX.sfx('drool');
   },
-  ramen: function (bt, b) {
-    var c = CONFIG.maps.mind.ramen;
-    bt.heal(b, c.heal);
-    FX.text(b.x, b.y - b.r - 90, '편의점 라면! 🍜', '#ffcf6b', 44, 1.0); FX.sfx('powerup');
-    b.data.ramen = { left: c.soup, t: 0 };
-    if (Math.random() < c.spill) ramenSpill(bt, b);   // 5%: 받자마자 쏟음
-  },
+  ramen: function (bt, b) { eatRamen(bt, b, 'ramen', '편의점 라면! 🍜'); },
+  yuk: function (bt, b) { eatRamen(bt, b, 'yuk', '육개장 컵라면! 🍜'); },
   joo: function (bt, b) {
     b.data.joo = true;
     FX.text(b.x, b.y - b.r - 60, '주현지 누나의 가호! 🎀', '#ff8fc8', 46, 1.2); FX.sfx('happy');
@@ -638,11 +739,142 @@ var ITEM_EAT = {
   },
 };
 // 라면 국물 쏟음: 남은 지속 회복 없음
+function _ramenCfg(kind) { return kind === 'yuk' ? CONFIG.maps.hall.yuk : CONFIG.maps.mind.ramen; }
+function eatRamen(bt, b, kind, msg) {
+  var c = _ramenCfg(kind);
+  bt.heal(b, c.heal);
+  FX.text(b.x, b.y - b.r - 90, msg, '#ffcf6b', 44, 1.0); FX.sfx('powerup');
+  b.data.ramen = { left: c.soup, t: 0, kind: kind };
+  if (Math.random() < c.spill) ramenSpill(bt, b);   // 5%: 받자마자 쏟음
+}
+// 국물 마시는 동안 tick마다 1씩 회복
+function ramenTick(bt, b, dt) {
+  var rm = b.data.ramen, c = _ramenCfg(rm.kind);
+  if ((rm.t += dt) < c.tick) return;
+  rm.t -= c.tick; rm.left -= 1;
+  bt.heal(b, 1, true);
+  if (Math.random() < 0.5) FX.particle({ x: b.x + _rnd(-10, 10), y: b.y - b.r * 0.6, vx: _rnd(-10, 10), vy: -90, life: 0.6, size: _rnd(8, 13), color: 'rgba(255,255,255,0.6)', shape: 'smoke' });
+  if (rm.left <= 0) { b.data.ramen = null; FX.text(b.x, b.y - b.r - 50, '국물까지 완뚝!', '#ffcf6b', 40, 0.9); }
+}
+function cupRamen(ctx, t, label, band, text) {
+  ctx.shadowColor = band; ctx.shadowBlur = 18;
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(-26, -14); ctx.lineTo(26, -14); ctx.lineTo(19, 26); ctx.lineTo(-19, 26); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0; ctx.fillStyle = band; ctx.beginPath(); ctx.moveTo(-24, -4); ctx.lineTo(24, -4); ctx.lineTo(22, 10); ctx.lineTo(-22, 10); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = text; ctx.font = '700 ' + (label.length > 2 ? 10 : 11) + 'px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, 0, 3);
+  ctx.fillStyle = label.length > 2 ? '#b8401e' : '#c98a3a'; ctx.beginPath(); ctx.ellipse(0, -14, 26, 7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#ffd98a'; ctx.lineWidth = 2; ctx.beginPath(); for (var i = -18; i <= 18; i += 6) { ctx.moveTo(i, -16); ctx.quadraticCurveTo(i + 3, -11, i + 6, -16); } ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 3;
+  for (var s = -1; s <= 1; s++) { var o = Math.sin(t * 3 + s) * 4; ctx.beginPath(); ctx.moveTo(s * 10, -24); ctx.quadraticCurveTo(s * 10 + 6 + o, -32, s * 10 + o, -42); ctx.stroke(); }
+}
 function ramenSpill(bt, b) {
+  if (b.data.ramen && b.data.ramen.kind === 'yuk') {   // 육개장 국물 쏟으면 문남휘 개빡침
+    var h = CONFIG.maps.hall;
+    bt.balls.forEach(function (m) {
+      if (!m.alive || m.def.name !== '문남휘') return;
+      m.status.atk = h.angerTime; m.status.atkMul = h.angerMul;
+      FX.text(m.x, m.y - m.r - 90, '개빡침!! 💢', '#ff3b3b', 54, 1.2); FX.burst(m.x, m.y, '#ff3b3b', 18, 600, 9, 0.5);
+      bt.emit('anger', { who: m.def.id });
+    });
+  }
   b.data.ramen = null;
   FX.text(b.x, b.y - b.r - 50, '앗 국물 쏟았다!', '#ff9a6b', 44, 1.0); FX.sfx('drool');
   for (var i = 0; i < 14; i++) FX.particle({ x: b.x, y: b.y, vx: _rnd(-260, 260), vy: _rnd(-300, -80), g: 900, life: 0.6, size: _rnd(6, 11), color: Math.random() < 0.5 ? '#c96a2a' : '#e8a050', shape: 'square' });
   bt.emit('ramenSpill', { who: b.def.id });
+}
+// ---------- 마을회관 ----------
+var TRASH_KINDS = ['clothes', 'bottle', 'cup', 'bag', 'can'];
+var PC_MODES = {
+  ow:    { start: '오버워치 한 판만… 🎮', color: '#ff9c1a', icon: '🎮' },
+  rb:    { start: '로블록스 접속! 🧱', color: '#ff4a4a', icon: '🧱' },
+  code:  { start: '코딩 중… 💻', color: '#9cff57', icon: '💻' },
+  stock: { start: '주식 차트 확인 📈', color: '#ff3b3b', icon: '📈' },
+};
+// 컴퓨터에 닿았을 때 할 일 (없으면 그냥 지나감)
+function pcMode(b) {
+  var n = b.def.name, c = CONFIG.maps.hall;
+  if (b.def.id === 'dev') return 'code';
+  if (b.def.id === 'hau') return 'stock';
+  if (n === '서리') return 'smash';
+  if (c.ow.indexOf(n) >= 0) return 'ow';
+  if (c.roblox.indexOf(n) >= 0) return 'rb';
+  return null;
+}
+function _touchRect(b, R, pad) {
+  var cx = _mapClamp(b.x, R.x, R.x + R.w), cy = _mapClamp(b.y, R.y, R.y + R.h);
+  return Math.hypot(b.x - cx, b.y - cy) < b.r + pad;
+}
+function drawTrash(ctx, tr) {
+  var s = Math.min(1, tr.t / 0.3);
+  ctx.save(); ctx.translate(tr.x, tr.y); ctx.rotate(tr.rot); ctx.scale(s, s);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(3, 6, 24, 14, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(20,10,0,0.6)';
+  if (tr.kind === 'clothes') {   // 벗어 던진 티셔츠
+    ctx.fillStyle = '#5a7fd0'; ctx.beginPath();
+    ctx.moveTo(-10, -16); ctx.lineTo(-24, -8); ctx.lineTo(-18, 2); ctx.lineTo(-12, -2); ctx.lineTo(-12, 16); ctx.lineTo(12, 18); ctx.lineTo(13, -2); ctx.lineTo(20, 4); ctx.lineTo(25, -7); ctx.lineTo(10, -17); ctx.quadraticCurveTo(0, -10, -10, -16);
+    ctx.fill(); ctx.stroke();
+  } else if (tr.kind === 'bottle') {   // 누운 음료수 페트병
+    ctx.fillStyle = 'rgba(160,230,255,0.8)'; Battle.roundRect(ctx, -20, -8, 32, 16, 6); ctx.fill(); ctx.stroke();
+    ctx.fillRect(12, -4, 8, 8); ctx.fillStyle = '#ff4a4a'; ctx.fillRect(19, -5, 5, 10); ctx.fillStyle = '#ffd400'; ctx.fillRect(-12, -8, 12, 16);
+  } else if (tr.kind === 'cup') {   // 다 먹은 라면 용기
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(-16, -12); ctx.lineTo(16, -12); ctx.lineTo(11, 14); ctx.lineTo(-11, 14); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#e8321e'; ctx.fillRect(-14, -4, 28, 7); ctx.fillStyle = '#a8662a'; ctx.beginPath(); ctx.ellipse(0, -12, 16, 4, 0, 0, Math.PI * 2); ctx.fill();
+  } else if (tr.kind === 'bag') {   // 검은 비닐봉지
+    ctx.fillStyle = '#2a2a30'; ctx.beginPath(); ctx.moveTo(-18, -4); ctx.quadraticCurveTo(-20, 18, 0, 17); ctx.quadraticCurveTo(20, 18, 18, -4); ctx.lineTo(10, -16); ctx.lineTo(4, -6); ctx.lineTo(-4, -6); ctx.lineTo(-10, -16); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.beginPath(); ctx.moveTo(-8, 2); ctx.lineTo(-2, 10); ctx.stroke();
+  } else {   // 찌그러진 캔
+    ctx.fillStyle = '#c0c4cc'; Battle.roundRect(ctx, -15, -9, 30, 18, 4); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#2f9bff'; ctx.fillRect(-8, -9, 12, 18); ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.moveTo(-2, -9); ctx.lineTo(3, 0); ctx.lineTo(-2, 9); ctx.stroke();
+  }
+  ctx.restore();
+}
+// 나무 테이블 + 모니터 · 키보드 · 마우스 + 의자. user가 쓰는 중이면 화면에 그 게임
+function drawTable(ctx, T, pc, time) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(T.x + 8, T.y + 10, T.w, T.h);
+  ctx.fillStyle = '#8a5a34'; Battle.roundRect(ctx, T.x, T.y, T.w, T.h, 8); ctx.fill();
+  ctx.strokeStyle = '#4a2c14'; ctx.lineWidth = 4; ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,220,170,0.12)'; ctx.lineWidth = 2;
+  for (var i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(T.x + 6, T.y + T.h * i / 4); ctx.lineTo(T.x + T.w - 6, T.y + T.h * i / 4); ctx.stroke(); }
+  var mx = T.x + T.w * 0.3, my = T.y + T.h * 0.12, mw = T.w * 0.42, mh = T.h * 0.5;
+  ctx.fillStyle = '#16161c'; Battle.roundRect(ctx, mx - 6, my - 6, mw + 12, mh + 12, 6); ctx.fill();
+  var u = pc.user, mode = u && u.data.pc ? u.data.pc.mode : null;
+  ctx.save(); ctx.beginPath(); ctx.rect(mx, my, mw, mh); ctx.clip();
+  if (pc.broken > 0) {
+    ctx.fillStyle = '#050507'; ctx.fillRect(mx, my, mw, mh);
+    ctx.strokeStyle = 'rgba(220,240,255,0.8)'; ctx.lineWidth = 2; ctx.beginPath();
+    var cx = mx + mw * 0.45, cy = my + mh * 0.5;
+    [[-0.5, -0.4], [0.5, -0.45], [0.4, 0.5], [-0.45, 0.45], [0.05, -0.5]].forEach(function (d) { ctx.moveTo(cx, cy); ctx.lineTo(cx + d[0] * mw, cy + d[1] * mh); });
+    ctx.stroke();
+  } else if (mode === 'ow') {
+    var g = ctx.createLinearGradient(mx, my, mx + mw, my + mh); g.addColorStop(0, '#ff9c1a'); g.addColorStop(1, '#3a6aff');
+    ctx.fillStyle = g; ctx.fillRect(mx, my, mw, mh);
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(mx + mw / 2, my + mh / 2, 8, 0, Math.PI * 2); ctx.moveTo(mx + mw / 2 - 14, my + mh / 2); ctx.lineTo(mx + mw / 2 + 14, my + mh / 2); ctx.stroke();
+  } else if (mode === 'rb') {
+    ctx.fillStyle = '#7ec8ff'; ctx.fillRect(mx, my, mw, mh); ctx.fillStyle = '#4caf50'; ctx.fillRect(mx, my + mh * 0.65, mw, mh * 0.35);
+    for (var j = 0; j < 4; j++) { ctx.fillStyle = ['#ff4a4a', '#ffd400', '#2f9bff', '#ffffff'][j]; ctx.fillRect(mx + mw * (0.12 + j * 0.2), my + mh * (0.45 - (j % 2) * 0.12), mw * 0.12, mh * 0.2); }
+  } else if (mode === 'code') {
+    ctx.fillStyle = '#0d1a10'; ctx.fillRect(mx, my, mw, mh); ctx.fillStyle = '#9cff57';
+    for (var l = 0; l < 6; l++) ctx.fillRect(mx + 6 + (l % 3) * 8, my + 6 + l * mh / 7, mw * (0.3 + ((l * 37 + Math.floor(time * 4)) % 5) * 0.1), 3);
+  } else if (mode === 'stock') {
+    ctx.fillStyle = '#10131c'; ctx.fillRect(mx, my, mw, mh); ctx.strokeStyle = '#ff3b3b'; ctx.lineWidth = 3; ctx.beginPath();
+    for (var q = 0; q <= 8; q++) { var px = mx + mw * q / 8, py = my + mh * (0.5 + Math.sin(q * 1.7 + time * 2) * 0.3); if (q) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
+    ctx.stroke();
+  } else {
+    var g2 = ctx.createLinearGradient(mx, my, mx, my + mh); g2.addColorStop(0, '#2a5aa8'); g2.addColorStop(1, '#14305e');
+    ctx.fillStyle = g2; ctx.fillRect(mx, my, mw, mh);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '700 ' + Math.round(mh * 0.3) + 'px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('PC', mx + mw / 2 + Math.sin(time) * mw * 0.2, my + mh / 2 + Math.cos(time * 1.3) * mh * 0.2);
+  }
+  ctx.restore();
+  ctx.fillStyle = '#d8d8e0'; Battle.roundRect(ctx, mx + mw * 0.05, T.y + T.h * 0.72, mw * 0.9, T.h * 0.16, 3); ctx.fill();   // 키보드
+  ctx.fillStyle = '#d8d8e0'; ctx.beginPath(); ctx.ellipse(mx + mw + 26, T.y + T.h * 0.8, 8, 11, 0, 0, Math.PI * 2); ctx.fill();   // 마우스
+  ctx.fillStyle = '#2b2b33'; ctx.beginPath(); ctx.arc(mx + mw / 2, T.y + T.h + 34, 24, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#555560'; ctx.lineWidth = 4; ctx.stroke();   // 의자
+  if (pc.broken > 0) {
+    ctx.font = '34px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (Math.sin(time * 12) > 0) ctx.fillText('💥', mx + mw * 0.8, my);
+    FX.outlined(ctx, '고장 ' + Math.ceil(pc.broken), T.x + T.w / 2, T.y - 22, 26, '#ff8a8a');
+  }
+  ctx.restore();
 }
 class MapItem {
   constructor(bt, kind, p) { this.bt = bt; this.kind = kind; this.x = p.x; this.y = p.y; this.t = 0; this.z = -1; this.r = ITEM_R[kind]; }
@@ -651,9 +883,15 @@ class MapItem {
     this.t += dt;
     if (this.t < 0.4) return;
     var e = bt.balls.find(function (b) {
-      return b.alive && !b.hidden && !b.air && !b.isBoss && !(self.kind === 'chair' && b.data.chair) && Math.hypot(b.x - self.x, b.y - self.y) < b.r + self.r;
+      return b.alive && !b.hidden && !b.air && !b.isBoss && !(self.kind === 'chair' && b.data.chair) && !(self.kind === 'joo' && b.def.id === 'sy') && Math.hypot(b.x - self.x, b.y - self.y) < b.r + self.r;
     });
-    if (!e) return;
+    if (!e) {
+      if (this.kind === 'joo') bt.balls.forEach(function (b) {   // 김선율의 모습: 낯가려서 가호를 못 받음
+        if (b.def.id !== 'sy' || !b.alive || b.hidden || b.data.shyMsg > bt.time || Math.hypot(b.x - self.x, b.y - self.y) > b.r + self.r) return;
+        b.data.shyMsg = bt.time + 2; FX.text(b.x, b.y - b.r - 50, '낯가림… 🙈', '#ffd6ec', 40, 0.9);
+      });
+      return;
+    }
     this.dead = true;
     ITEM_EAT[this.kind](bt, e, this);
     bt.emit('mapItem', { kind: this.kind, who: e.def.id });
@@ -755,7 +993,10 @@ function drawMapPreview(ctx, id, x, y, w, h, time) {
     MAP_FLOORS.jbs(ctx, A, time);
     ctx.save(); ctx.beginPath(); ctx.moveTo(x + w * 0.55, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w * 0.25, y + h); ctx.clip();
     MAP_FLOORS.sannae(ctx, A, time); ctx.restore();
-  } else if (MAP_FLOORS[id]) MAP_FLOORS[id](ctx, A, time);
+  } else if (MAP_FLOORS[id]) {
+    MAP_FLOORS[id](ctx, A, time);
+    if (id === 'hall') drawTable(ctx, { x: x + w * 0.12, y: y + h * 0.1, w: w * 0.4, h: w * 0.2 }, { user: null, broken: 0 }, time);
+  }
   else { ctx.fillStyle = '#0c0a1d'; ctx.fillRect(x, y, w, h); }
   ctx.restore();
 }
