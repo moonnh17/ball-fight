@@ -653,7 +653,7 @@
     // 난이도
     chip(W / 2 - 400, 760, 380, 84, 'EASY · 이지', !hard, '#39c46a', function () { G.bossDiff = 'easy'; });
     chip(W / 2 + 20, 760, 380, 84, 'HARD · 하드', hard, '#ff2b3b', function () { G.bossDiff = 'hard'; });
-    outlined(ctx, hard ? '더 많이 구르고 더 많이 뿌림 · 이전 페이즈 스킬도 섞어 씀 · 노광석의 힘 등장' : '이지 보너스: 도전자 시너지 하나당 공격력 +' + Math.round(c.synergyBonus.damage * 100) + '% · 체력 +' + Math.round(c.synergyBonus.hp * 100) + '%', W / 2, 872, 24, hard ? '#ff8a8a' : '#a8f0b8');
+    outlined(ctx, hard ? '더 많이 구르고 더 많이 뿌림 · 이전 페이즈 스킬도 섞어 씀 · 노광석의 힘 등장' : (c.synergyBonus ? '이지 보너스: 도전자 시너지 하나당 공격력 +' + Math.round(c.synergyBonus.damage * 100) + '%' : '4명 + 시너지 하나로 도전해 보세요 · 페이즈마다 스킬 두 개'), W / 2, 872, 24, hard ? '#ff8a8a' : '#a8f0b8');
     // 설명 (스크롤)
     var top = 900, bot = 1660, maxS = Math.max(0, (G.lobbyEnd || 0) - bot + 30);
     G.dexScroll = Math.max(0, Math.min(maxS, G.dexScroll || 0));
@@ -1093,15 +1093,21 @@
     var fxScale = G.scene === 'battle' && G.phase === 'ko' ? 0.35 : G.scene === 'battle' && G.phase === 'fight' ? speed() : 1;
     FX.update(dt * fxScale);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    if (G.scene === 'title') titleScene(dt);
-    else if (G.scene === 'select') selectScene(dt);
-    else if (G.scene === 'battle') battleScene(dt);
-    else if (G.scene === 'result') resultScene(dt);
-    else if (G.scene === 'dex') dexScene(dt);
-    else if (G.scene === 'stats') statsScene(dt);
-    else if (G.scene === 'bracket') bracketScene(dt);
-    else if (G.scene === 'records') recordsScene(dt);
-    else if (G.scene === 'bossLobby') bossLobbyScene(dt);
+    // 화면 하나에서 오류가 나도 게임 전체가 멈추지 않게: 기록만 하고 다음 프레임은 계속 돈다
+    try {
+      if (G.scene === 'title') titleScene(dt);
+      else if (G.scene === 'select') selectScene(dt);
+      else if (G.scene === 'battle') battleScene(dt);
+      else if (G.scene === 'result') resultScene(dt);
+      else if (G.scene === 'dex') dexScene(dt);
+      else if (G.scene === 'stats') statsScene(dt);
+      else if (G.scene === 'bracket') bracketScene(dt);
+      else if (G.scene === 'records') recordsScene(dt);
+      else if (G.scene === 'bossLobby') bossLobbyScene(dt);
+    } catch (err) {
+      if (!G.lastErr || G.time - G.lastErr > 2) { G.lastErr = G.time; console.error('[볼파이트] ' + G.scene + ' 화면 오류:', err); }
+      ctx.restore && ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
