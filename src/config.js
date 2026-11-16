@@ -144,8 +144,8 @@ var CONFIG = {
       // 1스킬 밸런스 패치(패시브): 닿을 때마다 상대 스탯 x(1-rate), 본인 x(1+rate). 최대 maxStacks회까지 중첩
       patch: { rate: 0.05, maxStacks: 15 },
       // 2스킬 치트: charge초 조준 후 fire초 동안 굵은 레이저
-      // damage x (1 + perPatch x 패치 횟수): 0회 7 → 15회 약 31 (공격력 배율은 따로)
-      cheat: { cd: 9, charge: 0.6, fire: 0.35, width: 70, damage: 7, perPatch: 0.23, shake: 26 },
+      // damage x (1 + perPatch x 패치 횟수): 0회 5 → 15회 약 16 (공격력 배율은 따로)
+      cheat: { cd: 9, charge: 0.6, fire: 0.35, width: 70, damage: 5, perPatch: 0.15, shake: 26 },
     },
     rock: {  // 유재운
       hp: 175, speed: 440, radius: 70, color: '#ff8c42', phase2Color: '#9acd32',
@@ -182,14 +182,14 @@ var CONFIG = {
       forget: { hitCd: 4, vapeCd: 12 },
     },
     seori: {  // 서리 (애완견의 모습)
-      hp: 180, speed: 500, radius: 62, color: '#e8b46a', phase2Color: '#ff7ab6',
-      contactDamage: 7,
+      hp: 200, speed: 500, radius: 62, color: '#e8b46a', phase2Color: '#ff7ab6',
+      contactDamage: 8,
       batonDeal: 0.5,      // 캐릭터 패시브: 유재후에게 주는 피해 배율
       // 1스킬 침흘리기(패시브): every초마다 지나간 자리에 침 웅덩이(반경 r, life초). 밟은 적: 초당 dps 피해 + 이동속도 x slowMul
-      drool: { every: 0.18, r: 46, life: 3.5, dps: 4, slowMul: 0.6 },
+      drool: { every: 0.18, r: 46, life: 3.5, dps: 5, slowMul: 0.6 },
       // 2스킬 물기: 가까운 적에게 돌격(dashSpeed, 최대 dashTime초) → 물면 hold초 동안 매달림
       //   물 때 damage, 매달린 동안 tick초마다 tickDamage + 큰 침(bigR) 퍼뜨림
-      bite: { cd: 3.5, dashSpeed: 1500, dashTime: 0.45, damage: 13, hold: 1.0, tick: 0.25, tickDamage: 4, bigR: 95, holdSlow: 0.25 },
+      bite: { cd: 3, dashSpeed: 1500, dashTime: 0.45, damage: 15, hold: 1.0, tick: 0.25, tickDamage: 5, bigR: 95, holdSlow: 0.25 },
     },
     seyu: {   // 차승민 (세유의 모습)
       hp: 180, speed: 430, radius: 70, color: '#ffcc00', phase2Color: '#ff3030',
