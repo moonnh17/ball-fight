@@ -2651,7 +2651,7 @@ var CHARACTERS = {
           if (!t) return null;
           var p = bt.aim(b, t.x, t.y), track = p.miss ? null : t, dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy) || 1;
           b.vx = dx / d * c.speed; b.vy = dy / d * c.speed; b.phasing = true;
-          bt.skillText(b, '돌진!', '#7ad1ff'); FX.sfx('roll');
+          bt.skillText(b, '돌진!', '#1fd6c4'); FX.sfx('roll');
           var traveled = 0, gt = 0;
           return {
             moves: false,
@@ -2666,10 +2666,10 @@ var CHARACTERS = {
               gt += dt; if (gt > 0.03) { gt = 0; _ghost(b); }
               var o = bt.enemies(b).find(function (e) { return e.targetable && !e.air && _dist(e, b) < e.r + b.r; });
               if (o) {
-                bt.damage(o, c.damage, b, { color: '#7ad1ff', kind: 'pavlov' });
+                bt.damage(o, c.damage, b, { color: '#1fd6c4', kind: 'pavlov' });
                 bt.damage(b, o.cfg.contactDamage || CONFIG.battle.contactDamage, o, { kind: 'contact' });   // 부딪힌 반동: 본인도 상대 박치기 피해
                 var a = Math.atan2(o.y - b.y, o.x - b.x); o.vx += Math.cos(a) * 600; o.vy += Math.sin(a) * 600;
-                FX.ring(o.x, o.y, o.r, o.r * 2, 0.3, '#7ad1ff', 10); FX.shake(10);
+                FX.ring(o.x, o.y, o.r, o.r * 2, 0.3, '#1fd6c4', 10); FX.shake(10);
                 psychHit(bt, b, o);
                 return true;
               }
@@ -2685,12 +2685,12 @@ var CHARACTERS = {
         cd: function (c) { return c.pavlov2.cd; },
         start: function (bt, b) {
           var c = b.cfg.pavlov, n = 0;
-          FX.banner('파블로프의 개', { color: '#7ad1ff', sub: '🎵 노래가 울려 퍼진다', size: 110, life: 1.3 });
+          FX.banner('파블로프의 개', { color: '#1fd6c4', sub: '🎵 노래가 울려 퍼진다', size: 110, life: 1.3 });
           FX.sfx('guitar'); FX.shake(12);
-          for (var i = 0; i < 4; i++) FX.ring(b.x, b.y, b.r, 1600, 0.7 + i * 0.15, i % 2 ? '#ffffff' : '#7ad1ff', 16 - i * 3);
+          for (var i = 0; i < 4; i++) FX.ring(b.x, b.y, b.r, 1600, 0.7 + i * 0.15, i % 2 ? '#ffffff' : '#1fd6c4', 16 - i * 3);
           bt.enemies(b).forEach(function (o) {
             if (!o.targetable || !b.data.marks[o.id]) return;
-            bt.damage(o, c.damage, b, { color: '#7ad1ff', kind: 'pavlov2' });
+            bt.damage(o, c.damage, b, { color: '#1fd6c4', kind: 'pavlov2' });
             FX.text(o.x, o.y - o.r - 70, '🔔 딸랑!', '#ffe680', 44, 0.9);
             n++;
           });
@@ -2705,18 +2705,18 @@ var CHARACTERS = {
       b.data.note += dt;
       if (b.data.note < (b.phase >= 2 ? 0.22 : 0.35)) return;
       b.data.note = 0;
-      FX.text(b.x + _rnd(-b.r, b.r), b.y - b.r * 0.6, Math.random() < 0.5 ? '♪' : '♫', Math.random() < 0.5 ? '#7ad1ff' : '#ffffff', b.phase >= 2 ? 44 : 34, 0.9);
+      FX.text(b.x + _rnd(-b.r, b.r), b.y - b.r * 0.6, Math.random() < 0.5 ? '♪' : '♫', Math.random() < 0.5 ? '#1fd6c4' : '#ffffff', b.phase >= 2 ? 44 : 34, 0.9);
     },
     // 고정 타겟 점선 + 맞힌 횟수, 표식 찍힌 적 머리 위 종
     drawExtra: function (ctx, b, bt, x, y, r, time) {
       var t = b.data.target, c = b.cfg.pavlov;
       ctx.save();
       if (t && t.alive && !t.hidden) {
-        ctx.setLineDash([12, 14]); ctx.lineDashOffset = -time * 40; ctx.strokeStyle = 'rgba(122,209,255,0.35)'; ctx.lineWidth = 4;
+        ctx.setLineDash([12, 14]); ctx.lineDashOffset = -time * 40; ctx.strokeStyle = 'rgba(31,214,196,0.35)'; ctx.lineWidth = 4;
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(t.x, t.y); ctx.stroke(); ctx.setLineDash([]);
         var n = b.data.hits[t.id] || 0;
         for (var i = 0; i < c.marks; i++) {
-          ctx.fillStyle = i < n ? '#7ad1ff' : 'rgba(255,255,255,0.25)';
+          ctx.fillStyle = i < n ? '#1fd6c4' : 'rgba(255,255,255,0.25)';
           ctx.beginPath(); ctx.arc(t.x + (i - (c.marks - 1) / 2) * 20, t.y + t.r + 18, 7, 0, Math.PI * 2); ctx.fill();
         }
       }

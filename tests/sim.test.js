@@ -1551,5 +1551,13 @@ test('워터밤은 마을회관에서만 · 코딩은 +5%', () => {
   assert(CONFIG.maps.hall.codeBuff === 1.05);
 });
 
+test('토너먼트 무승부 판정: 동시 탈락이면 승자 없음 (재경기 대상)', () => {
+  const bt = new Battle(['gym', 'baton']);
+  bt.balls.forEach(b => { b.hp = 1; });
+  bt.balls.forEach(b => bt.damage(b, 5, null, {}));
+  for (let i = 0; i < 120 && !bt.over; i++) bt.update(DT);   // 히트스톱이 끝나야 판정
+  assert(bt.over && !bt.winner, 'draw');
+});
+
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);

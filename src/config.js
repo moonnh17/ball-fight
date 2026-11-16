@@ -203,7 +203,7 @@ var CONFIG = {
       protein: { interval: 6, max: 2, heal: 15, hasteTime: 4, hasteMul: 1.5, otherHeal: 5 },
     },
     psych: {   // 진형권 (심리학자의 모습)
-      hp: 240, speed: 420, radius: 76, color: '#7ad1ff', phase2Color: '#ffe680',
+      hp: 240, speed: 420, radius: 76, color: '#1fd6c4', phase2Color: '#ffe680',   // 헬스장(하늘색)과 헷갈리지 않게 청록
       contactDamage: 7, antiUninvited: 2,   // 특성 손님 사냥꾼은 헬스장 진형권과 같음
       // 1스킬: 고정 타겟에게 돌진 (같은 적 marks번 맞히면 표식), turn: 돌진 중 타겟 쪽으로 꺾는 정도(라디안/초)
       pavlov: { cd: 3.5, speed: 1500, distance: 900, damage: 14, marks: 3, turn: 4 },

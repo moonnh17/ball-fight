@@ -566,9 +566,16 @@
     G.scene = 'battle'; G.phase = 'intro'; G.pt = 0; G.lastCount = -1;
     FX.banner(roundName(m.r), { color: '#ffd400', sub: a.name + ' vs ' + b.name, size: 130, life: 2.0, y: 560 });
   }
+  // 무승부(동시 탈락)면 같은 대진으로 재경기
+  function tourRematch() {
+    var m = G.tour.cur, R = G.tour.rounds, a = R[m.r][2 * m.i], b = R[m.r][2 * m.i + 1];
+    startMatch(m);
+    FX.banner('무승부 · 재경기', { color: '#00f0ff', sub: a.name + ' vs ' + b.name, size: 110, life: 2.2, y: 760 });
+  }
   function tourAdvance() {
     var bt = G.battle, m = G.tour.cur;
-    var w = bt.winner ? bt.tourEntries[bt.winner.id] : bt.tourEntries[Math.floor(Math.random() * 2)];   // 동시 탈락이면 랜덤
+    if (!bt.winner) return tourRematch();
+    var w = bt.tourEntries[bt.winner.id];
     G.tour.rounds[m.r + 1][m.i] = w;
     G.tour.cur = null;
     tourResolve();
@@ -1060,7 +1067,7 @@
       if (bt.over) { G.phase = 'ko'; G.pt = 0; Records.battle(bt); }
     } else if (G.phase === 'ko') {
       G.pt += dt;
-      if (G.pt > 2.0) { G.scene = 'result'; G.pt = 0; FX.sfx(bt.bossMode && bt.winnerTeam === 0 ? 'lose' : 'victory'); }   // 보스에게 지면 패배음
+      if (G.pt > 2.0) { G.scene = 'result'; G.pt = 0; if (bt.winner || bt.winnerTeam != null) FX.sfx(bt.bossMode && bt.winnerTeam === 0 ? 'lose' : 'victory'); }   // 보스에게 지면 패배음, 무승부는 없음
     }
 
     background();
@@ -1176,8 +1183,9 @@
       outlined(ctx, bt.bossMode ? (bt.difficulty === 'hard' ? 'HARD' : 'EASY') + ' · ' + (bt.timeUp ? '시간 초과' : Math.round(bt.time) + '초') : bt.timeUp ? '시간 종료 · 판정승' : 'K.O. 승리', cx, 1290, 48, '#ffffff');
     } else {
       outlined(ctx, 'DRAW', cx, 700, 200, '#ffffff', '#00f0ff');
+      if (G.mode === 'tour' && G.tour && G.tour.cur) outlined(ctx, '토너먼트는 무승부면 같은 대진으로 재경기', cx, 900, 40, '#bff6ff');
     }
-    if (G.mode === 'tour' && G.tour && G.tour.cur) button(W / 2 - 330, 1460, 660, 140, '🏆 대진표로', tourAdvance, { color: '#ffd400', color2: '#ff2b6a', size: 56 });
+    if (G.mode === 'tour' && G.tour && G.tour.cur) button(W / 2 - 330, 1460, 660, 140, w ? '🏆 대진표로' : '🔁 재경기', tourAdvance, { color: w ? '#ffd400' : '#00f0ff', color2: '#ff2b6a', size: 56 });
     else button(W / 2 - 330, 1460, 660, 140, '다시 하기', startBattle, { color: '#ff2b6a', color2: '#ffb000', size: 60 });
     button(W / 2 - 330, 1640, 660, 120, '캐릭터 다시 고르기', function () { go('select'); }, { color: '#00c2ff', color2: '#7a5cff', size: 48 });
     button(W / 2 - 330, 1790, 660, 100, '📊 전투 기록', function () { G.scene = 'stats'; G.pt = 0; }, { color: '#ffb000', color2: '#ff2b6a', size: 42 });
@@ -1249,6 +1257,7 @@
     if (FX.muted) return null;
     if (G.scene === 'battle') { var bt = G.battle, mid = bt && bt.map && bt.map.id; return bt && bt.bossMode ? 'bossFight' : mid === 'mind' || mid === 'hall' ? mid : null; }
     if (G.scene === 'bossLobby' || (G.scene === 'select' && G.mode === 'boss')) return 'boss';
+    if (G.scene === 'result' && G.pt < 2.5) return null;   // 승리 · 패배 효과음이 묻히지 않게 잠깐 비움
     return 'lobby';
   }
   function bgmLoad(key) {
