@@ -115,6 +115,7 @@
 
   function go(scene) { G.scene = scene; FX.reset(); }
   function speed() { return CONFIG.speeds[G.speedIdx] || 1; }
+  var BATTLE_STEP = 1 / 60;   // 전투 고정 단계 (테스트·시뮬레이션과 같은 값)
   function speedLabel() { return 'x' + speed(); }
 
   function teamsInRoster() {
@@ -402,7 +403,7 @@
   function synMemberId(q, nm) {
     var g = GROUPS.filter(function (x) { return x.name === nm; })[0], need = q.needIds ? q.needIds() : [];
     if (!g) return null;
-    var nid = g.ids.filter(function (id) { return need.indexOf(id) >= 0; })[0];
+    var nid = g.ids.filter(function (id) { return need.indexOf(id) >= 0 || (q.fillIds || []).indexOf(id) >= 0; })[0];
     return nid || G.pick[nm] || g.ids[0];
   }
   // 시너지별 채우기 — 팀전: 지금 고른 팀을 그 멤버로 바꿈 / 보스전: 없는 멤버만 도전자에 추가 (최대 인원까지)
@@ -954,8 +955,11 @@
         }
       }
     } else if (G.phase === 'fight') {
-      // 배속: 0.05초씩 나눠서 진행 (3배속에서도 충돌·판정 간격은 그대로)
-      for (var left = dt * speed(); left > 1e-9 && !bt.over; left -= 0.05) bt.update(Math.min(0.05, left));
+      // 배속: 전투는 언제나 1/60초 고정 단계로 진행하고, 배속이면 한 프레임에 단계를 더 많이 돌림
+      // (단계 크기가 배속·화면 주사율에 따라 바뀌면 충돌·확률 판정이 달라져 결과 분포가 바뀜)
+      G.acc = (bt === G.accFor ? G.acc : 0) + dt * speed(); G.accFor = bt;
+      for (var st = 0; G.acc >= BATTLE_STEP - 1e-9 && !bt.over && st < 24; st++) { bt.update(BATTLE_STEP); G.acc -= BATTLE_STEP; }
+      if (st >= 24) G.acc = 0;   // 너무 밀리면 따라잡지 않고 버림 (느린 기기에서 멈춤 방지)
       if (bt.over) { G.phase = 'ko'; G.pt = 0; Records.battle(bt); }
     } else if (G.phase === 'ko') {
       G.pt += dt;
