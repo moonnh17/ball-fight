@@ -2430,12 +2430,12 @@ var CHARACTERS = {
     init: function (bt, b) { b.data.bulk = 0; },
     passives: [
       { name: '헬창 박치기', desc: function () { return '몸통 박치기 데미지 ' + CONFIG.chars.gym.contactDamage + ' (기본 ' + CONFIG.battle.contactDamage + ')'; } },
-      { name: '손님 사냥꾼', desc: function () { return '초대받지 못한 손님에게 주는 피해 x' + CONFIG.chars.gym.antiUninvited + ' (개인전에선 유재후·???에게)'; } },
+      { name: '손님 사냥꾼', desc: function () { return '초대받지 못한 손님에게 주는 피해 x' + CONFIG.chars.gym.antiUninvited + ' (개인전에선 유재후·???에게, 보스 히어로 바통에게도)'; } },
       { name: '근육 갑옷', desc: function () { return '페이즈 2에서 조우연의 뱀에게 받는 피해 x' + CONFIG.chars.gym.snakeTaken; } },
     ],
     snakeTaken: function (b) { return b.phase >= 2 ? b.cfg.snakeTaken : 1; },
     // 캐릭터 패시브: 초대받지 못한 손님에게 피해 2배 (개인전에선 유재후 자체)
-    dealMult: function (bt, s, t) { return bt.isUninvited(t) ? s.cfg.antiUninvited : 1; },
+    dealMult: function (bt, s, t) { return bt.isUninvited(t) || t.def.batonBoss ? s.cfg.antiUninvited : 1; },   // 보스 히어로 바통도 유재후
     skills: [
       {
         key: 'dumbbell', name: '벌크업', passive: true,

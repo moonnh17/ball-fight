@@ -51,6 +51,7 @@ var CONFIG = {
       phases: [0.66, 0.33],      // 이 체력 비율 이하로 페이즈 2, 3
       ccCap: 0.4,                // 스턴·빙결은 최대 이 시간까지만
       cd: 3.2, firstCast: 2.0,   // 스킬 사이 간격, 첫 스킬까지
+      phaseCd: [1, 0.82, 0.65],  // 페이즈 1·2·3의 스킬 간격 배율 (갈수록 빨라짐)
       pools: { 1: ['roll', 'hot6'], 2: ['wallet', 'origin'], 3: ['joke', 'baccarat'] },
       cumulative: false,         // true면 이전 페이즈 스킬도 섞어 씀
       scream: { damage: 14 },                                   // 패시브 끼야아아악: 페이즈 바뀔 때 맵 전체
@@ -66,12 +67,12 @@ var CONFIG = {
       synergyBonus: null,        // 도전자 팀 시너지 하나당 도전자 { damage, hp } 상승 (이지 전용)
       easy: { hpPerPlayer: 195, dmgMult: 1.0, cd: 3.3, synergyBonus: { damage: 0.3, hp: 0.25 } },
       hard: {
-        hpPerPlayer: 137, dmgMult: 0.91, cd: 3.25, contactDamage: 8, cumulative: true,
+        hpPerPlayer: 120, dmgMult: 0.91, cd: 3.25, contactDamage: 8, cumulative: true, phaseCd: [1, 0.9, 0.78],
         scream: { damage: 20 }, wash: { heal: 0.25 },
         roll: { rolls: 3 }, hot6: { bullets: 16 }, wallet: { coins: 8, stun: 2 },
         origin: { passes: 2 }, joke: { count: 8, atkMul: 0.65 }, baccarat: { bankerDamage: 55 },
         // 노광석의 힘: 체력 at 이하에서 한 번, 맵 위 가운데서 time초 동안 every초마다 파장 (gaps개의 틈으로 피할 수 있음)
-        song: { at: 0.25, time: 7, every: 0.9, speed: 430, width: 38, gaps: 2, gapDeg: 62, damage: 12 },
+        song: { at: 0.25, time: 7, every: 0.7, speed: 560, width: 52, gaps: 1, gapDeg: 44, damage: 7 },   // 틈 하나, 좁고 빠르게 (대신 한 번 피해는 작게)
       },
     },
   },

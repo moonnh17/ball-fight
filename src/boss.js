@@ -544,8 +544,8 @@ var BATON_SKILLS = {
   // 하드 전용 노광석의 힘: 맵 맨 위 가운데로 올라가 노래 → 틈이 있는 파장
   song: function (bt, b) {
     var c = b.cfg.song, A = CONFIG.arena, st = 'move', t = 0, from = { x: b.x, y: b.y }, to = { x: A.x + A.w / 2, y: A.y + b.r + 20 }, fire = c.every;
-    FX.banner('노광석의 힘', { color: '#ff7ad9', sub: '히어로 바통 · 하드', size: 130, life: 1.6 });
-    b.phasing = true; FX.sfx('guitar');
+    FX.banner('노광석의 힘', { color: '#ff7ad9', sub: '히어로 바통 · 하드 · 무적', size: 130, life: 1.6 });
+    b.phasing = true; b.invuln = true; FX.sfx('guitar');   // 노래하는 동안 피해 안 받음
     return {
       moves: false, uninterruptible: true,
       update: function (dt) {
@@ -566,7 +566,7 @@ var BATON_SKILLS = {
         }
         return t >= c.time;
       },
-      end: function () { b.phasing = false; b.data.singing = false; _restoreSpeed(b, 0.3, 1); },
+      end: function () { b.phasing = false; b.invuln = false; b.data.singing = false; _restoreSpeed(b, 0.3, 1); },
     };
   },
 };
@@ -592,6 +592,7 @@ function bossPool(b) {
 var BOSSES = {
   heroBaton: {
     id: 'heroBaton', name: '히어로 바통', sub: '보스',
+    batonBoss: true,   // 진형권 '손님 사냥꾼' 대상 (유재후)
     images: {
       base: { src: 'assets/hero_baton1.jpg', fx: 0.5, fy: 0.27, s: 0.75 },
       p2:   { src: 'assets/hero_baton2.jpg', fx: 0.75, fy: 0.37, s: 0.32 },
@@ -606,6 +607,7 @@ var BOSSES = {
       passives: [
         { name: '울분', desc: function (c) { return 'IZK 1기 멤버에게 주는 피해 +' + Math.round((c.izkRage - 1) * 100) + '%'; } },
         { name: '끼야아아악', desc: function (c) { return '페이즈가 바뀔 때마다 맵 전체에 비명 (도전자 전원 ' + c.scream.damage + ' 피해)'; } },
+        { name: '점점 빨라짐', desc: function (c) { return '스킬 간격 ' + c.cd + '초 → 페이즈 2 x' + c.phaseCd[1] + ' → 페이즈 3 x' + c.phaseCd[2]; } },
         { name: '일단 씻고 오겠습니다', desc: function (c) { return '페이즈 3이 되면 ' + c.wash.time + '초 동안 자리를 비우고, 씻고 와서 최대 체력의 ' + Math.round(c.wash.heal * 100) + '% 회복'; } },
       ],
       skills: [
@@ -616,7 +618,7 @@ var BOSSES = {
         { key: 'joke', phase: 3, name: '자학개그', desc: function (c) { return '자학개그 ' + c.joke.count + '개를 날림. 맞으면 공격력 ' + Math.round((1 - c.joke.atkMul) * 100) + '% 감소 (IZK·진형권 무효)'; } },
         { key: 'baccarat', phase: 3, name: '바지 강림', desc: function (c) { return '바카라! 플(파랑)이면 주위 전체 ' + c.baccarat.playerDamage + ' 피해, 뱅(빨강)이면 한 명을 끝까지 쫓는 번개 ' + c.baccarat.bankerDamage + ' 피해'; } },
       ],
-      hard: { key: 'song', name: '노광석의 힘', desc: function (c) { return '체력 ' + Math.round(c.song.at * 100) + '% 이하에서 맵 맨 위로 올라가 노래. 맵 전체에 파장, 틈으로 피할 수 있음'; } },
+      hard: { key: 'song', name: '노광석의 힘', desc: function (c) { return '체력 ' + Math.round(c.song.at * 100) + '% 이하에서 맵 맨 위로 올라가 노래 (그동안 무적). 빠르고 두꺼운 파장이 쏟아지고 좁은 틈으로만 피할 수 있음'; } },
     },
     skills: [], noAutoPhase2: true,
     color: function (b) { return b.phase >= 3 ? b.cfg.phase3Color : b.phase >= 2 ? b.cfg.phase2Color : b.cfg.color; },
@@ -640,7 +642,7 @@ var BOSSES = {
       d.cd -= dt * b.cdRate;
       if (d.cd > 0) return;
       var pool = bossPool(b), opts = pool.filter(function (k) { return k !== d.last; }), k = (opts.length ? opts : pool)[Math.floor(Math.random() * (opts.length || pool.length))];
-      d.last = k; d.cur = k; d.cd = c.cd;
+      d.last = k; d.cur = k; d.cd = c.cd * (c.phaseCd[b.phase - 1] || 1);   // 페이즈가 오를수록 짧아짐
       b.action = BATON_SKILLS[k](bt, b);
       bt.emit('bossSkill', { skill: k });
     },
@@ -796,7 +798,7 @@ Battle.prototype.drawBossHUD = function (ctx, time) {
   extra.push('⏱ ' + mm + ':' + (ss < 10 ? '0' : '') + ss);
   ctx.fillStyle = '#dddddd'; ctx.fillText(extra.join('   '), W - 40, 196);
   ctx.textAlign = 'left'; ctx.fillStyle = '#999999'; ctx.font = '700 18px "Malgun Gothic",sans-serif';
-  ctx.fillText('패시브: 울분 · 끼야아아악 · 일단 씻고 오겠습니다' + (b.cfg.song.at > 0 ? ' · 하드: 노광석의 힘' : ''), 190, 196);
+  ctx.fillText('패시브: 울분 · 끼야아아악 · 점점 빨라짐 · 일단 씻고 오겠습니다' + (b.cfg.song.at > 0 ? ' · 하드: 노광석의 힘' : ''), 190, 196);
   ctx.restore();
 
   // 도전자 카드

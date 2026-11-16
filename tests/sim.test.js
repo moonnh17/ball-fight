@@ -1220,6 +1220,18 @@ test('문남휘 치트: 패치 횟수에 비례 (저점 낮고 고점 높음)', 
   d.data.patches = 15; const hi = ctx.devCheatDamage(d);
   assert(Math.abs(lo - C.damage) < 1e-9 && hi > lo * 3, lo + ' → ' + hi);
 });
+test('노광석의 힘 동안 보스 무적, 진형권은 보스 바통에게 2배, 페이즈가 오를수록 스킬 간격 짧아짐', () => {
+  const bt = new Battle(['gym', 'ibi'], 'boss', { boss: 'heroBaton', difficulty: 'hard' });
+  const [b, gym, ibi] = bt.balls;
+  assert(Math.abs(bt.damage(b, 10, gym) - 10 * gym.dmgMult * CONFIG.chars.gym.antiUninvited) < 1e-9, 'gym x2 vs boss');
+  b.phase = 3; b.action = bt.withArena(() => ctx.BATON_SKILLS.song(bt, b));
+  bt.update(DT);
+  assert.strictEqual(bt.damage(b, 50, ibi), 0, 'invulnerable while singing');
+  for (let i = 0; i < 60 * 10 && b.action; i++) bt.update(DT);
+  assert(!b.invuln && bt.damage(b, 10, ibi) > 0, 'vulnerable again after song');
+  const pc = b.cfg.phaseCd;
+  assert(pc[1] < pc[0] && pc[2] < pc[1]);
+});
 test('밸런스 참고: 3인 개인전 200판', () => {
   const wins = {}, lens = [];
   for (let i = 0; i < 200; i++) {
