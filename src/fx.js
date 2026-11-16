@@ -246,6 +246,17 @@ var FX = (function () {
     ko: function () { noise(0.6, 0.8, 1200); tone('sawtooth', 400, 40, 0.8, 0.35); },
     count: function () { tone('square', 660, 660, 0.12, 0.18); },
     go: function () { tone('square', 990, 990, 0.35, 0.2); tone('square', 1320, 1320, 0.35, 0.1); },
+    // 승리 팡파레: 북 + 빠른 상승 아르페지오 + 크게 울리는 장화음 + 반짝임
+    victory: function () {
+      noise(0.25, 0.6, 500); tone('sine', 150, 50, 0.3, 0.7);
+      [392, 523, 659, 784].forEach(function (f, i) { tone('square', f, f, 0.12, 0.13, i * 0.09); tone('triangle', f, f, 0.14, 0.18, i * 0.09); });
+      [523, 659, 784, 1047].forEach(function (f) { tone('sawtooth', f, f * 1.005, 1.1, 0.07, 0.38, [5, 6]); tone('triangle', f, f, 1.2, 0.12, 0.38); });
+      tone('triangle', 131, 131, 1.2, 0.35, 0.38); noise(0.2, 0.5, 600, 'lowpass', 0.38);
+      noise(0.9, 0.12, 9000, 'highpass', 0.4);
+      [1568, 2093, 2637].forEach(function (f, i) { tone('sine', f, f, 0.25, 0.06, 0.6 + i * 0.12); });
+    },
+    // 보스에게 졌을 때: 내려가는 단조
+    lose: function () { [392, 349, 311, 262].forEach(function (f, i) { tone('triangle', f, f * 0.98, 0.32, 0.2, i * 0.22); tone('sawtooth', f / 2, f / 2, 0.32, 0.06, i * 0.22); }); noise(0.6, 0.2, 300, 'lowpass', 0.66); },
     win: function () { [523, 659, 784, 1047, 1319].forEach(function (f, i) { tone('triangle', f, f, 0.35, 0.22, i * 0.11); }); },
     click: function () { tone('square', 900, 1200, 0.05, 0.12); },
     // 조하람 주뱃: 초음파 발사 / 명중 / 충전기 생성 / 해피

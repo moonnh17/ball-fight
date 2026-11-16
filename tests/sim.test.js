@@ -1536,6 +1536,8 @@ test('진형권(심리학자): 고정 타겟 3번 맞히면 표식 → 표식 �
   const b2 = new Battle(['psych', 'gym']); b2.balls.forEach(b => { b.maxHp = b.hp = 1e5; });
   run(b2, 40);
   assert(count(b2, 'damage', e => e.kind === 'pavlov') >= 3 && count(b2, 'pavlovMark') === 1, '돌진 ' + count(b2, 'damage', e => e.kind === 'pavlov'));
+  const hits = b2.log.filter(e => e.type === 'damage' && e.kind === 'pavlov');
+  assert(hits.every(h => b2.log.some(e => e.type === 'damage' && e.who === 'psych' && e.src === 'gym' && e.kind === 'contact' && e.t === h.t)), '돌진 반동: 본인도 박치기 피해');
 });
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');

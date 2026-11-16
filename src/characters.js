@@ -2642,7 +2642,7 @@ var CHARACTERS = {
     skills: [
       {
         key: 'pavlov', name: '파블로프의 개(준비)',
-        desc: '쿨타임 동안 노래를 틀다가, 쿨타임이 되면 고정한 한 명에게 돌진해 ' + CONFIG.chars.psych.pavlov.damage + ' 피해. 같은 적을 ' + CONFIG.chars.psych.pavlov.marks + '번 맞히면 표식(🔔)을 찍고, 표식 없는 적으로 타겟을 바꾼다',
+        desc: '쿨타임 동안 노래를 틀다가, 쿨타임이 되면 고정한 한 명에게 돌진해 ' + CONFIG.chars.psych.pavlov.damage + ' 피해 (부딪힌 반동으로 본인도 상대의 박치기 피해를 받음). 같은 적을 ' + CONFIG.chars.psych.pavlov.marks + '번 맞히면 표식(🔔)을 찍고, 표식 없는 적으로 타겟을 바꾼다',
         cd: function (c) { return c.pavlov.cd; },
         start: function (bt, b) {
           var c = b.cfg.pavlov, t = psychTarget(bt, b);
@@ -2665,6 +2665,7 @@ var CHARACTERS = {
               var o = bt.enemies(b).find(function (e) { return e.targetable && !e.air && _dist(e, b) < e.r + b.r; });
               if (o) {
                 bt.damage(o, c.damage, b, { color: '#7ad1ff', kind: 'pavlov' });
+                bt.damage(b, o.cfg.contactDamage || CONFIG.battle.contactDamage, o, { kind: 'contact' });   // 부딪힌 반동: 본인도 상대 박치기 피해
                 var a = Math.atan2(o.y - b.y, o.x - b.x); o.vx += Math.cos(a) * 600; o.vy += Math.sin(a) * 600;
                 FX.ring(o.x, o.y, o.r, o.r * 2, 0.3, '#7ad1ff', 10); FX.shake(10);
                 psychHit(bt, b, o);

@@ -34,7 +34,7 @@ var CONFIG = {
     hitSparks: true,
   },
 
-  sound: { volume: 0.45, bgm: 0.5 },   // bgm: 로비 배경음악 볼륨 (전투 화면 빼고 전부)
+  sound: { volume: 0.45, bgm: { lobby: 0.5, boss: 0.6, bossFight: 0.6, mind: 1.5, hall: 1.0 } },   // bgm: 곡별 볼륨 (전투 곡은 효과음에 묻히지 않게 크게)
 
   speeds: [0.5, 1, 1.5, 2, 3],   // 전투 배속 (전투 화면 버튼 / 숫자키 1~5)
 

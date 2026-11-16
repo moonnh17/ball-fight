@@ -574,7 +574,7 @@
     tourResolve();
     FX.reset(); G.scene = 'bracket'; G.pt = 0;
     if (G.tour.champion) {
-      FX.sfx('win');
+      FX.sfx('victory');
       if (!G.tour.recorded) {   // 우승 = 결승 승자, 준우승 = 결승 상대 (부전승으로 결승이 없으면 없음)
         G.tour.recorded = true;
         var fin = G.tour.rounds[G.tour.rounds.length - 2] || [], ch = G.tour.champion;
@@ -1060,7 +1060,7 @@
       if (bt.over) { G.phase = 'ko'; G.pt = 0; Records.battle(bt); }
     } else if (G.phase === 'ko') {
       G.pt += dt;
-      if (G.pt > 2.0) { G.scene = 'result'; G.pt = 0; FX.sfx('win'); }
+      if (G.pt > 2.0) { G.scene = 'result'; G.pt = 0; FX.sfx(bt.bossMode && bt.winnerTeam === 0 ? 'lose' : 'victory'); }   // 보스에게 지면 패배음
     }
 
     background();
@@ -1241,13 +1241,13 @@
   // ---------- 메인 루프 ----------
   var last = performance.now();
   // ---------- 배경음악 ----------
-  // 화면마다 곡: 보스전 대기(보스 로비 · 보스 도전자 고르기) = 보스 곡, 마인드 맵 전투 = 006 하우스, 그 밖의 전투 = 없음, 나머지 = 로비 곡
+  // 화면마다 곡: 보스전 대기(보스 로비 · 보스 도전자 고르기) = 보스 곡, 보스전 전투 = 0713, 마인드 전투 = 006 하우스, 마을회관 전투 = 마을회관 곡, 그 밖의 전투 = 없음, 나머지 = 로비 곡
   // HTML <audio>의 loop는 mp3 앞뒤 무음 때문에 이음매가 끊김 → Web Audio로 디코딩해서 무음을 잘라내고 이음매 없이 반복
-  var BGM_FILES = { lobby: 'assets/bgm_lobby.mp3', boss: 'assets/bgm_boss.mp3', mind: 'assets/bgm_mind.mp3' };
+  var BGM_FILES = { lobby: 'assets/bgm_lobby.mp3', boss: 'assets/bgm_boss.mp3', bossFight: 'assets/bgm_bossfight.mp3', mind: 'assets/bgm_mind.mp3', hall: 'assets/bgm_hall.mp3' };
   var bgm = { ctx: null, tracks: {} };
   function bgmPick() {
     if (FX.muted) return null;
-    if (G.scene === 'battle') return G.battle && G.battle.map && G.battle.map.id === 'mind' ? 'mind' : null;
+    if (G.scene === 'battle') { var bt = G.battle, mid = bt && bt.map && bt.map.id; return bt && bt.bossMode ? 'bossFight' : mid === 'mind' || mid === 'hall' ? mid : null; }
     if (G.scene === 'bossLobby' || (G.scene === 'select' && G.mode === 'boss')) return 'boss';
     return 'lobby';
   }
@@ -1282,7 +1282,7 @@
     var want = bgmPick(), any = false;
     if (want && !bgm.tracks[want]) bgmLoad(want);
     Object.keys(bgm.tracks).forEach(function (k) {
-      var tr = bgm.tracks[k], to = k === want ? CONFIG.sound.bgm : 0;
+      var tr = bgm.tracks[k], to = k === want ? CONFIG.sound.bgm[k] : 0;
       tr.vol += Math.max(-dt * 0.8, Math.min(dt * 0.8, to - tr.vol));
       tr.gain.gain.value = tr.vol;
       if (tr.vol > 0.001) any = true;
