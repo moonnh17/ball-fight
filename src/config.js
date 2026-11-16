@@ -63,10 +63,10 @@ var CONFIG = {
       origin: { passes: 1, speed: 1700, damage: 24, knock: 1500, warn: 0.8, out: 0.7 },
       joke: { count: 5, speed: 600, damage: 8, atkMul: 0.75, time: 6 },   // IZK 소속은 무효
       // 바지 강림: 페이즈 3부터 first초 뒤, 이후 cd초마다. 플 = blasts번 원형 폭발(반경 blastRadius, blastGap초 간격) / 뱅 = 추적 번개 (근처는 splash배)
-      baccarat: { cd: 7, first: 2, flip: 1.0, blasts: 6, blastRadius: 170, blastDelay: 0.8, blastGap: 0.15, playerDamage: 18, bankerDamage: 45, bankerDelay: 0.8, bankerRadius: 210, splash: 0.6, strikeScale: 2.8 },
+      baccarat: { cd: 7, first: 2, flip: 1.0, tieChance: 0.1, tieDamage: 16, blasts: 6, blastRadius: 170, blastDelay: 0.8, blastGap: 0.15, playerDamage: 18, bankerDamage: 45, bankerDelay: 0.8, bankerRadius: 210, splash: 0.6, strikeScale: 2.8 },
       song: { at: 0 },           // 하드 전용 노광석의 힘 (0 = 안 씀)
       synergyBonus: null,        // 도전자 팀 시너지 하나당 도전자 { damage, hp } 상승 (이지 전용)
-      easy: { hpPerPlayer: 185, dmgMult: 1.0, cd: 3.3, synergyBonus: { damage: 0.45, hp: 0.3 }, baccarat: { cd: 9, blasts: 4 } },
+      easy: { hpPerPlayer: 185, dmgMult: 1.0, cd: 3.3, baccarat: { cd: 9, blasts: 4 } },   // 이지 기준: 4명 + 시너지 하나로 30% 안팎
       hard: {
         hpPerPlayer: 135, dmgMult: 1.0, cd: 3.25, contactDamage: 8, cumulative: true, phaseCd: [1, 0.9, 0.78],   // 하드 기준: 8명 + 시너지 두 개 팀
         scream: { damage: 20 }, wash: { heal: 0.25 },
@@ -87,7 +87,9 @@ var CONFIG = {
     // 정발산: IZK 넷 + 유재후. 이동속도 x speed, 주는 피해 x decayDamage에서 decayTime초에 걸쳐 1까지 감소. IZK는 긴급소집 효과만 남음
     jeongbalsan: { members: ['한규성', '김선율', '조우연', '조하람', '유재후'], speed: 1.4, decayDamage: 1.3, decayTime: 120 },
     // 서울방송고: 팀 전체 받는 회복 x heal, 스킬 쿨타임이 cdr배 빨리 돎 / per: 그 사람만 추가
-    seoulbc: { members: ['최휘', '문남휘', '유재운', '차승민'], heal: 1.1, cdr: 1.15, per: { '최휘': { damage: 1.3 }, '문남휘': { damage: 0.7 } } },
+    seoulbc: { members: ['최휘', '문남휘', '유재운', '차승민'], heal: 1.1, cdr: 1.15, per: { '최휘': { damage: 1.2 } } },
+    // 디마디영디: 한규성(이비만)·문남휘·유재운·진형권·이윤빈·??? 한 팀. 팀 체력 x hp + 멤버별 고유 효과
+    dmdyd: { members: ['한규성', '문남휘', '유재운', '진형권', '이윤빈', '???'], needIds: ['ibi'], hp: 1.1, chiefMul: 2, devStacks: 20, stinkMul: 1.5, ripleyInterval: 4.5 },
     dogowner: { members: ['유재후', '서리'], droolRate: 1.6, per: { '서리': { speed: 1.3, damage: 1.1 }, '유재후': { speed: 0.8 } } },   // 개와 주인 (droolRate: 서리 침흘리기 빈도 배율)
   },
 

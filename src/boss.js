@@ -237,8 +237,8 @@ class Baccarat {
     if (this.t < c.flip) { if (Math.random() < dt * 10) FX.sfx('click'); return; }
     if (!this.done) {
       this.done = true;
-      var res = this.force || (Math.random() < 0.5 ? 'P' : 'B'); b.data.bac.res = res;
-      if (res === 'P') baccaratPlayer(bt, b, c); else baccaratBanker(bt, b, c);
+      var roll = Math.random(), res = this.force || (roll < c.tieChance ? 'T' : roll < c.tieChance + (1 - c.tieChance) / 2 ? 'P' : 'B'); b.data.bac.res = res;
+      if (res === 'P') baccaratPlayer(bt, b, c); else if (res === 'B') baccaratBanker(bt, b, c); else baccaratTie(bt, b, c);
       bt.emit('baccarat', { res: res });
     }
     if (this.t >= c.flip + 0.8) { this.dead = true; b.data.bac = null; }
@@ -264,6 +264,19 @@ function baccaratPlayer(bt, b, c) {
       _bPlayers(bt, b).forEach(function (o) { if (Math.hypot(o.x - p.x, o.y - p.y) < c.blastRadius + o.r * 0.5) bt.damage(o, c.playerDamage, b, { color: '#7fb3ff', kind: 'baccaratP' }); });
     });
   })(i);
+}
+// 무승부(초록): 맵이 크게 흔들리며 도전자 전원 피해
+function baccaratTie(bt, b, c) {
+  FX.banner('무승부!!', { color: '#39ff88', sub: '바지 강림 · 판이 뒤집힌다', size: 150, life: 1.5 });
+  FX.flash('#39ff88', 0.35, 0.35); FX.sfx('quake'); FX.sfx('scream');
+  [0, 0.25, 0.5, 0.75].forEach(function (d) { bt.after(d, function () { FX.shake(55 - d * 30); FX.sfx('slam'); }); });
+  bfx(bt, 'blast_gold', b.x, b.y, { scale: 4 });
+  for (var i = 0; i < 5; i++) FX.ring(b.x, b.y, b.r, 2200, 0.6 + i * 0.15, i % 2 ? '#ffffff' : '#39ff88', 22 - i * 3);
+  _bPlayers(bt, b).forEach(function (o) {
+    bt.damage(o, c.tieDamage, b, { color: '#7dff9a', kind: 'baccaratT' });
+    FX.burst(o.x, o.y, '#39ff88', 12, 400, 9, 0.5, 'square');
+  });
+  bt.emit('baccaratTie');
 }
 function baccaratBanker(bt, b, c) {
   var tgt = _bPick(bt, b);
@@ -634,7 +647,7 @@ var BOSSES = {
         { key: 'wallet', phase: 2, name: '지갑전사 바통', desc: function (c) { return '지폐 ' + c.wallet.coins + '장을 뿌림. 맞으면 체력이 조금 차지만 ' + c.wallet.stun + '초 동안 아무것도 못 함 (IZK·진형권 무효, 최휘는 잔고 +' + c.wallet.money + ')'; } },
         { key: 'origin', phase: 2, name: '바통의 근원', desc: function (c) { return '맵 밖으로 나갔다가 예고된 차선으로 킥보드를 타고 소주를 마시며 돌격. 맞으면 피해와 넉백' + (c.origin.passes > 1 ? ' (' + c.origin.passes + '번 왕복)' : ''); } },
         { key: 'joke', phase: 3, name: '자학개그', desc: function (c) { return '자학개그 ' + c.joke.count + '개를 날림. 맞으면 공격력 ' + Math.round((1 - c.joke.atkMul) * 100) + '% 감소 (IZK·진형권 무효)'; } },
-        { key: 'baccarat', phase: 3, name: '바지 강림 (고유 쿨타임)', desc: function (c) { return c.baccarat.cd + '초마다 다른 스킬과 함께 바카라! 플(파랑)이면 맵 곳곳에 원형 폭발 ' + c.baccarat.blasts + '번(각 ' + c.baccarat.playerDamage + '), 뱅(빨강)이면 한 명을 끝까지 쫓는 거대한 번개 ' + c.baccarat.bankerDamage + ' (근처도 휘말림)'; } },
+        { key: 'baccarat', phase: 3, name: '바지 강림 (고유 쿨타임)', desc: function (c) { return c.baccarat.cd + '초마다 다른 스킬과 함께 바카라! 플(파랑)이면 맵 곳곳에 원형 폭발 ' + c.baccarat.blasts + '번(각 ' + c.baccarat.playerDamage + '), 뱅(빨강)이면 한 명을 끝까지 쫓는 거대한 번개 ' + c.baccarat.bankerDamage + ' (근처도 휘말림). ' + Math.round(c.baccarat.tieChance * 100) + '% 확률로 초록 무승부: 맵이 흔들리며 전원 ' + c.baccarat.tieDamage; } },
       ],
       hard: { key: 'song', name: '노광석의 힘', desc: function (c) { return '체력 ' + Math.round(c.song.at * 100) + '% 이하에서 맵 맨 위로 올라가 노래 (그동안 무적). 빠르고 두꺼운 파장이 쏟아지고 좁은 틈으로만 피할 수 있음'; } },
     },
@@ -728,13 +741,14 @@ var BOSSES = {
       if (d.bac) {
         var bt0 = d.bac.t, res = d.bac.res;
         [-1, 1].forEach(function (k) {
-          var showP = res ? res === 'P' : Math.floor(bt0 * 10 + (k > 0 ? 1 : 0)) % 2 === 0, cx = x + k * 70, cy = y - r - 110;
+          var face = res ? res : Math.floor(bt0 * 10 + (k > 0 ? 1 : 0)) % 2 === 0 ? 'P' : 'B', cx = x + k * 70, cy = y - r - 110;
+          var fc = face === 'P' ? '#3b8bff' : face === 'B' ? '#ff2b3b' : '#39ff88';   // 무승부는 초록
           var flip = res ? 1 : Math.abs(Math.cos(bt0 * 18 + k));
           ctx.save(); ctx.translate(cx, cy); ctx.scale(flip, 1);
-          ctx.fillStyle = '#ffffff'; ctx.strokeStyle = showP ? '#3b8bff' : '#ff2b3b'; ctx.lineWidth = 6; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 24;
+          ctx.fillStyle = '#ffffff'; ctx.strokeStyle = fc; ctx.lineWidth = 6; ctx.shadowColor = fc; ctx.shadowBlur = 24;
           Battle.roundRect(ctx, -46, -64, 92, 128, 10); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
-          ctx.fillStyle = showP ? '#3b8bff' : '#ff2b3b'; ctx.font = '700 64px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillText(showP ? 'P' : 'B', 0, 4); ctx.restore();
+          ctx.fillStyle = fc; ctx.font = '700 64px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(face === 'T' ? '무' : face, 0, 4); ctx.restore();
         });
       }
       if (d.singing) { ctx.font = '70px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🎤', x + r * 0.9, y + r * 0.2); }

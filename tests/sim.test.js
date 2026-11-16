@@ -1036,7 +1036,7 @@ test('새 시너지: 화정듀오 / 정발산(IZK 수치 꺼짐, 피해 보너�
   assert(near(rock.cdRate, S.seoulbc.cdr) && rock.speed === CONFIG.chars.rock.speed, 'cooldown faster, no speed');
   assert(near(sb.damage(rock, 10, g2), 10), 'no extra damage taken');
   rock.hp = rock.maxHp - 50; assert(near(sb.heal(rock, 10), 10 * S.seoulbc.heal), 'heal +20%');
-  assert(near(dev.dmgMult, S.seoulbc.per['문남휘'].damage) && near(hau.dmgMult, S.seoulbc.per['최휘'].damage));
+  assert(near(dev.dmgMult, 1) && near(hau.dmgMult, S.seoulbc.per['최휘'].damage), '문남휘 감소 없음, 최휘 +20%');
   // 개와 주인
   const d = new Battle(team([['baton', 0], ['seori', 0], ['gym', 1]]), 'team');
   assert(d.hasSynergy('dogowner', 0));
@@ -1140,7 +1140,7 @@ test('보스전: 보스 혼자 0팀, 경기장이 넓어지고(화면은 축소)
   assert.strictEqual(e.boss.maxHp, Math.round(C.easy.hpPerPlayer * Math.pow(3, C.hpExp)));
   const syn = new Battle(['ibi', 'samsik', 'ch', 'hxpwm'], 'boss', { boss: 'heroBaton', difficulty: 'easy' });
   assert(syn.synergies.some(s => s.key === 'izk' && s.team === 1), '보스전에도 시너지');
-  assert(Math.abs(syn.balls[1].dmgMult - CONFIG.synergy.izk.damage * (1 + C.easy.synergyBonus.damage)) < 1e-9, '이지 시너지 보너스');
+  assert(Math.abs(syn.balls[1].dmgMult - CONFIG.synergy.izk.damage) < 1e-9, '이지 보너스 없음 (시너지 효과만)');
   assert.strictEqual(h.boss.cfg.roll.rolls, C.hard.roll.rolls); assert.strictEqual(e.boss.cfg.roll.rolls, C.roll.rolls);
   assert(h.boss.cfg.song.at > 0 && !(e.boss.cfg.song.at > 0), '노광석의 힘은 하드 전용');
 });
@@ -1241,6 +1241,36 @@ test('문남휘 밸런스 패치: 보스에게는 2%만 깎음, 바지 강림은
   b.action = { moves: false, update: () => false };   // 다른 스킬 사용 중
   for (let i = 0; i < 10; i++) bt.update(DT);
   assert(count(bt, 'bossSkill', e => e.skill === 'baccarat') === 1, 'baccarat should fire during another action');
+});
+test('바지 강림 무승부: 맵 전체 피해', () => {
+  const bt = new Battle(['gym', 'rock', 'ch'], 'boss', { boss: 'heroBaton', difficulty: 'easy' });
+  const b = bt.boss; bt.balls.slice(1).forEach(o => { o.hp = o.maxHp = 1e6; });
+  bt.withArena(() => ctx.startBaccarat(bt, b, 'T'));
+  for (let i = 0; i < 90; i++) bt.update(DT);
+  assert.strictEqual(count(bt, 'baccaratTie'), 1);
+  assert.strictEqual(bt.log.filter(e => e.type === 'damage' && e.kind === 'baccaratT').length, 3, 'all challengers hit');
+});
+test('디마디영디: 이비 한규성 필요, 이장 2배·쌍돌·헬스 메이트·발냄새 범위·기억력 감퇴 페이즈 1', () => {
+  const S = CONFIG.synergy.dmdyd;
+  const mk = h => new Battle(team([[h, 0], ['chief', 0], ['rock', 0], ['gym', 0], ['chino', 0], ['ripley', 0], ['baton', 1]]), 'team');
+  const bt = mk('ibi');
+  assert(bt.hasSynergy('dmdyd', 0), 'synergy on');
+  assert(!mk('predator').hasSynergy('dmdyd', 0), '포식자 한규성은 안 됨');
+  const [ibi, chief, rock, gym, chino, rip, foe] = bt.balls;
+  // 쌍돌
+  foe.hp = foe.maxHp = 1e6;
+  bt.withArena(() => ibi.skills[0].def.start(bt, ibi));
+  assert.strictEqual(bt.ents.filter(e => e instanceof Ents.Stone).length, 2, 'two stones');
+  // 헬스 메이트: 같은 팀이 아령 먹으면 벌크업
+  const dm0 = rock.dmgMult;
+  bt.withArena(() => { const p = bt.add(new Ents.Pickup(bt, gym, { x: rock.x, y: rock.y }, 'dumbbell')); p.t = 1; p.update(DT); });
+  assert(rock.dmgMult > dm0, 'teammate bulked');
+  // 이윤빈: 페이즈 1부터 무효화
+  chino.hp = chino.maxHp = 1e6;
+  assert.strictEqual(bt.damage(chino, 10, foe), 0, 'forget in phase 1');
+  // 이장 2배 회복
+  rock.hp = rock.maxHp - 100; const h0 = rock.hp; chief.data.tick = 0.5; bt.withArena(() => chief.def.update(bt, chief, 0));
+  assert(Math.abs((rock.hp - h0) - CONFIG.chars.chief.wellus.hps * 0.5 * S.chiefMul * rock.synHeal) < 1e-6, 'chief x2');
 });
 test('밸런스 참고: 3인 개인전 200판', () => {
   const wins = {}, lens = [];

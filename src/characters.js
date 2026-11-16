@@ -94,6 +94,8 @@ var Assets = {
 
 // ---------- 공용 헬퍼 ----------
 function _rnd(a, b) { return a + Math.random() * (b - a); }
+// 디마디영디 시너지가 이 공의 팀에 켜져 있는지
+function _dmdyd(bt, b) { return !!(bt && bt.hasSynergy && bt.hasSynergy('dmdyd', b.team)); }
 // 지금 이 캐릭터의 모습인지 (리플리가 변신했을 때 포함)
 function _is(b, id) { return (b.def.imgId || b.def.id) === id; }
 function _dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
@@ -697,12 +699,13 @@ function _scaleStats(b, k) { b.maxHp *= k; b.hp *= k; b.hpShown *= k; b.speed *=
 // 밸런스 패치: 상대 모든 스탯 -rate, 본인 +rate (누적 배율은 min~max로 제한)
 function devPatch(bt, s, t) {
   var c = s.cfg.patch;
-  if ((s.data.patches || 0) >= c.maxStacks) return;   // 최대 maxStacks회까지 중첩
+  var cap = _dmdyd(bt, s) ? CONFIG.synergy.dmdyd.devStacks : c.maxStacks;   // 디마디영디: 상한 증가
+  if ((s.data.patches || 0) >= cap) return;   // 최대 cap회까지 중첩
   var tr = t.isBoss ? c.bossRate : c.rate;   // 보스에겐 감소가 조금만
   _scaleStats(t, 1 - tr); t.data.patchF = (t.data.patchF || 1) * (1 - tr);
   _scaleStats(s, 1 + c.rate); s.data.patchF = (s.data.patchF || 1) * (1 + c.rate);
   s.data.patches = (s.data.patches || 0) + 1;
-  if (s.data.patches === c.maxStacks) bt.skillText(s, '패치 MAX', '#c6ff00');
+  if (s.data.patches === cap) bt.skillText(s, '패치 MAX', '#c6ff00');
   FX.text(t.x, t.y - t.r - 50, '-' + Math.round(tr * 100) + '%', '#ff5577', 48, 0.9);
   FX.text(s.x, s.y - s.r - 50, '+' + Math.round(c.rate * 100) + '%', '#c6ff00', 48, 0.9);
   for (var i = 0; i < 14; i++) FX.particle({ x: t.x + _rnd(-t.r, t.r), y: t.y + _rnd(-t.r, t.r), vx: _rnd(-200, 200), vy: _rnd(-60, 60), life: 0.35, size: _rnd(6, 16), color: i % 2 ? '#c6ff00' : '#ff2bd6', shape: 'square' });
@@ -784,8 +787,9 @@ function devLaser(bt, b) {
 class StinkZone {
   constructor(bt, owner) { this.bt = bt; this.owner = owner; this.z = -1; this.tick = 0; this.t = 0; }
   update(dt) {
-    var o = this.owner, c = o.cfg.stink, self = this;
-    if (!o.alive || !_is(o, 'rock')) { this.dead = true; return; }
+    var o = this.owner, self = this;
+    if (!o.alive || !_is(o, 'rock')) { this.dead = true; return; }   // 리플리가 다른 모습이 되면 정리 (먼저 확인)
+    var c = Object.assign({}, o.cfg.stink, { radius: o.cfg.stink.radius * (_dmdyd(this.bt, o) ? CONFIG.synergy.dmdyd.stinkMul : 1) });   // 디마디영디: 범위 확대
     this.t += dt; this.tick += dt;
     if (Math.random() < dt * 14) FX.particle({ x: o.x + _rnd(-1, 1) * c.radius * 0.7, y: o.y + _rnd(-1, 1) * c.radius * 0.7, vx: _rnd(-15, 15), vy: _rnd(-40, -10), life: 1.0, size: _rnd(16, 30), color: Math.random() < 0.5 ? '#9acd32' : '#c8b400', shape: 'smoke' });
     if (this.tick < 0.4999) return;
@@ -802,7 +806,7 @@ class StinkZone {
     });
   }
   draw(ctx) {
-    var o = this.owner, R = o.cfg.stink.radius;
+    var o = this.owner, R = o.cfg.stink.radius * (_dmdyd(this.bt, o) ? CONFIG.synergy.dmdyd.stinkMul : 1);
     ctx.save();
     var g = ctx.createRadialGradient(o.x, o.y, o.r, o.x, o.y, R);
     g.addColorStop(0, 'rgba(170,205,50,0.38)'); g.addColorStop(1, 'rgba(170,205,50,0)');
@@ -830,7 +834,7 @@ class Pickup {
     if (!o.alive || !_is(o, 'gym')) { this.dead = true; FX.burst(this.x, this.y, '#cccccc', 10, 300, 6, 0.4); return; }
     if (this.t < 0.4) return;
     var eater = bt.balls.find(function (b) {
-      return b.alive && !b.hidden && !b.air && !b.isBoss && (self.kind === 'protein' || b === o || b.team !== o.team) && Math.hypot(b.x - self.x, b.y - self.y) < b.r + self.r;   // 보스는 못 먹음
+      return b.alive && !b.hidden && !b.air && !b.isBoss && (self.kind === 'protein' || b === o || b.team !== o.team || _dmdyd(bt, o)) && Math.hypot(b.x - self.x, b.y - self.y) < b.r + self.r;   // 보스는 못 먹음, 디마디영디면 같은 팀도
     });
     if (!eater) return;
     this.dead = true;
@@ -871,6 +875,12 @@ function gymSpawn(bt, b, kind) {
 }
 function gymDumbbell(bt, o, e) {
   var c = o.cfg.dumbbell;
+  if (e !== o && e.team === o.team) {   // 디마디영디 헬스 메이트: 같은 팀도 벌크업 (크기는 그대로)
+    e.maxHp += c.hp; bt.heal(e, c.heal); e.dmgMult *= c.atk;
+    bt.skillText(e, '헬스 메이트!', '#9ad0ff'); FX.burst(e.x, e.y, '#9ad0ff', 20, 600, 8, 0.5); FX.sfx('powerup');
+    bt.emit('bulkMate', { who: e.def.id });
+    return;
+  }
   if (e === o) {
     o.data.bulk = (o.data.bulk || 0) + 1;
     o.maxHp += c.hp; bt.heal(o, c.heal);
@@ -888,9 +898,10 @@ function gymDumbbell(bt, o, e) {
 }
 function gymProtein(bt, o, e) {
   var c = o.cfg.protein;
-  if (e === o) {
-    bt.heal(o, c.heal);
-    o.status.haste = c.hasteTime; o.status.hasteMul = c.hasteMul;
+  if (e === o || (e.team === o.team && _dmdyd(bt, o))) {   // 디마디영디: 같은 팀도 본인 효과
+    var w = e;
+    bt.heal(w, c.heal);
+    w.status.haste = c.hasteTime; w.status.hasteMul = c.hasteMul;
     bt.skillText(o, '단백질 충전!', '#ff5e9a');
     FX.burst(o.x, o.y, '#ff5e9a', 24, 600, 9, 0.6); FX.sfx('powerup');
     bt.emit('proteinSelf');
@@ -921,8 +932,13 @@ function drawSilhouette(ctx, S) {
   ctx.beginPath(); ctx.arc(S / 2, S * 0.46, S * 0.09, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
 }
 var RIPLEY_SKIP = ['sy', 'chief'];   // 부활·팀 전용 같은 특수 규칙 캐릭터는 변신 대상에서 제외
-function ripleyPick(b) {
-  var ids = Object.keys(CHARACTERS).filter(function (id) { return id !== 'ripley' && id !== b.rip.as && RIPLEY_SKIP.indexOf(id) < 0; });
+function ripleyPick(b, bt) {
+  var ok = function (id) { return id !== 'ripley' && id !== b.rip.as && RIPLEY_SKIP.indexOf(id) < 0; };
+  if (_dmdyd(bt, b)) {   // 디마디영디: 같은 팀 동료로만 변신
+    var mates = bt.allies(b).map(function (a) { return a.def.imgId || a.def.id; }).filter(ok);
+    if (mates.length) return mates[Math.floor(Math.random() * mates.length)];
+  }
+  var ids = Object.keys(CHARACTERS).filter(ok);
   return ids[Math.floor(Math.random() * ids.length)];
 }
 // 리플리 증후군: 다른 캐릭터의 모습·스킬로 변신. 체력/속도/크기는 리플리 그대로
@@ -959,7 +975,7 @@ function ripleyTick(bt, b, dt) {
   var rc = CONFIG.chars.ripley;
   if (b.rip.glitch > 0) b.rip.glitch -= dt;
   b.rip.t -= dt;
-  if (b.rip.t <= 0) { b.rip.t = rc.interval; ripleyTransform(bt, b, ripleyPick(b)); }
+  if (b.rip.t <= 0) { b.rip.t = _dmdyd(bt, b) ? CONFIG.synergy.dmdyd.ripleyInterval : rc.interval; ripleyTransform(bt, b, ripleyPick(b, bt)); }
 }
 function ripleyPhase2(bt, b) {
   b.rip.glitch = CONFIG.chars.ripley.glitchTime * 2;
@@ -1932,6 +1948,10 @@ var CHARACTERS = {
           if (!t) return null;
           var p = bt.aim(b, t.x, t.y);
           bt.add(new Stone(bt, b, p.x, p.y, b.cfg.stone));
+          if (_dmdyd(bt, b)) {   // 디마디영디: 쌍돌 (조금 옆으로 하나 더)
+            var a = Math.atan2(p.y - b.y, p.x - b.x) + 0.18, d = Math.hypot(p.x - b.x, p.y - b.y);
+            bt.add(new Stone(bt, b, b.x + Math.cos(a) * d, b.y + Math.sin(a) * d, b.cfg.stone));
+          }
           bt.skillText(b, '돌 던지기'); FX.sfx('throw');
           return null;
         },
@@ -2502,7 +2522,7 @@ var CHARACTERS = {
     },
     // 기억력 감퇴: 페이즈 2에서 쿨타임마다 한 번 피해 무효화
     absorb: function (bt, t) {
-      if (t.phase < 2 || bt.time < t.data.forgetHitUntil) return false;
+      if ((t.phase < 2 && !_dmdyd(bt, t)) || bt.time < t.data.forgetHitUntil) return false;   // 디마디영디: 페이즈 1부터
       t.data.forgetHitUntil = bt.time + t.cfg.forget.hitCd;
       FX.text(t.x, t.y - t.r - 50, '방금 뭐였지?', '#b6ff00', 48, 0.9);
       FX.ring(t.x, t.y, t.r, t.r * 1.8, 0.35, '#b6ff00', 10);
@@ -2820,13 +2840,13 @@ var CHARACTERS = {
       if (d.tick < 0.4999) return;
       d.tick -= 0.5;
       [b].concat(bt.allies(b)).forEach(function (a) {   // 웰우스 개방: 같은 팀 지속 회복
-        if (bt.heal(a, b.cfg.wellus.hps * 0.5, true) > 0 && Math.random() < 0.35)
+        if (bt.heal(a, b.cfg.wellus.hps * 0.5 * (_dmdyd(bt, b) ? CONFIG.synergy.dmdyd.chiefMul : 1), true) > 0 && Math.random() < 0.35)
           FX.particle({ x: a.x + _rnd(-a.r, a.r) * 0.6, y: a.y, vx: 0, vy: -90, life: 0.7, size: 12, color: '#7dff9a', shape: 'square' });
       });
       if (b.phase < 2) return;
       bt.enemies(b).forEach(function (e) {   // 웰우스 대청소: 적 전체 지속 피해
         if (!e.targetable) return;
-        bt.damage(e, b.cfg.clean.dps * 0.5, b, { dot: true, color: '#d8c38a', kind: 'clean' });
+        bt.damage(e, b.cfg.clean.dps * 0.5 * (_dmdyd(bt, b) ? CONFIG.synergy.dmdyd.chiefMul : 1), b, { dot: true, color: '#d8c38a', kind: 'clean' });
         if (Math.random() < 0.25) FX.particle({ x: e.x + _rnd(-e.r, e.r) * 0.6, y: e.y, vx: _rnd(-20, 20), vy: -60, life: 0.7, size: 14, color: '#c8a46a', shape: 'smoke' });
       });
     },
@@ -3009,7 +3029,10 @@ var SYNERGIES = [
   { key: 'jeongbalsan', color: '#e8e8ff', name: '정발산', members: function () { return CONFIG.synergy.jeongbalsan.members; },
     desc: function () { var c = CONFIG.synergy.jeongbalsan; return '이동속도 ' + _pct(c.speed) + ', 주는 피해 ' + _pct(c.decayDamage) + ' (' + c.decayTime + '초에 걸쳐 0까지 감소). IZK 1기는 긴급소집 효과만 남음'; } },
   { key: 'seoulbc', color: '#d4a24c', name: '서울방송고', members: function () { return CONFIG.synergy.seoulbc.members; },
-    desc: function () { var c = CONFIG.synergy.seoulbc; return '받는 회복 ' + _pct(c.heal) + ', 스킬 쿨타임 ' + Math.round((1 - 1 / c.cdr) * 100) + '% 단축. 최휘 주는 피해 ' + _pct(c.per['최휘'].damage) + ', 문남휘 주는 피해 ' + _pct(c.per['문남휘'].damage); } },
+    desc: function () { var c = CONFIG.synergy.seoulbc; return '받는 회복 ' + _pct(c.heal) + ', 스킬 쿨타임 ' + Math.round((1 - 1 / c.cdr) * 100) + '% 단축. 최휘 주는 피해 ' + _pct(c.per['최휘'].damage); } },
+  { key: 'dmdyd', color: '#9cff57', name: '디마디영디', members: function () { return CONFIG.synergy.dmdyd.members; }, needIds: function () { return CONFIG.synergy.dmdyd.needIds; },
+    note: '한규성은 이비의 모습일 때만',
+    desc: function () { var c = CONFIG.synergy.dmdyd; return '체력 ' + _pct(c.hp) + '. 멤버별: 이장님 웰우스 효과 x' + c.chiefMul + ' / 개발자 밸런스 패치 최대 ' + c.devStacks + '회 / 한규성 쌍돌 / 유재운 발냄새 범위 x' + c.stinkMul + ' / 진형권 헬스 메이트(같은 팀도 아령·프로틴 효과) / 이윤빈 기억력 감퇴 페이즈 1부터 / ??? 같은 팀으로만 변신, ' + c.ripleyInterval + '초마다'; } },
   { key: 'dogowner', color: '#a1887f', name: '개와 주인', members: function () { return CONFIG.synergy.dogowner.members; },
     desc: function () { var p = CONFIG.synergy.dogowner.per; var c = CONFIG.synergy.dogowner; return '서리 이동속도 ' + _pct(p['서리'].speed) + ', 주는 피해 ' + _pct(p['서리'].damage) + ', 침흘리기 빈도 x' + c.droolRate + ' / 유재후 이동속도 ' + _pct(p['유재후'].speed); } },
 ];
