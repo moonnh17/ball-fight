@@ -1250,27 +1250,42 @@ test('바지 강림 무승부: 맵 전체 피해', () => {
   assert.strictEqual(count(bt, 'baccaratTie'), 1);
   assert.strictEqual(bt.log.filter(e => e.type === 'damage' && e.kind === 'baccaratT').length, 3, 'all challengers hit');
 });
-test('디마디영디: 이비 한규성 필요, 이장 2배·쌍돌·헬스 메이트·발냄새 범위·기억력 감퇴 페이즈 1', () => {
+test('디마디영디: 이장 2배·개발자 아군 버프·규순이 페이즈 1·헬스 메이트·전담 없음·??? 퇴장', () => {
   const S = CONFIG.synergy.dmdyd;
-  const mk = h => new Battle(team([[h, 0], ['chief', 0], ['rock', 0], ['gym', 0], ['chino', 0], ['ripley', 0], ['baton', 1]]), 'team');
+  const mk = (h, m) => new Battle(team([[h, 0], [m || 'chief', 0], ['rock', 0], ['gym', 0], ['chino', 0], ['ripley', 0], ['baton', 1]]), 'team');
   const bt = mk('ibi');
   assert(bt.hasSynergy('dmdyd', 0), 'synergy on');
   assert(!mk('predator').hasSynergy('dmdyd', 0), '포식자 한규성은 안 됨');
   const [ibi, chief, rock, gym, chino, rip, foe] = bt.balls;
-  // 쌍돌
   foe.hp = foe.maxHp = 1e6;
-  bt.withArena(() => ibi.skills[0].def.start(bt, ibi));
-  assert.strictEqual(bt.ents.filter(e => e instanceof Ents.Stone).length, 2, 'two stones');
-  // 헬스 메이트: 같은 팀이 아령 먹으면 벌크업
+  // 한규성: 규순이 쿨타임 1.3배, 페이즈 1에도 발동 가능
+  assert(Math.abs(ibi.skills[1].max - CONFIG.chars.ibi.awaken.cd * S.gyusuniCd) < 1e-9 && ibi.def.earlySkill2(bt, ibi));
+  // 진형권: 생성 주기 0.75배
+  assert(Math.abs(gym.skills[0].max - CONFIG.chars.gym.dumbbell.interval * S.gymSpawn) < 1e-9);
+  // 헬스 메이트
   const dm0 = rock.dmgMult;
   bt.withArena(() => { const p = bt.add(new Ents.Pickup(bt, gym, { x: rock.x, y: rock.y }, 'dumbbell')); p.t = 1; p.update(DT); });
   assert(rock.dmgMult > dm0, 'teammate bulked');
-  // 이윤빈: 페이즈 1부터 무효화
-  chino.hp = chino.maxHp = 1e6;
-  assert.strictEqual(bt.damage(chino, 10, foe), 0, 'forget in phase 1');
   // 이장 2배 회복
   rock.hp = rock.maxHp - 100; const h0 = rock.hp; chief.data.tick = 0.5; bt.withArena(() => chief.def.update(bt, chief, 0));
   assert(Math.abs((rock.hp - h0) - CONFIG.chars.chief.wellus.hps * 0.5 * S.chiefMul * rock.synHeal) < 1e-6, 'chief x2');
+  // ???: 10초 뒤 퇴장, 이윤빈 전담 안 나옴
+  for (let i = 0; i < 60 * (S.ripleyCall + 1); i++) bt.update(DT);
+  assert(!rip.alive && count(bt, 'ripleyCall') === 1 && count(bt, 'ripley') === 0, 'ripley left without transforming');
+  assert(!bt.ents.some(e => e instanceof Ents.Vape), 'vape should never appear');
+  // 개발자: 아군과 닿으면 아군 스탯 +2%
+  const b2 = mk('ibi', 'dev'); const [i2, dev] = b2.balls;
+  const hp0 = i2.maxHp; b2.time = 5; dev.def.onAllyContact(b2, dev, i2);
+  assert(Math.abs(i2.maxHp - hp0 * (1 + S.devAlly)) < 1e-6, 'dev ally buff');
+});
+test('노광석 포코: 같은 팀은 밀려나며 회복', () => {
+  const P = CONFIG.chars.nogwang.poco;
+  const bt = new Battle(team([['nogwang', 0], ['gym', 0], ['ibi', 1]]), 'team');
+  const [n, g] = bt.balls;
+  bt.withArena(() => { g.x = n.x + 200; g.y = n.y; g.vx = g.vy = 0; g.hp = g.maxHp - 50;
+    const w = bt.add(new Ents.GuitarWave(bt, n, 0, P)); for (let i = 0; i < 60 && !w.dead; i++) w.update(DT); });
+  assert(g.hp > g.maxHp - 50 && g.vx > 0, 'ally healed and pushed');
+  assert.strictEqual(count(bt, 'pocoAlly'), 1);
 });
 test('밸런스 참고: 3인 개인전 200판', () => {
   const wins = {}, lens = [];

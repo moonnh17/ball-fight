@@ -403,7 +403,7 @@ var Battle = (function () {
       // 스킬 쿨타임 / 자동 발동
       for (var i = 0; i < b.skills.length; i++) {
         var sk = b.skills[i];
-        if (i > 0 && b.phase < 2) continue;              // 2스킬은 페이즈 2부터
+        if (i > 0 && b.phase < 2 && !(b.def.earlySkill2 && b.def.earlySkill2(this, b))) continue;   // 2스킬은 페이즈 2부터 (earlySkill2면 처음부터)
         if (sk.def.passive) {                              // 쿨타임과 무관한 패시브 타이머(염색, 충전기)
           sk.cd -= dt * b.cdRate;
           if (sk.cd <= 0) { sk.cd += sk.max; this.emit('skill', { who: b.def.id, skill: sk.def.key }); sk.def.start(this, b); }
@@ -479,6 +479,10 @@ var Battle = (function () {
         a.vx += vrel * nx; a.vy += vrel * ny; b.vx -= vrel * nx; b.vy -= vrel * ny;
         this.walls(a); this.walls(b);
         if (a.team !== b.team) this.contact(a, b, a.x + nx * a.r, a.y + ny * a.r);   // 같은 팀은 튕기기만
+        else {   // 같은 팀끼리 닿을 때 훅 (디마디영디 개발자 버프)
+          var self2 = this;
+          [[a, b], [b, a]].forEach(function (p) { if (p[0].def.onAllyContact && self2.canEffect(p[0], p[1])) p[0].def.onAllyContact(self2, p[0], p[1]); });
+        }
       }
     }
 

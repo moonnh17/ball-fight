@@ -699,7 +699,7 @@ function _scaleStats(b, k) { b.maxHp *= k; b.hp *= k; b.hpShown *= k; b.speed *=
 // 밸런스 패치: 상대 모든 스탯 -rate, 본인 +rate (누적 배율은 min~max로 제한)
 function devPatch(bt, s, t) {
   var c = s.cfg.patch;
-  var cap = _dmdyd(bt, s) ? CONFIG.synergy.dmdyd.devStacks : c.maxStacks;   // 디마디영디: 상한 증가
+  var cap = c.maxStacks;
   if ((s.data.patches || 0) >= cap) return;   // 최대 cap회까지 중첩
   var tr = t.isBoss ? c.bossRate : c.rate;   // 보스에겐 감소가 조금만
   _scaleStats(t, 1 - tr); t.data.patchF = (t.data.patchF || 1) * (1 - tr);
@@ -934,10 +934,6 @@ function drawSilhouette(ctx, S) {
 var RIPLEY_SKIP = ['sy', 'chief'];   // 부활·팀 전용 같은 특수 규칙 캐릭터는 변신 대상에서 제외
 function ripleyPick(b, bt) {
   var ok = function (id) { return id !== 'ripley' && id !== b.rip.as && RIPLEY_SKIP.indexOf(id) < 0; };
-  if (_dmdyd(bt, b)) {   // 디마디영디: 같은 팀 동료로만 변신
-    var mates = bt.allies(b).map(function (a) { return a.def.imgId || a.def.id; }).filter(ok);
-    if (mates.length) return mates[Math.floor(Math.random() * mates.length)];
-  }
   var ids = Object.keys(CHARACTERS).filter(ok);
   return ids[Math.floor(Math.random() * ids.length)];
 }
@@ -971,11 +967,23 @@ function ripleyTransform(bt, b, targetId) {
   FX.sfx('glitch');
   bt.emit('ripley', { as: targetId, phase: b.phase });
 }
+// 디마디영디 ???: 변신하지 않고, callTime초 뒤 사업 전화를 받으러 경기장을 떠남 (탈락 처리)
+function ripleyCall(bt, b, dt) {
+  var c = CONFIG.synergy.dmdyd;
+  b.rip.call = (b.rip.call == null ? c.ripleyCall : b.rip.call) - dt;
+  if (b.rip.call > 1.5 && b.rip.call - dt <= 1.5) FX.sfx('ding');
+  if (b.rip.call > 0) return;
+  FX.banner('📞 사업 전화', { color: '#9cff57', sub: b.name + ' 잠깐 통화 좀... (퇴장)', size: 110, life: 1.6 });
+  FX.burst(b.x, b.y, '#5a5a7a', 30, 500, 16, 0.8, 'smoke'); FX.sfx('vanish');
+  if (b.action && b.action.end) b.action.end();
+  b.action = null; b.alive = false; b.deadAt = bt.time; b.leftCall = true;
+  bt.emit('ripleyCall');
+}
 function ripleyTick(bt, b, dt) {
   var rc = CONFIG.chars.ripley;
   if (b.rip.glitch > 0) b.rip.glitch -= dt;
   b.rip.t -= dt;
-  if (b.rip.t <= 0) { b.rip.t = _dmdyd(bt, b) ? CONFIG.synergy.dmdyd.ripleyInterval : rc.interval; ripleyTransform(bt, b, ripleyPick(b, bt)); }
+  if (b.rip.t <= 0) { b.rip.t = rc.interval; ripleyTransform(bt, b, ripleyPick(b, bt)); }
 }
 function ripleyPhase2(bt, b) {
   b.rip.glitch = CONFIG.chars.ripley.glitchTime * 2;
@@ -1419,6 +1427,20 @@ class GuitarWave {
       e.vx += (e.x - self.x) * k; e.vy += (e.y - self.y) * k;
       if (izk) FX.text(e.x, e.y - e.r - 60, 'IZK 불협화음 x' + c.izkMul, '#ffe14d', 40, 0.9);
       self.bt.emit('pocoHit', { who: e.def.id, izk: izk });
+    });
+    // 같은 팀: 음파에 밀려나며 회복 (팀원마다 1회)
+    this.bt.allies(this.owner).forEach(function (e) {
+      if (self.hit.has(e) || !e.targetable || e.air) return;
+      var d = Math.hypot(e.x - self.x, e.y - self.y);
+      if (d > Math.min(self.r, c.radius) + e.r * 0.5) return;
+      var da = Math.atan2(e.y - self.y, e.x - self.x) - self.ang;
+      if (Math.abs(Math.atan2(Math.sin(da), Math.cos(da))) > half + e.r / Math.max(d, 1)) return;
+      self.hit.add(e);
+      self.bt.heal(e, c.allyHeal);
+      var k = c.allyKnock / Math.max(1, d);
+      e.vx += (e.x - self.x) * k; e.vy += (e.y - self.y) * k;
+      FX.text(e.x, e.y - e.r - 60, '♪ 힐링 사운드', '#c79bff', 36, 0.8);
+      self.bt.emit('pocoAlly', { who: e.def.id });
     });
     if (this.r >= c.radius) this.dead = true;
   }
@@ -1932,6 +1954,12 @@ var CHARACTERS = {
     intro: '멀리서 돌을 던져 견제하는 원거리형. 페이즈 2에서는 규순이로 각성해 경기장을 어둡게 만들고 새·점프 공격·충격파 중 하나를 랜덤으로 쓴다. (규순이일 땐 여성 취급)',
     passives: [{ name: '규순이', desc: '규순이로 각성한 동안은 여성 취급 (조우연의 뱀 피해 2배)' }],
     female: function (b) { return !!b.data.gyusuni; },
+    // 디마디영디: 규순이를 페이즈 1부터, 대신 쿨타임 x gyusuniCd
+    earlySkill2: function (bt, b) { return _dmdyd(bt, b); },
+    init: function (bt, b) {
+      if (!_dmdyd(bt, b)) return;
+      var sk = b.skills[1]; sk.max *= CONFIG.synergy.dmdyd.gyusuniCd; sk.cd = sk.max * 0.5;
+    },
     // IZK 1기 긴급소집으로 예약된 3연속 각성: 다른 행동이 끝나면 바로 시작
     update: function (bt, b) {
       if (b.data.pendingCombo && !b.action && !b.disabled && !b.hidden) {
@@ -1948,10 +1976,6 @@ var CHARACTERS = {
           if (!t) return null;
           var p = bt.aim(b, t.x, t.y);
           bt.add(new Stone(bt, b, p.x, p.y, b.cfg.stone));
-          if (_dmdyd(bt, b)) {   // 디마디영디: 쌍돌 (조금 옆으로 하나 더)
-            var a = Math.atan2(p.y - b.y, p.x - b.x) + 0.18, d = Math.hypot(p.x - b.x, p.y - b.y);
-            bt.add(new Stone(bt, b, b.x + Math.cos(a) * d, b.y + Math.sin(a) * d, b.cfg.stone));
-          }
           bt.skillText(b, '돌 던지기'); FX.sfx('throw');
           return null;
         },
@@ -2384,6 +2408,16 @@ var CHARACTERS = {
     ],
     passives: [{ name: '개발자 박치기', desc: function () { return '몸통 박치기 데미지 ' + CONFIG.chars.dev.contactDamage + ' (기본 ' + CONFIG.battle.contactDamage + ')'; } }],
     onContact: function (bt, s, t) { if (!s.hidden && bt.canEffect(s, t)) devPatch(bt, s, t); },
+    // 디마디영디: 아군과 닿으면 아군 스탯 +2% (아군 한 명당 최대 allyMax번)
+    onAllyContact: function (bt, s, t) {
+      if (!_dmdyd(bt, s)) return;
+      var c = CONFIG.synergy.dmdyd;
+      if ((t.data.devGift || 0) >= c.devAllyMax) return;
+      t.data.devGift = (t.data.devGift || 0) + 1;
+      _scaleStats(t, 1 + c.devAlly);
+      FX.text(t.x, t.y - t.r - 50, '핫픽스 +' + Math.round(c.devAlly * 100) + '%', '#c6ff00', 40, 0.8); FX.sfx('patch');
+      bt.emit('devGift', { who: t.def.id, n: t.data.devGift });
+    },
     gauge: function (b, k) {
       if (k === 0) return { fill: b.data.patches / b.cfg.patch.maxStacks, label: '밸런스 패치 ' + b.data.patches + '/' + b.cfg.patch.maxStacks + ' · x' + b.data.patchF.toFixed(2), color: '#c6ff00' };
       return { label: '치트 · 위력 ' + Math.round(devCheatDamage(b) * b.dmgMult) };
@@ -2448,7 +2482,10 @@ var CHARACTERS = {
     portrait: function (b) { return b.phase >= 2 ? 'p2' : 'base'; },
     blurb: '이동 느림 · 체력 최고',
     intro: '헬스장 터줏대감. 맵에 생기는 아령을 먹을수록 체력·공격력·덩치가 커진다. 페이즈 2에서는 프로틴까지 챙겨 먹고 조우연의 뱀 피해가 절반이 된다. 초대받지 못한 손님(유재후·???)에게는 2배 피해.',
-    init: function (bt, b) { b.data.bulk = 0; },
+    init: function (bt, b) {
+      b.data.bulk = 0;
+      if (_dmdyd(bt, b)) b.skills.forEach(function (sk) { sk.max *= CONFIG.synergy.dmdyd.gymSpawn; sk.cd = Math.min(sk.cd, sk.max); });   // 디마디영디: 아령·프로틴 더 자주
+    },
     passives: [
       { name: '헬창 박치기', desc: function () { return '몸통 박치기 데미지 ' + CONFIG.chars.gym.contactDamage + ' (기본 ' + CONFIG.battle.contactDamage + ')'; } },
       { name: '손님 사냥꾼', desc: function () { return '초대받지 못한 손님에게 주는 피해 x' + CONFIG.chars.gym.antiUninvited + ' (개인전에선 유재후·???에게, 보스 히어로 바통에게도)'; } },
@@ -2504,7 +2541,8 @@ var CHARACTERS = {
     update: function (bt, b, dt) {
       var c = b.cfg.vape, d = b.data;
       // 전담이 없으면 잠시 뒤 새로 생성
-      if (!bt.ents.some(function (e) { return e instanceof Vape && e.owner === b && !e.dead; })) {
+      var lost = _dmdyd(bt, b);   // 디마디영디: 전담을 평생 못 찾음 (안 나옴), 짜증은 절반
+      if (!lost && !bt.ents.some(function (e) { return e instanceof Vape && e.owner === b && !e.dead; })) {
         d.vapeRespawn -= dt;
         if (d.vapeRespawn <= 0) { d.vapeRespawn = c.respawn; chinoSpawnVape(bt, b); }
       }
@@ -2512,17 +2550,17 @@ var CHARACTERS = {
       d.growT += dt;
       if (d.growT >= c.growEvery) {
         d.growT -= c.growEvery;
-        var k = Math.min(c.maxGrow, d.vapeF * (1 + c.growRate)) / d.vapeF;
+        var gr = c.growRate * (lost ? CONFIG.synergy.dmdyd.chinoGrow : 1), k = Math.min(c.maxGrow, d.vapeF * (1 + gr)) / d.vapeF;
         if (k > 1) {
           _scaleStats(b, k); d.vapeF *= k;
-          FX.text(b.x, b.y - b.r - 40, '짜증 +' + Math.round(c.growRate * 100) + '%', '#ff9ecf', 36, 0.7);
+          FX.text(b.x, b.y - b.r - 40, '짜증 +' + Math.round(gr * 100) + '%', '#ff9ecf', 36, 0.7);
           bt.emit('vapeGrow', { f: d.vapeF });
         }
       }
     },
     // 기억력 감퇴: 페이즈 2에서 쿨타임마다 한 번 피해 무효화
     absorb: function (bt, t) {
-      if ((t.phase < 2 && !_dmdyd(bt, t)) || bt.time < t.data.forgetHitUntil) return false;   // 디마디영디: 페이즈 1부터
+      if (t.phase < 2 || bt.time < t.data.forgetHitUntil) return false;
       t.data.forgetHitUntil = bt.time + t.cfg.forget.hitCd;
       FX.text(t.x, t.y - t.r - 50, '방금 뭐였지?', '#b6ff00', 48, 0.9);
       FX.ring(t.x, t.y, t.r, t.r * 1.8, 0.35, '#b6ff00', 10);
@@ -2746,7 +2784,7 @@ var CHARACTERS = {
         start: function (bt, b) { nogwangSpawn(bt, b); },
       },
       {
-        key: 'poco', name: '포코의 불협화음', desc: '진행 방향 부채꼴로 기타 파동. 맞은 적은 피해 + 크게 넉백 (IZK 1기 멤버에겐 1.5배)',
+        key: 'poco', name: '포코의 불협화음', desc: '진행 방향 부채꼴로 기타 파동. 맞은 적은 피해 + 크게 넉백 (IZK 1기 멤버에겐 1.5배). 같은 팀은 밀려나며 체력 회복',
         cd: function (c) { return c.poco.cd; },
         start: function (bt, b) { return nogwangPoco(bt, b); },
       },
@@ -2994,9 +3032,15 @@ var CHARACTERS = {
     intro: '정체를 알 수 없는 검은 실루엣. 몇 초마다 다른 캐릭터로 변신해 그 캐릭터의 스킬을 그대로 쓴다. 페이즈 2부터는 변신한 캐릭터의 2페이즈 모습이 되어 2스킬까지 쓰고, 화면이 지직거린다.',
     passives: [{ name: '모방', desc: '변신하면 그 캐릭터의 스킬·패시브를 그대로 사용 (체력·속도·크기는 리플리 그대로)' }],
     init: function (bt, b) { b.rip = { t: CONFIG.chars.ripley.firstChange, glitch: 0, as: null }; },
-    update: function (bt, b, dt) { ripleyTick(bt, b, dt); },
+    update: function (bt, b, dt) {
+      if (_dmdyd(bt, b)) { ripleyCall(bt, b, dt); return; }   // 디마디영디: 변신 안 하고 전화 받으러 감
+      ripleyTick(bt, b, dt);
+    },
     onPhase2: function (bt, b) { ripleyPhase2(bt, b); },
-    drawExtra: function (ctx, b, bt, x, y, r) { ripleyGlitch(ctx, b, x, y, r); },
+    drawExtra: function (ctx, b, bt, x, y, r, time) {
+      ripleyGlitch(ctx, b, x, y, r);
+      if (b.rip.call != null && b.rip.call < 2.5 && Math.sin(time * 18) > 0) { ctx.font = '56px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('📞', x + r * 0.8, y - r - 20); }
+    },
     hudTag: ripleyTag,
     skills: [
       {
@@ -3032,7 +3076,7 @@ var SYNERGIES = [
     desc: function () { var c = CONFIG.synergy.seoulbc; return '받는 회복 ' + _pct(c.heal) + ', 스킬 쿨타임 ' + Math.round((1 - 1 / c.cdr) * 100) + '% 단축. 최휘 주는 피해 ' + _pct(c.per['최휘'].damage); } },
   { key: 'dmdyd', color: '#9cff57', name: '디마디영디', members: function () { return CONFIG.synergy.dmdyd.members; }, needIds: function () { return CONFIG.synergy.dmdyd.needIds; },
     note: '한규성은 이비의 모습일 때만',
-    desc: function () { var c = CONFIG.synergy.dmdyd; return '체력 ' + _pct(c.hp) + '. 멤버별: 이장님 웰우스 효과 x' + c.chiefMul + ' / 개발자 밸런스 패치 최대 ' + c.devStacks + '회 / 한규성 쌍돌 / 유재운 발냄새 범위 x' + c.stinkMul + ' / 진형권 헬스 메이트(같은 팀도 아령·프로틴 효과) / 이윤빈 기억력 감퇴 페이즈 1부터 / ??? 같은 팀으로만 변신, ' + c.ripleyInterval + '초마다'; } },
+    desc: function () { var c = CONFIG.synergy.dmdyd; return '체력 ' + _pct(c.hp) + '. 멤버별: 이장님 웰우스 효과 x' + c.chiefMul + ' / 개발자 아군과 닿으면 아군 스탯 +' + Math.round(c.devAlly * 100) + '% / 한규성 규순이를 페이즈 1부터 (쿨타임 x' + c.gyusuniCd + ') / 유재운 발냄새 범위 x' + c.stinkMul + ' / 진형권 헬스 메이트 + 아령·프로틴 생성 x' + c.gymSpawn + ' / 이윤빈 전담을 평생 못 찾음, 짜증 x' + c.chinoGrow + ' / ??? 변신 안 하고 ' + c.ripleyCall + '초 뒤 사업 전화 받으러 퇴장'; } },
   { key: 'dogowner', color: '#a1887f', name: '개와 주인', members: function () { return CONFIG.synergy.dogowner.members; },
     desc: function () { var p = CONFIG.synergy.dogowner.per; var c = CONFIG.synergy.dogowner; return '서리 이동속도 ' + _pct(p['서리'].speed) + ', 주는 피해 ' + _pct(p['서리'].damage) + ', 침흘리기 빈도 x' + c.droolRate + ' / 유재후 이동속도 ' + _pct(p['유재후'].speed); } },
 ];

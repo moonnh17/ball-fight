@@ -89,7 +89,7 @@ var CONFIG = {
     // 서울방송고: 팀 전체 받는 회복 x heal, 스킬 쿨타임이 cdr배 빨리 돎 / per: 그 사람만 추가
     seoulbc: { members: ['최휘', '문남휘', '유재운', '차승민'], heal: 1.1, cdr: 1.15, per: { '최휘': { damage: 1.2 } } },
     // 디마디영디: 한규성(이비만)·문남휘·유재운·진형권·이윤빈·??? 한 팀. 팀 체력 x hp + 멤버별 고유 효과
-    dmdyd: { members: ['한규성', '문남휘', '유재운', '진형권', '이윤빈', '???'], needIds: ['ibi'], hp: 1.1, chiefMul: 2, devStacks: 20, stinkMul: 1.5, ripleyInterval: 4.5 },
+    dmdyd: { members: ['한규성', '문남휘', '유재운', '진형권', '이윤빈', '???'], needIds: ['ibi'], hp: 1.1, chiefMul: 2, devAlly: 0.02, devAllyMax: 10, gyusuniCd: 1.3, stinkMul: 2, gymSpawn: 0.75, chinoGrow: 0.5, ripleyCall: 10 },
     dogowner: { members: ['유재후', '서리'], droolRate: 1.6, per: { '서리': { speed: 1.3, damage: 1.1 }, '유재후': { speed: 0.8 } } },   // 개와 주인 (droolRate: 서리 침흘리기 빈도 배율)
   },
 
@@ -222,7 +222,8 @@ var CONFIG = {
       //   적이 먹으면 공격력 영구 x enemyAtk / 같은 팀·본인이 먹으면 공격력 x allyAtk, 이동속도 x allySpeed (영구)
       hot6: { interval: 5.5, max: 3, enemyAtk: 0.88, allyAtk: 1.12, allySpeed: 1.06, maxStacks: 6 },   // maxStacks: 한 사람당 효과 최대 횟수
       // 2스킬 포코의 불협화음: 진행 방향 부채꼴(반경 radius, 반각 angle도) 기타 파동. IZK 멤버에겐 x izkMul
-      poco: { cd: 4.5, radius: 680, angle: 55, damage: 16, knock: 2300, izkMul: 1.5, shake: 18 },
+      poco: { cd: 4.5, radius: 680, angle: 55, damage: 16, knock: 2300, allyHeal: 10, allyKnock: 900,   // allyHeal/allyKnock: 같은 팀에게
+              izkMul: 1.5, shake: 18 },
     },
     sy: {     // 김선율 (김선율의 모습) — 기본 체력 적음
       hp: 50, speed: 470, radius: 64, color: '#ff8fb1', phase2Color: '#00e5ff',
