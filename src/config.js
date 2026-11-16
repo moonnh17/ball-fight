@@ -3,8 +3,8 @@
 var CONFIG = {
   W: 1080,
   H: 1920,
-  arena: { x: 40, y: 400, w: 1000, h: 1280 },
-  screen: { x: 40, y: 400, w: 1000, h: 1280 },   // 화면에 그리는 경기장 자리 (보스전은 arena가 더 넓고 축소해서 그림)
+  arena: { x: 40, y: 470, w: 1000, h: 1280 },   // 경기장 바로 아래에 버튼 줄이 오도록 아래로
+  screen: { x: 40, y: 470, w: 1000, h: 1280 },   // 화면에 그리는 경기장 자리 (보스전은 arena가 더 넓고 축소해서 그림)
 
   battle: {
     maxTime: 180,           // 최대 전투 시간(초). 끝나면 체력 비율 높은 쪽 승리
@@ -66,9 +66,9 @@ var CONFIG = {
       baccarat: { cd: 7, first: 2, flip: 1.0, tieChance: 0.1, tieDamage: 16, blasts: 6, blastRadius: 170, blastDelay: 0.8, blastGap: 0.15, playerDamage: 18, bankerDamage: 45, bankerDelay: 0.8, bankerRadius: 210, splash: 0.6, strikeScale: 2.8 },
       song: { at: 0 },           // 하드 전용 노광석의 힘 (0 = 안 씀)
       synergyBonus: null,        // 도전자 팀 시너지 하나당 도전자 { damage, hp } 상승 (이지 전용)
-      easy: { hpPerPlayer: 185, dmgMult: 1.0, cd: 3.3, baccarat: { cd: 9, blasts: 4 } },   // 이지 기준: 4명 + 시너지 하나로 30% 안팎
+      easy: { hpPerPlayer: 185, dmgMult: 1.1, cd: 3.3, baccarat: { cd: 9, blasts: 4 } },   // 이지 기준: 4명 + 시너지 하나로 30% 안팎
       hard: {
-        hpPerPlayer: 135, dmgMult: 1.0, cd: 3.25, contactDamage: 8, cumulative: true, phaseCd: [1, 0.9, 0.78],   // 하드 기준: 8명 + 시너지 두 개 팀
+        hpPerPlayer: 135, dmgMult: 1.1, cd: 3.25, contactDamage: 8, cumulative: true, phaseCd: [1, 0.9, 0.78],   // 하드 기준: 8명 + 시너지 두 개 팀
         scream: { damage: 20 }, wash: { heal: 0.25 },
         roll: { rolls: 3 }, hot6: { bullets: 16 }, wallet: { coins: 8, stun: 2 },
         origin: { passes: 2 }, joke: { count: 8, atkMul: 0.65 }, baccarat: { cd: 5.5, blasts: 10, bankerDamage: 55 },
@@ -85,11 +85,12 @@ var CONFIG = {
     ssabang: { members: ['문남휘', '진형권', '한규성', '유재운'], hp: 1.2, damage: 1.1, cdr: 1.053 }, // 싸방: 문남휘·진형권·한규성·유재운이 같은 팀이면 체력 +20%, 주는 피해 +10%, 스킬 쿨타임 5% 감소
     hwajeong: { members: ['유재후', '한규성'], needIds: ['predator'], damage: 1.2, hp: 1.15 },   // 화정듀오: 유재후 + 한규성(포식자의 모습)
     // 정발산: IZK 넷 + 유재후. 이동속도 x speed, 주는 피해 x decayDamage에서 decayTime초에 걸쳐 1까지 감소. IZK는 긴급소집 효과만 남음
-    jeongbalsan: { members: ['한규성', '김선율', '조우연', '조하람', '유재후'], speed: 1.4, decayDamage: 1.3, decayTime: 120 },
+    // nogwangRange/nogwangHeal: 노광석의 모습 유재후의 포코의 불협화음 범위·팀원 회복량 배율
+    jeongbalsan: { members: ['한규성', '김선율', '조우연', '조하람', '유재후'], speed: 1.4, decayDamage: 1.3, decayTime: 120, nogwangRange: 1.3, nogwangHeal: 1.6 },
     // 서울방송고: 팀 전체 받는 회복 x heal, 스킬 쿨타임이 cdr배 빨리 돎 / per: 그 사람만 추가
     seoulbc: { members: ['최휘', '문남휘', '유재운', '차승민'], heal: 1.1, cdr: 1.15, per: { '최휘': { damage: 1.2 } } },
     // 디마디영디: 한규성(이비만)·문남휘·유재운·진형권·이윤빈·??? 한 팀. 팀 체력 x hp + 멤버별 고유 효과
-    dmdyd: { members: ['한규성', '문남휘', '유재운', '진형권', '이윤빈', '???'], needIds: ['ibi'], hp: 1.1, chiefMul: 1.5, chiefTaken: 1.3, devAlly: 0.02, devAllyMax: 10, gyusuniCd: 1.3, stinkMul: 2, gymSpawn: 0.75, chinoGrow: 0.5, ripleyCall: 10 },
+    dmdyd: { members: ['한규성', '문남휘', '유재운', '진형권', '이윤빈', '???'], needIds: ['ibi'], hp: 1.1, chiefMul: 1.3, chiefTaken: 1.3, devAlly: 0.02, devAllyMax: 10, gyusuniCd: 1.3, stinkMul: 2, gymSpawn: 0.75, chinoGrow: 0.334, ripleyCall: 10 },
     dogowner: { members: ['유재후', '서리'], droolRate: 1.6, per: { '서리': { speed: 1.3, damage: 1.1 }, '유재후': { speed: 0.8 } } },   // 개와 주인 (droolRate: 서리 침흘리기 빈도 배율)
   },
 

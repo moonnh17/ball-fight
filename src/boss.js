@@ -862,27 +862,47 @@ Battle.prototype.drawBossHUD = function (ctx, time) {
   ctx.fillText('패시브: 울분 · 끼야아아악 · 점점 빨라짐 · 일단 씻고 오겠습니다' + (b.cfg.song.at > 0 ? ' · 하드: 노광석의 힘' : ''), 190, 196);
   ctx.restore();
 
-  // 도전자 카드
+  // 도전자 카드: 초상화 · 이름 · 체력(숫자) · 스킬 두 개 쿨타임
   var ps = this.balls.filter(function (o) { return !o.isBoss; }), n = ps.length;
-  var cols = n <= 4 ? n : n <= 8 ? 4 : Math.ceil(n / 3), rows = Math.ceil(n / cols), gap = 8, top = 222, area = 168;
-  var ch = Math.min(84, (area - (rows - 1) * gap) / rows), cw = (W - 32 - (cols - 1) * gap) / cols;
+  var cols = n <= 4 ? n : n <= 8 ? 4 : Math.ceil(n / 3), rows = Math.ceil(n / cols), gap = 8, top = 222, area = CONFIG.screen.y - 34 - top;
+  var ch = Math.min(124, (area - (rows - 1) * gap) / rows), cw = (W - 32 - (cols - 1) * gap) / cols;
   ps.forEach(function (o, i) {
-    var x = 16 + (i % cols) * (cw + gap), y = top + Math.floor(i / cols) * (ch + gap), oc = o.color(), k = ch / 96;
+    var x = 16 + (i % cols) * (cw + gap), y = top + Math.floor(i / cols) * (ch + gap), oc = o.color(), k = ch / 110;
     ctx.save(); ctx.globalAlpha = o.alive ? 1 : 0.35;
     ctx.fillStyle = 'rgba(14,10,30,0.88)'; rr(ctx, x, y, cw, ch, 14 * k + 4); ctx.fill();
     ctx.lineWidth = 3; ctx.strokeStyle = o.alive ? oc : '#555'; ctx.stroke();
-    var r = ch * 0.36, cx = x + 10 + r, cy = y + ch / 2;
+    var r = Math.min(ch * 0.3, cw * 0.16), cx = x + 8 + r, cy = y + ch * 0.42;
     Assets.drawBall(ctx, o.def, o.def.portrait(o), cx, cy, r, 0, oc);
-    ctx.lineWidth = 3; ctx.strokeStyle = oc; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
-    var tx = cx + r + 10, tw2 = x + cw - 10 - tx;
-    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.font = '700 ' + Math.round(24 * k) + 'px "Do Hyeon","Malgun Gothic",sans-serif';
-    ctx.fillStyle = '#ffffff'; ctx.fillText(o.name + (o.alive ? '' : ' ✝'), tx, y + ch * 0.42, tw2);
-    var hb = Math.max(6, 14 * k), hy = y + ch * 0.58;
+    ctx.lineWidth = 3; ctx.strokeStyle = o.phase >= 2 ? o.cfg.phase2Color : oc; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+    var tx = cx + r + 8, tw2 = x + cw - 8 - tx;
+    // 이름 + 상태
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.font = '700 ' + Math.round(21 * k) + 'px "Do Hyeon","Malgun Gothic",sans-serif';
+    ctx.fillStyle = '#ffffff'; ctx.fillText(o.name + (o.alive ? '' : (o.leftCall ? ' 📞' : ' ✝')), tx, y + 24 * k, tw2 * 0.75);
+    var ic = (o.phase >= 2 ? '⚡' : '') + (o.status.stun > 0 ? '💫' : '') + (o.status.atk > 0 && o.status.atkMul < 1 ? '😞' : '') + (o.status.slow > 0 ? '🐌' : '');
+    if (ic) { ctx.font = Math.round(17 * k) + 'px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'right'; ctx.fillText(ic, x + cw - 6, y + 23 * k); ctx.textAlign = 'left'; }
+    // 체력 바 + 숫자
+    var hb = Math.max(10, 20 * k), hy = y + 34 * k, f = Math.max(0, o.hp / o.maxHp);
     ctx.fillStyle = '#1b1530'; rr(ctx, tx, hy, tw2, hb, hb / 2); ctx.fill();
-    ctx.fillStyle = o.hp / o.maxHp < 0.3 ? '#ff4d6d' : '#7dff9a'; rr(ctx, tx, hy, tw2 * Math.max(0, o.hp / o.maxHp), hb, hb / 2); ctx.fill();
-    var ic = '';
-    if (o.status.stun > 0) ic += '💫'; if (o.status.atk > 0 && o.status.atkMul < 1) ic += '😞'; if (o.phase >= 2) ic += '⚡';
-    if (ic) { ctx.font = Math.round(20 * k) + 'px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'right'; ctx.fillText(ic, x + cw - 8, y + ch * 0.42); }
+    ctx.fillStyle = f < 0.3 ? '#ff4d6d' : '#7dff9a'; rr(ctx, tx, hy, tw2 * f, hb, hb / 2); ctx.fill();
+    ctx.font = '700 ' + Math.round(Math.max(11, 15 * k)) + 'px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = '#000';
+    var ht = Math.ceil(Math.max(0, o.hp)) + ' / ' + Math.round(o.maxHp);
+    ctx.strokeText(ht, tx + tw2 / 2, hy + hb * 0.78); ctx.fillStyle = '#ffffff'; ctx.fillText(ht, tx + tw2 / 2, hy + hb * 0.78);
+    // 스킬 쿨타임 (카드가 너무 작으면 생략)
+    if (ch >= 70) {
+      var gy = Math.max(hy + hb + 8 * k, cy + r + 5), gh = Math.max(9, 15 * k), gx0 = x + 8, gw = (cw - 16 - 6) / 2;
+      o.skills.slice(0, 2).forEach(function (sk, q) {
+        var locked = q > 0 && o.phase < 2 && !(o.def.earlySkill2 && o.def.earlySkill2(self, o));
+        var info = o.def.gauge ? o.def.gauge(o, q, sk, self) : null;
+        var fill = info && info.fill != null ? info.fill : 1 - Math.max(0, sk.cd) / sk.max;
+        var label = locked ? '🔒 ' + sk.def.name : info && info.label ? info.label : sk.def.name + (sk.def.passive ? '' : ' ' + Math.max(0, sk.cd).toFixed(1) + 's');
+        var gx = gx0 + q * (gw + 6);
+        ctx.fillStyle = '#1b1530'; rr(ctx, gx, gy, gw, gh, gh / 2); ctx.fill();
+        if (!locked) { ctx.fillStyle = fill >= 1 ? '#ffffff' : (info && info.color) || oc; rr(ctx, gx, gy, gw * Math.max(0, Math.min(1, fill)), gh, gh / 2); ctx.fill(); }
+        ctx.font = '700 ' + Math.round(Math.max(10, 13 * k)) + 'px "Malgun Gothic",sans-serif'; ctx.textAlign = 'left'; ctx.lineWidth = 3; ctx.strokeStyle = '#000';
+        ctx.fillStyle = locked ? 'rgba(255,255,255,0.45)' : '#ffffff';
+        ctx.strokeText(label, gx + 6, gy + gh * 0.8, gw - 10); ctx.fillText(label, gx + 6, gy + gh * 0.8, gw - 10);
+      });
+    }
     ctx.restore();
   });
   // 도전자 팀 시너지

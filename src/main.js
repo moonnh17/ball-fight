@@ -925,16 +925,17 @@
 
     // 남은 시간
     var left = Math.max(0, (bt.maxTime || B.maxTime) - bt.time);
-    if (!bt.bossMode) outlined(ctx, Math.ceil(left) + '', W / 2, CONFIG.arena.y + CONFIG.arena.h + 52, 56, left < 10 ? '#ff2b6a' : '#ffffff');   // 보스전은 보스 이름판에 시간
-    if (speed() !== 1 && !G.record) outlined(ctx, '⏩ ' + speedLabel(), W / 2 + 150, CONFIG.arena.y + CONFIG.arena.h + 52, 36, '#ff8c42');
+    // 경기장 바로 아래 줄: 버튼들 + 가운데 남은 시간 (보스전은 보스 이름판에 시간)
+    var rowY = CONFIG.screen.y + CONFIG.screen.h + 14;
+    if (!bt.bossMode) outlined(ctx, Math.ceil(left) + '', W / 2, rowY + 37, 52, left < 10 ? '#ff2b6a' : '#ffffff');
 
     if (G.phase === 'intro') drawIntro(introDur);
     FX.drawScreen(ctx);
     if (!G.record) {
-      button(40, H - 86, 170, 70, FX.muted ? '🔇 음소거' : '🔊 소리', function () { FX.setMuted(!FX.muted); }, { size: 28, color: '#444466', color2: '#222244' });
-      button(W / 2 + 110, H - 86, 180, 70, '⏩ ' + speedLabel(), function () { G.speedIdx = (G.speedIdx + 1) % CONFIG.speeds.length; }, { size: 28, color: speed() === 1 ? '#444466' : '#ff8c42', color2: '#222244' });
-      button(W / 2 - 290, H - 86, 200, 70, '⌂ 처음으로', function () { go('title'); }, { size: 28, color: '#444466', color2: '#222244' });
-      button(W - 210, H - 86, 170, 70, '↺ 재시작', startBattle, { size: 28, color: '#444466', color2: '#222244' });
+      button(40, rowY, 170, 70, FX.muted ? '🔇 음소거' : '🔊 소리', function () { FX.setMuted(!FX.muted); }, { size: 28, color: '#444466', color2: '#222244' });
+      button(W / 2 + 110, rowY, 180, 70, '⏩ ' + speedLabel(), function () { G.speedIdx = (G.speedIdx + 1) % CONFIG.speeds.length; }, { size: 28, color: speed() === 1 ? '#444466' : '#ff8c42', color2: '#222244' });
+      button(W / 2 - 290, rowY, 200, 70, '⌂ 처음으로', function () { go('title'); }, { size: 28, color: '#444466', color2: '#222244' });
+      button(W - 210, rowY, 170, 70, '↺ 재시작', startBattle, { size: 28, color: '#444466', color2: '#222244' });
     }
     hint();
   }

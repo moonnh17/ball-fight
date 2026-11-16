@@ -696,7 +696,7 @@ var Battle = (function () {
     // 인원 수에 맞춰 1열/2열, 패널 높이 자동 조절
     drawHUD(ctx, time) {
       if (this.bossMode) return this.drawBossHUD(ctx, time);
-      var self = this, n = this.balls.length, top = 14, area = 372;
+      var self = this, n = this.balls.length, top = 14, area = CONFIG.screen.y - 28;
       var cols = n <= 3 ? 1 : 2, rows = Math.ceil(n / cols), gap = 8;
       var ph = Math.min(108, (area - (rows - 1) * gap) / rows), pw = (1040 - (cols - 1) * 10) / cols;
       this.balls.forEach(function (b, i) {

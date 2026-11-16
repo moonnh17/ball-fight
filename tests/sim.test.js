@@ -1271,7 +1271,7 @@ test('디마디영디: 이장 2배·개발자 아군 버프·규순이 페이즈
   assert(Math.abs((rock.hp - h0) - CONFIG.chars.chief.wellus.hps * 0.5 * S.chiefMul * rock.synHeal) < 1e-6, 'chief x2');
   assert(Math.abs(chief.synTaken - S.chiefTaken) < 1e-9, '이장 받는 피해 증가');
   // ???: 10초 뒤 퇴장, 이윤빈 전담 안 나옴
-  for (let i = 0; i < 60 * (S.ripleyCall + 1); i++) bt.update(DT);
+  for (let i = 0; i < 60 * (S.ripleyCall + 5) && bt.time < S.ripleyCall + 0.5; i++) bt.update(DT);   // 히트스톱 동안 전투 시간이 멈추므로 전투 시간 기준
   assert(!rip.alive && count(bt, 'ripleyCall') === 1 && count(bt, 'ripley') === 0, 'ripley left without transforming');
   assert(!bt.ents.some(e => e instanceof Ents.Vape), 'vape should never appear');
   // 개발자: 아군과 닿으면 아군 스탯 +2%

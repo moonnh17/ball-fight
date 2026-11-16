@@ -1462,6 +1462,10 @@ class GuitarWave {
 function nogwangPoco(bt, b) {
   // 가장 가까운 적 쪽으로 몸을 틀어서 그 방향(=진행 방향)으로 연주
   var c = b.cfg.poco, t = bt.nearest(b), sp = Math.hypot(b.vx, b.vy) || b.speed;
+  if (bt.hasSynergy('jeongbalsan', b.team)) {   // 정발산: 노광석 범위·회복량 증가
+    var J = CONFIG.synergy.jeongbalsan;
+    c = Object.assign({}, c, { radius: c.radius * J.nogwangRange, angle: c.angle * 1.15, allyHeal: c.allyHeal * J.nogwangHeal });
+  }
   var ang = t ? Math.atan2(t.y - b.y, t.x - b.x) : Math.atan2(b.vy, b.vx);
   b.vx = Math.cos(ang) * sp; b.vy = Math.sin(ang) * sp;
   if (bt.blindRoll(b)) ang = _rnd(0, Math.PI * 2);   // 실명: 엉뚱한 방향
@@ -3074,7 +3078,7 @@ var SYNERGIES = [
     note: '한규성은 포식자의 모습일 때만',
     desc: function () { var c = CONFIG.synergy.hwajeong; return '주는 피해 ' + _pct(c.damage) + ', 최대 체력 ' + _pct(c.hp); } },
   { key: 'jeongbalsan', color: '#e8e8ff', name: '정발산', members: function () { return CONFIG.synergy.jeongbalsan.members; },
-    desc: function () { var c = CONFIG.synergy.jeongbalsan; return '이동속도 ' + _pct(c.speed) + ', 주는 피해 ' + _pct(c.decayDamage) + ' (' + c.decayTime + '초에 걸쳐 0까지 감소). IZK 1기는 긴급소집 효과만 남음'; } },
+    desc: function () { var c = CONFIG.synergy.jeongbalsan; return '이동속도 ' + _pct(c.speed) + ', 주는 피해 ' + _pct(c.decayDamage) + ' (' + c.decayTime + '초에 걸쳐 0까지 감소). 노광석 유재후의 포코 범위 x' + c.nogwangRange + '·팀원 회복 x' + c.nogwangHeal + '. IZK 1기는 긴급소집 효과만 남음'; } },
   { key: 'seoulbc', color: '#d4a24c', name: '서울방송고', members: function () { return CONFIG.synergy.seoulbc.members; },
     desc: function () { var c = CONFIG.synergy.seoulbc; return '받는 회복 ' + _pct(c.heal) + ', 스킬 쿨타임 ' + Math.round((1 - 1 / c.cdr) * 100) + '% 단축. 최휘 주는 피해 ' + _pct(c.per['최휘'].damage); } },
   { key: 'dmdyd', color: '#9cff57', name: '디마디영디', members: function () { return CONFIG.synergy.dmdyd.members; }, needIds: function () { return CONFIG.synergy.dmdyd.needIds; },
