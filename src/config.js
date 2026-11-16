@@ -60,8 +60,9 @@ var CONFIG = {
       king: { every: 3, max: 4, heal: 15, soju: 0.1, sojuTaken: 0.7, sojuTime: 8, sleep: 8 },
     },
     mind: {
-      spawn: 5, maxUndead: 2, undeadLife: 16, undeadSpeed: 80, orbit: 120, orbitSpeed: 2.4, touch: 3,
+      spawn: 5, maxUndead: 1, undeadLife: 16, undeadSpeed: 80, orbit: 120, orbitSpeed: 2.4, touch: 3,
       rehearsal: 15, away: 5, poisonDps: 6, poisonTime: 3, slow: 0.6, slowTime: 3, jooRespawn: 10,
+      ramen: { every: 9, max: 2, heal: 10, soup: 20, tick: 0.5, spill: 0.05 },   // 편의점 라면: 바로 10 + 국물 0.5초마다 1씩 총 20 (5% 쏟음, 마시다 맞으면 쏟음)
     },
   },
   // 보스 수치: 기본값 위에 easy / hard 값을 덮어씀. 체력 = hpPerPlayer x 도전자 수^hpExp (인원 많으면 광역기가 나눠 맞아서)

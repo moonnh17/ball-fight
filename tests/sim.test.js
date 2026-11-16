@@ -1421,7 +1421,7 @@ test('맵: 마인드 언데드 촬영팀에 닿으면 5 피해', () => {
   bt.balls.forEach(b => { b.maxHp = b.hp = 1e6; });
   run(bt, 30);
   assert(count(bt, 'undead') >= 2, '언데드 등장');
-  assert(bt.ents.filter(e => e.constructor.name === 'Undead' && !e.dead).length <= 2, '최대 2명');
+  assert(bt.ents.filter(e => e.constructor.name === 'Undead' && !e.dead).length <= 1, '한 번에 1명');
   assert(bt.log.filter(e => e.type === 'damage' && e.kind === 'undead').every(e => e.amt === M.mind.touch));
 });
 
@@ -1436,6 +1436,19 @@ test('진형권 비타민 반감 · 조우연 뱀 최대 10마리 · 정발산 �
   b3.map.addItem('king', 'f2'); assert(b3.map.items('king').length === 1);
   b3.map.clk.split = M.jbs.split - 0.001; b3.map.update(DT);
   assert(!b3.map.split && b3.map.items('king').length === 0, '개방되면 다락방 아이템 사라짐');
+});
+
+test('마인드 편의점 라면: 바로 10 + 국물 1씩 20, 마시다 맞으면 쏟음', () => {
+  const bt = new Battle(['gym', 'baton'], 'ffa', { map: 'mind' });
+  const g = bt.balls[0], R = M.mind.ramen; g.maxHp = 1000; g.hp = 500;
+  const eat = vm.runInContext('ITEM_EAT', ctx).ramen;
+  let spilled = 0; for (let i = 0; i < 2000; i++) { g.data.ramen = null; eat(bt, g); if (!g.data.ramen) spilled++; }
+  assert(spilled > 50 && spilled < 160, '약 5% 쏟음 ' + spilled);
+  g.hp = 500; g.data.ramen = { left: R.soup, t: 0 };
+  for (let i = 0; i < 60 * (R.soup * R.tick + 1); i++) bt.map.updMind(DT);
+  assert(Math.abs(g.hp - 500 - R.soup) < 1e-6 && !g.data.ramen, '국물 20 ' + g.hp);
+  g.data.ramen = { left: R.soup, t: 0 }; bt.hitstop = 0; bt.damage(g, 1, bt.balls[1], {});
+  assert(!g.data.ramen && count(bt, 'ramenSpill') > 0, '맞으면 쏟음');
 });
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');

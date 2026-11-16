@@ -9,7 +9,7 @@ var MAPS = {
       '산내: 정사각형 · 금연구역 창문(흡연자는 담배 피우느라 행동불능, 받는 피해 2배)',
       '산내: 조하람 펑크(긴급소집 30% 취소) · 월세머신(10초마다 모두에게서 체력 5 흡수)',
       '산내 아이템: 담요(함정, 수면) · 피자 오브 레전드(체력 +20)',
-      '정발산: 담배 연기 독 지대(10초마다 환기) · 비흡연자는 독 피해 2배',
+      '정발산: 하얀 담배 연기 독 지대(10초마다 환기) · 비흡연자는 독 피해 2배',
       '정발산: 아래쪽 1/3 다락방(2층)이 가로 벽으로 10초마다 분리/통합',
       '정발산 아이템: 의자(1층, 투척 20 · 김선율 30) · 핫식스 더 킹(다락방, 회복 / 10% 소주, 개방되면 사라짐)',
     ],
@@ -17,10 +17,11 @@ var MAPS = {
   mind: {
     id: 'mind', no: '02', name: '마인드', color: '#9cff57',
     lines: [
-      '5초마다 언데드 마인드 부원 등장 (최대 2명) · 주변을 도는 촬영팀 2명에 닿으면 3 피해',
+      '5초마다 언데드 마인드 부원 등장 (한 번에 1명) · 주변을 도는 촬영팀 2명에 닿으면 3 피해',
       '리허설: 15초마다 1~3명(1대1이면 1명)이 사라졌다가 5초 뒤 독 · 둔화 상태로 복귀',
       '한규성(이비)은 리허설에서 돌아오면 규순이로 등장',
       '아이템: 주현지 누나 — 먹으면 리허설 독에 안 걸림, 10초 뒤 다른 곳에 다시 생김',
+      '아이템: 편의점 라면 — 바로 10 회복 + 국물로 1씩 총 20 회복 (5% 확률로 쏟거나, 마시다 맞으면 쏟음)',
     ],
   },
 };
@@ -237,6 +238,17 @@ class MapRun {
       FX.burst(p.x, p.y, '#6b8f5a', 24, 500, 12, 0.7, 'smoke'); FX.sfx('awaken');
       bt.emit('undead');
     }
+    // 편의점 라면: 국물 마시는 동안 조금씩 회복
+    if (this.every('ramen', c.ramen.every, dt) && this.items('ramen').length < c.ramen.max) this.addItem('ramen', 'all');
+    this.players().forEach(function (b) {
+      var rm = b.data.ramen;
+      if (!rm) return;
+      if ((rm.t += dt) < c.ramen.tick) return;
+      rm.t -= c.ramen.tick; rm.left -= 1;
+      bt.heal(b, 1, true);
+      if (Math.random() < 0.5) FX.particle({ x: b.x + _rnd(-10, 10), y: b.y - b.r * 0.6, vx: _rnd(-10, 10), vy: -90, life: 0.6, size: _rnd(8, 13), color: 'rgba(255,255,255,0.6)', shape: 'smoke' });
+      if (rm.left <= 0) { b.data.ramen = null; FX.text(b.x, b.y - b.r - 50, '국물까지 완뚝!', '#ffcf6b', 40, 0.9); }
+    });
     if (this.every('rehearsal', c.rehearsal, dt)) {
       var pool = this.players().filter(function (b) { return b.targetable && !(b.data.rehearsal > 0); });
       var n = pool.length, k = n <= 2 ? 1 : 1 + Math.floor(Math.random() * 3);
@@ -274,6 +286,7 @@ class MapRun {
   taken(t, src, o) {
     var M = CONFIG.maps, m = 1;
     if (src && src !== t && this.splitK > 0.5 && this.split && this.floorOf(src) !== this.floorOf(t)) return 0;   // 분리된 층끼리는 공격 안 닿음
+    if (t.data.ramen) ramenSpill(this.bt, t);   // 국물 마시다 맞으면 쏟음
     if (t.data.smoking > 0) m *= M.sannae.smokeTaken;
     if (t.data.soju > 0) m *= M.jbs.king.sojuTaken;
     if (o.kind === 'poison' && this.sub === 'jbs' && !_smoker(t)) m *= M.jbs.nonSmokerPoison;
@@ -323,10 +336,10 @@ class MapRun {
       for (var i = 0; i < 4; i++) {
         var a = s.spin + time * 0.4 * (i % 2 ? 1 : -1) + i * 1.6, ox = Math.cos(a) * s.r * 0.25, oy = Math.sin(a) * s.r * 0.18, rr = s.r * (0.65 + i * 0.1);
         var g = ctx.createRadialGradient(s.x + ox, s.y + oy, 0, s.x + ox, s.y + oy, rr);
-        g.addColorStop(0, 'rgba(170,185,150,0.34)'); g.addColorStop(0.6, 'rgba(120,140,100,0.2)'); g.addColorStop(1, 'rgba(90,110,80,0)');
+        g.addColorStop(0, 'rgba(255,255,255,0.42)'); g.addColorStop(0.6, 'rgba(235,238,242,0.24)'); g.addColorStop(1, 'rgba(220,225,230,0)');
         ctx.fillStyle = g; ctx.beginPath(); ctx.arc(s.x + ox, s.y + oy, rr, 0, Math.PI * 2); ctx.fill();
       }
-      if (s.r > 40) { ctx.font = Math.round(s.r * 0.3) + 'px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.globalAlpha = al * 0.55; ctx.fillText('☠️', s.x, s.y); }
+      if (s.r > 40) { ctx.font = Math.round(s.r * 0.3) + 'px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.globalAlpha = al * 0.8; ctx.fillText('🚬', s.x, s.y); }
       ctx.restore();
     });
     // 공 위 표시: 흡연 · 의자 · 소주 · 주현지 가호
@@ -338,6 +351,7 @@ class MapRun {
       if (b.data.smoking > 0) ctx.fillText('🚬', x + r * 0.75, y + r * 0.1);
       if (b.data.chair) { ctx.save(); ctx.translate(x - r * 0.8, y - r - 18); ctx.rotate(-0.3); drawChair(ctx, 0.75); ctx.restore(); }
       if (b.data.soju > 0) ctx.fillText('🍶', x - r * 0.85, y + r * 0.2);
+      if (b.data.ramen) ctx.fillText('🍜', x - r * 0.85, y - r * 0.2);
       if (b.data.joo) { ctx.font = '36px "Segoe UI Emoji",sans-serif'; ctx.fillText('🎀', x + r * 0.72, y + r * 0.72); }
     });
     // 맵 이름 · 다음 이벤트 시간
@@ -397,27 +411,29 @@ var MAP_FLOORS = {
   jbs: function (ctx, A, t, run) {
     var k = A.w / 1000, dy = A.y + A.h * 2 / 3, ah = A.y + A.h - dy, on = run ? 0.55 + 0.45 * run.splitK : 1;
     ctx.save(); ctx.beginPath(); ctx.rect(A.x, A.y, A.w, A.h); ctx.clip();
-    ctx.fillStyle = '#1a1c22'; ctx.fillRect(A.x, A.y, A.w, dy - A.y);
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 2;
+    ctx.fillStyle = '#6f7682'; ctx.fillRect(A.x, A.y, A.w, dy - A.y);   // 밝은 콘크리트
+    var lg = ctx.createLinearGradient(A.x, A.y, A.x + A.w, dy); lg.addColorStop(0, 'rgba(255,255,255,0.14)'); lg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = lg; ctx.fillRect(A.x, A.y, A.w, dy - A.y);
+    ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 2;
     ctx.beginPath();
     for (var x = A.x; x < A.x + A.w; x += 100 * k) { ctx.moveTo(x, A.y); ctx.lineTo(x, dy); }
     for (var y = A.y; y < dy; y += 100 * k) { ctx.moveTo(A.x, y); ctx.lineTo(A.x + A.w, y); }
     ctx.stroke();
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fillStyle = 'rgba(40,44,52,0.12)';
     [[0.2, 0.2, 60], [0.7, 0.45, 90], [0.4, 0.55, 50]].forEach(function (q) { ctx.beginPath(); ctx.ellipse(A.x + A.w * q[0], A.y + A.h * q[1], q[2] * k, q[2] * 0.6 * k, 0.4, 0, Math.PI * 2); ctx.fill(); });
-    ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.font = '700 ' + Math.round(110 * k) + 'px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.font = '700 ' + Math.round(110 * k) + 'px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('1F', A.x + A.w / 2, A.y + (dy - A.y) * 0.62);
     _logo(ctx, { x: A.x, y: A.y + (dy - A.y) * 0.3, w: A.w, h: 10 }, '정발산', '#e8e8ff', 0.06);
     // 다락방 (열려 있을 땐 조금 어둡게)
     ctx.save(); ctx.globalAlpha = on;
-    ctx.fillStyle = '#2b1c12'; ctx.fillRect(A.x, dy, A.w, ah);
+    ctx.fillStyle = '#9a7048'; ctx.fillRect(A.x, dy, A.w, ah);
     var pw = 46 * k;
     for (var px = 0, j = 0; px < A.w; px += pw, j++) {
-      ctx.fillStyle = j % 2 ? '#33221a' : '#2a1b11'; ctx.fillRect(A.x + px, dy, pw, ah);
-      ctx.fillStyle = '#160d07'; ctx.fillRect(A.x + px, dy, 2 * k, ah);
+      ctx.fillStyle = j % 2 ? '#a77b50' : '#956a42'; ctx.fillRect(A.x + px, dy, pw, ah);
+      ctx.fillStyle = '#5e3f24'; ctx.fillRect(A.x + px, dy, 2 * k, ah);
       ctx.fillRect(A.x + px, dy + ((j * 97) % 200) * k, pw, 2 * k);
     }
-    ctx.fillStyle = 'rgba(15,8,4,0.7)';   // 서까래 그림자 (기울어진 지붕)
+    ctx.fillStyle = 'rgba(60,36,18,0.35)';   // 서까래 그림자 (기울어진 지붕)
     for (var bx = 0; bx < A.w + ah; bx += 210 * k) { ctx.beginPath(); ctx.moveTo(A.x + bx, dy); ctx.lineTo(A.x + bx + 34 * k, dy); ctx.lineTo(A.x + bx + 34 * k - ah * 0.5, A.y + A.h); ctx.lineTo(A.x + bx - ah * 0.5, A.y + A.h); ctx.fill(); }
     function box(x, y, w, h) {
       ctx.fillStyle = '#7a5a36'; ctx.fillRect(x, y, w, h); ctx.strokeStyle = '#3a2814'; ctx.lineWidth = 3 * k; ctx.strokeRect(x, y, w, h);
@@ -519,8 +535,8 @@ function drawChair(ctx, s) {
 }
 
 // ---------- 맵 아이템 ----------
-var ITEM_COLOR = { blanket: '#7fa8ff', pizza: '#ffb000', chair: '#c08a5a', king: '#ffd400', soju: '#4fd18b', joo: '#ff8fc8' };
-var ITEM_R = { blanket: 34, pizza: 32, chair: 34, king: 40, soju: 30, joo: 46 };
+var ITEM_COLOR = { blanket: '#7fa8ff', pizza: '#ffb000', chair: '#c08a5a', king: '#ffd400', soju: '#4fd18b', joo: '#ff8fc8', ramen: '#ff5a3c' };
+var ITEM_R = { blanket: 34, pizza: 32, chair: 34, king: 40, soju: 30, joo: 46, ramen: 32 };
 var ITEM_DRAW = {
   blanket: function (ctx) {   // 개켜 놓은 체크무늬 담요
     ctx.rotate(-0.12);
@@ -561,6 +577,16 @@ var ITEM_DRAW = {
     ctx.fillStyle = '#ffffff'; ctx.fillRect(-13, 0, 26, 14);
     ctx.fillStyle = '#2f8a58'; ctx.font = '700 10px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('소주', 0, 7);
   },
+  ramen: function (ctx, t) {   // 편의점 컵라면 + 김
+    ctx.shadowColor = '#ff5a3c'; ctx.shadowBlur = 18;
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(-26, -14); ctx.lineTo(26, -14); ctx.lineTo(19, 26); ctx.lineTo(-19, 26); ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0; ctx.fillStyle = '#e8321e'; ctx.beginPath(); ctx.moveTo(-24, -4); ctx.lineTo(24, -4); ctx.lineTo(22, 8); ctx.lineTo(-22, 8); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.font = '700 11px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('라면', 0, 2);
+    ctx.fillStyle = '#c98a3a'; ctx.beginPath(); ctx.ellipse(0, -14, 26, 7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#ffd98a'; ctx.lineWidth = 2; ctx.beginPath(); for (var i = -18; i <= 18; i += 6) { ctx.moveTo(i, -16); ctx.quadraticCurveTo(i + 3, -11, i + 6, -16); } ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 3;
+    for (var s = -1; s <= 1; s++) { var o = Math.sin(t * 3 + s) * 4; ctx.beginPath(); ctx.moveTo(s * 10, -24); ctx.quadraticCurveTo(s * 10 + 6 + o, -32, s * 10 + o, -42); ctx.stroke(); }
+  },
   joo: function (ctx, t, r) {   // 주현지 누나: 캐릭터와 같은 공
     var g = ctx.createRadialGradient(0, 0, r * 0.8, 0, 0, r * 1.7);
     g.addColorStop(0, 'rgba(255,143,200,0.55)'); g.addColorStop(1, 'rgba(255,143,200,0)');
@@ -597,6 +623,13 @@ var ITEM_EAT = {
     }
     FX.sfx('drool');
   },
+  ramen: function (bt, b) {
+    var c = CONFIG.maps.mind.ramen;
+    bt.heal(b, c.heal);
+    FX.text(b.x, b.y - b.r - 90, '편의점 라면! 🍜', '#ffcf6b', 44, 1.0); FX.sfx('powerup');
+    b.data.ramen = { left: c.soup, t: 0 };
+    if (Math.random() < c.spill) ramenSpill(bt, b);   // 5%: 받자마자 쏟음
+  },
   joo: function (bt, b) {
     b.data.joo = true;
     FX.text(b.x, b.y - b.r - 60, '주현지 누나의 가호! 🎀', '#ff8fc8', 46, 1.2); FX.sfx('happy');
@@ -604,6 +637,13 @@ var ITEM_EAT = {
     bt.after(CONFIG.maps.mind.jooRespawn, function () { if (bt.map) bt.map.spawnJoo(); });
   },
 };
+// 라면 국물 쏟음: 남은 지속 회복 없음
+function ramenSpill(bt, b) {
+  b.data.ramen = null;
+  FX.text(b.x, b.y - b.r - 50, '앗 국물 쏟았다!', '#ff9a6b', 44, 1.0); FX.sfx('drool');
+  for (var i = 0; i < 14; i++) FX.particle({ x: b.x, y: b.y, vx: _rnd(-260, 260), vy: _rnd(-300, -80), g: 900, life: 0.6, size: _rnd(6, 11), color: Math.random() < 0.5 ? '#c96a2a' : '#e8a050', shape: 'square' });
+  bt.emit('ramenSpill', { who: b.def.id });
+}
 class MapItem {
   constructor(bt, kind, p) { this.bt = bt; this.kind = kind; this.x = p.x; this.y = p.y; this.t = 0; this.z = -1; this.r = ITEM_R[kind]; }
   update(dt) {
