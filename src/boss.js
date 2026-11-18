@@ -645,16 +645,399 @@ function bossPhase(bt, b, n) {
   b.action = null;
   FX.banner('PHASE ' + n, { color: b.color(), sub: b.name + (n === 3 ? ' 최종 페이즈' : ' 분노'), size: 170, life: 1.6 });
   FX.flash('#ffffff', 0.4, 0.3); FX.shake(26); FX.sfx('phase');
-  d.queue.push('scream');
-  if (n === 3) d.queue.push('wash');
+  Array.prototype.push.apply(d.queue, b.def.phaseQueue(n));   // 보스마다 페이즈 전환 패시브 (바통: 끼야아아악 · 씻기 / 규순이: 발작)
   d.cd = Math.max(d.cd, 1.0);
   bt.emit('bossPhase', { n: n });
 }
 function bossPool(b) {
   var P = b.cfg.pools, out = [];
   for (var p = 1; p <= b.phase; p++) if (b.cfg.cumulative || p === b.phase) out = out.concat(P[p]);
-  return out;
+  return b.def.poolFix ? b.def.poolFix(b, out) : out;
 }
+// 보스 공용 스킬 순서: 대기열(패시브 등) 먼저, 아니면 쿨타임마다 이번 페이즈 풀에서 직전과 다른 스킬. 스킬이 끝나면 onSkillEnd
+function bossNext(bt, b, dt, SK) {
+  var c = b.cfg, d = b.data;
+  if (!b.action && !b.hidden && d.cur) { var done = d.cur; d.cur = null; if (b.def.onSkillEnd) b.def.onSkillEnd(bt, b, done); }
+  if (b.action || b.hidden) return;
+  if (d.queue.length) { var q = d.queue.shift(); d.cur = q; b.action = SK[q](bt, b); bt.emit('bossSkill', { skill: q }); return; }
+  if (b.disabled) return;
+  d.cd -= dt * b.cdRate;
+  if (d.cd > 0) return;
+  var pool = bossPool(b), opts = pool.filter(function (k) { return k !== d.last; }), k = (opts.length ? opts : pool)[Math.floor(Math.random() * (opts.length || pool.length))];
+  d.last = k; d.cur = k; d.cd = c.cd * (c.phaseCd[b.phase - 1] || 1);   // 페이즈가 오를수록 짧아짐
+  b.action = SK[k](bt, b);
+  bt.emit('bossSkill', { skill: k });
+}
+
+// ---------- 규순이 ----------
+// 아우라: 바통(금빛 룬 · 불티)과 다르게 보랏빛 연기 + 공 둘레를 도는 깃털, 페이즈 3은 이중인격 잔상(청록 · 분홍 어긋난 테)
+class GyuAura {
+  constructor(bt, b) { this.bt = bt; this.b = b; this.t = 0; this.z = -2; }
+  update(dt) {
+    var b = this.b;
+    this.t += dt;
+    if (!b.alive) { this.dead = true; return; }
+    if (b.hidden) return;
+    if (Math.random() < dt * 14) FX.particle({ x: b.x + _rnd(-b.r, b.r), y: b.y + b.r * _rnd(0.2, 0.9), vx: _rnd(-30, 30), vy: _rnd(-150, -70), life: _rnd(0.9, 1.6), size: _rnd(24, 44), color: Math.random() < 0.5 ? 'rgba(120,40,170,0.45)' : 'rgba(255,79,216,0.3)', shape: 'smoke' });
+    if (Math.random() < dt * 2.5) FX.text(b.x + _rnd(-b.r, b.r), b.y - b.r * 0.4, '♡', '#ff9cf0', 40, 1.0);
+  }
+  draw(ctx) {
+    var b = this.b; if (b.hidden || !b.alive) return;
+    var t = this.t, col = b.color(), i;
+    ctx.save();
+    var g = ctx.createRadialGradient(b.x, b.y, b.r * 0.7, b.x, b.y, b.r * 2.1);   // 보랏빛 안개
+    g.addColorStop(0, 'rgba(90,20,140,0.5)'); g.addColorStop(0.6, col + '33'); g.addColorStop(1, col + '00');
+    ctx.globalAlpha = 0.75 + Math.sin(t * 2.3) * 0.2; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2.1, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+    for (i = 0; i < 8; i++) {   // 도는 깃털
+      var a = t * (i % 2 ? 1.1 : -0.8) + i * Math.PI / 4, rr = b.r * (1.35 + 0.08 * Math.sin(t * 3 + i));
+      ctx.save(); ctx.translate(b.x + Math.cos(a) * rr, b.y + Math.sin(a) * rr * 0.85); ctx.rotate(a + Math.PI / 2 + Math.sin(t * 4 + i) * 0.4);
+      ctx.fillStyle = i % 3 ? '#f3e6ff' : '#ff9cf0'; ctx.shadowColor = col; ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.ellipse(0, 0, 9, 26, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(120,60,160,0.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, -24); ctx.lineTo(0, 24); ctx.stroke();
+      ctx.restore();
+    }
+    if (b.phase >= 3) {   // 이중인격 잔상
+      [['#00f0ff', 1], ['#ff2bd6', -1]].forEach(function (q) {
+        var o = Math.sin(t * 13 * q[1]) * 10;
+        ctx.globalAlpha = 0.55; ctx.lineWidth = 7; ctx.strokeStyle = q[0];
+        ctx.beginPath(); ctx.arc(b.x + o, b.y - o * 0.4, b.r * 1.08, 0, Math.PI * 2); ctx.stroke();
+      });
+    }
+    ctx.restore();
+  }
+  light() { return { x: this.b.x, y: this.b.y, r: this.b.r * 2.4 }; }
+}
+// 캐치캐치: 착지한 높이에서 좌우로 맵 끝까지 가는 띠 파동
+class HWave {
+  constructor(bt, owner, x, y, dir, c) { this.bt = bt; this.owner = owner; this.x = x; this.y = y; this.dir = dir; this.c = c; this.hit = new Set(); this.t = 0; this.z = -1; }
+  update(dt) {
+    var A = CONFIG.arena, self = this, c = this.c;
+    this.t += dt; this.x += this.dir * c.speed * dt;
+    if (this.x < A.x - 40 || this.x > A.x + A.w + 40) { this.dead = true; return; }
+    _bPlayers(this.bt, this.owner).forEach(function (o) {
+      if (self.hit.has(o) || o.air || Math.abs(o.y - self.y) > c.band / 2 + o.r * 0.5 || Math.abs(o.x - self.x) > o.r + 40) return;
+      self.hit.add(o);
+      self.bt.damage(o, c.damage, self.owner, { color: '#ff9cf0', kind: 'bossCatch' });
+      o.vx += self.dir * 700;
+      self.bt.emit('catchHit', { who: o.def.id });
+    });
+  }
+  draw(ctx) {
+    var h = this.c.band, g = ctx.createLinearGradient(this.x - this.dir * 160, 0, this.x, 0);
+    g.addColorStop(0, 'rgba(255,79,216,0)'); g.addColorStop(1, 'rgba(255,79,216,0.55)');
+    ctx.save(); ctx.fillStyle = g; ctx.fillRect(Math.min(this.x, this.x - this.dir * 160), this.y - h / 2, 160, h);
+    ctx.shadowColor = '#ff4fd8'; ctx.shadowBlur = 24; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(this.x, this.y - h / 2); ctx.quadraticCurveTo(this.x + this.dir * 40, this.y, this.x, this.y + h / 2); ctx.stroke();
+    ctx.restore();
+  }
+}
+// 개큰돌: 굴러가며 맞은 적 넉백 + 기절, maxHits명 맞히면 그 자리에서 부서짐
+class BigRock {
+  constructor(bt, owner, ang, c) {
+    this.bt = bt; this.owner = owner; this.c = c; this.r = c.radius; this.vx = Math.cos(ang) * c.speed; this.vy = Math.sin(ang) * c.speed;
+    this.x = owner.x + Math.cos(ang) * (owner.r + this.r * 0.5); this.y = owner.y + Math.sin(ang) * (owner.r + this.r * 0.5);
+    this.hits = 0; this.hit = new Set(); this.rot = 0; this.z = 1; this.t = 0;
+  }
+  update(dt) {
+    var A = CONFIG.arena, self = this, c = this.c;
+    this.t += dt; this.x += this.vx * dt; this.y += this.vy * dt; this.rot += c.speed * dt / this.r * (this.vx >= 0 ? 1 : -1);
+    if (Math.random() < dt * 30) FX.particle({ x: this.x + _rnd(-this.r, this.r) * 0.6, y: this.y + this.r * 0.7, vx: _rnd(-60, 60), vy: _rnd(-90, -20), life: 0.5, size: _rnd(14, 26), color: '#9a8a7a', shape: 'smoke' });
+    _bPlayers(this.bt, this.owner).forEach(function (o) {
+      if (self.dead || self.hit.has(o) || o.air || _dist(o, self) > o.r + self.r) return;
+      self.hit.add(o); self.hits++;
+      self.bt.damage(o, c.damage, self.owner, { color: '#d8c8b0', kind: 'bossRock' });
+      var d = _dist(o, self) || 1; o.vx = (o.x - self.x) / d * c.knock; o.vy = (o.y - self.y) / d * c.knock;
+      o.status.stun = Math.max(o.status.stun, c.stun);
+      FX.shake(16); FX.sfx('slam');
+      self.bt.emit('rockHit', { who: o.def.id });
+      if (self.hits >= c.maxHits) self.smash();
+    });
+    if (!this.dead && (this.x < A.x - this.r || this.x > A.x + A.w + this.r || this.y < A.y - this.r || this.y > A.y + A.h + this.r || this.t > 4)) this.smash();
+  }
+  smash() {
+    this.dead = true;
+    FX.burst(this.x, this.y, '#8a7a6a', 30, 700, 18, 0.7, 'square'); FX.burst(this.x, this.y, '#c8b8a8', 16, 400, 26, 0.6, 'smoke');
+    FX.shake(14); FX.sfx('thump'); this.bt.emit('rockBreak');
+  }
+  draw(ctx) {
+    var r = this.r;
+    ctx.save(); ctx.translate(this.x, this.y);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(10, r * 0.75, r * 0.95, r * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.rotate(this.rot);
+    var g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r);
+    g.addColorStop(0, '#b8aa98'); g.addColorStop(1, '#5e5246');
+    ctx.fillStyle = g; ctx.beginPath();
+    for (var i = 0; i < 11; i++) { var a = i / 11 * Math.PI * 2, rr = r * (0.88 + 0.12 * Math.sin(i * 2.7)); if (i) ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); else ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+    ctx.closePath(); ctx.fill(); ctx.strokeStyle = '#3a3028'; ctx.lineWidth = 6; ctx.stroke();
+    ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-r * 0.4, -r * 0.2); ctx.lineTo(0, r * 0.1); ctx.lineTo(r * 0.3, -r * 0.3); ctx.moveTo(0, r * 0.1); ctx.lineTo(r * 0.1, r * 0.5); ctx.stroke();
+    ctx.restore();
+  }
+}
+// 디바 자세: 맵 가운데로 던진 의자가 fuse초 뒤 터지며 파편
+class ChairBomb {
+  constructor(bt, owner, c) {
+    var A = CONFIG.arena;
+    this.bt = bt; this.owner = owner; this.c = c; this.sx = owner.x; this.sy = owner.y; this.tx = A.x + A.w / 2; this.ty = A.y + A.h / 2;
+    this.x = this.sx; this.y = this.sy; this.t = 0; this.z = 1; this.rot = 0; this.landed = false;
+  }
+  update(dt) {
+    var c = this.c, bt = this.bt, self = this;
+    this.t += dt;
+    if (!this.landed) {
+      var k = Math.min(1, this.t / 0.6);
+      this.x = this.sx + (this.tx - this.sx) * k; this.y = this.sy + (this.ty - this.sy) * k - Math.sin(k * Math.PI) * 220; this.rot += dt * 14;
+      if (k >= 1) { this.landed = true; this.t = 0; this.rot = 0.2; FX.shake(14); FX.sfx('thump'); FX.burst(this.x, this.y, '#8a5f3a', 14, 400, 10, 0.5, 'square'); }
+      return;
+    }
+    if (this.t < c.fuse) return;
+    this.dead = true;
+    bfx(bt, 'blast_gold', this.x, this.y, { scale: c.blastRadius / 75 }); FX.shake(30); FX.sfx('slam'); FX.flash('#ff7ad9', 0.25, 0.25);
+    _bPlayers(bt, this.owner).forEach(function (o) { if (_dist(o, self) < c.blastRadius + o.r * 0.5) bt.damage(o, c.blastDamage, self.owner, { color: '#ffb066', kind: 'divaBlast' }); });
+    for (var i = 0; i < c.shards; i++) bt.add(new Shard(bt, this.owner, this.x, this.y, i / c.shards * Math.PI * 2 + _rnd(-0.08, 0.08), c));
+    bt.emit('divaBlast');
+  }
+  draw(ctx) {
+    ctx.save(); ctx.translate(this.x, this.y);
+    if (this.landed) {   // 터지기 전 경고
+      var k = this.t / this.c.fuse;
+      ctx.globalAlpha = 0.25 + 0.25 * Math.abs(Math.sin(this.t * (6 + k * 14)));
+      ctx.fillStyle = '#ff4f6a'; ctx.beginPath(); ctx.arc(0, 0, this.c.blastRadius, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1; ctx.setLineDash([16, 12]); ctx.strokeStyle = '#ff4f6a'; ctx.lineWidth = 5; ctx.stroke(); ctx.setLineDash([]);
+      ctx.translate(_rnd(-1, 1) * k * 6, 0);
+    }
+    ctx.rotate(this.rot); if (typeof drawChair === 'function') drawChair(ctx, 2.2);
+    ctx.restore();
+  }
+}
+class Shard {
+  constructor(bt, owner, x, y, ang, c) { this.bt = bt; this.owner = owner; this.x = x; this.y = y; this.vx = Math.cos(ang) * c.shardSpeed; this.vy = Math.sin(ang) * c.shardSpeed; this.c = c; this.t = 0; this.z = 1; this.rot = _rnd(0, 6); }
+  update(dt) {
+    var A = CONFIG.arena, self = this;
+    this.t += dt; this.x += this.vx * dt; this.y += this.vy * dt; this.rot += dt * 12;
+    if (this.t > 3 || this.x < A.x || this.x > A.x + A.w || this.y < A.y || this.y > A.y + A.h) { this.dead = true; return; }
+    var o = _bPlayers(this.bt, this.owner).find(function (q) { return !q.air && _dist(q, self) < q.r + 16; });
+    if (!o) return;
+    this.dead = true;
+    this.bt.damage(o, this.c.shardDamage, this.owner, { color: '#ffb066', kind: 'divaShard' });
+    FX.burst(this.x, this.y, '#8a5f3a', 6, 300, 6, 0.3, 'square');
+  }
+  draw(ctx) { ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.rot); ctx.fillStyle = '#8a5f3a'; ctx.strokeStyle = '#2a1a0e'; ctx.lineWidth = 3; ctx.fillRect(-16, -5, 32, 10); ctx.strokeRect(-16, -5, 32, 10); ctx.restore(); }
+}
+// 훔친 스킬은 그 캐릭터 수치(cfg)로 돌림: 쓰는 동안만 보스 cfg 위에 그 캐릭터 cfg를 덮음 (보스 고유 값은 유지)
+function gyuRunStolen(bt, b) {
+  var st = b.data.stolen, sk = CHARACTERS[st.id].skills[st.idx], saved = b.cfg, t = 0;
+  var mix = Object.assign({}, saved, CONFIG.chars[st.id], { hp: saved.hp, speed: saved.speed, radius: saved.radius, color: saved.color, phase2Color: saved.phase2Color, contactDamage: saved.contactDamage });
+  function run(fn, fallback) {   // 쓰는 동안만 그 캐릭터 수치로 (겹치는 키는 그 캐릭터 값)
+    b.cfg = mix;
+    try { return fn(); } catch (e) { console.warn('[볼파이트] 규순이 훔친 스킬 오류: ' + st.id + ' ' + sk.key, e); return fallback; } finally { b.cfg = saved; }
+  }
+  bossCast(bt, b, '쌔비기: ' + sk.name, '#c77dff');
+  var act = run(function () { return sk.start(bt, b); }, null);
+  bt.emit('stolenCast', { id: st.id, key: sk.key });
+  if (!act) return { moves: false, update: function (dt) { t += dt; return t >= 0.5; } };
+  return {
+    get moves() { return act.moves; }, get uninterruptible() { return act.uninterruptible; }, get spinning() { return act.spinning; },
+    update: function (dt) { return run(function () { return act.update(dt); }, true); },
+    end: function () { if (act.end) run(function () { act.end(); }); },
+  };
+}
+var GYU_NO_REPEAT = ['steal', 'seizure', 'diva'];   // I said 누누이로 다시 안 쓰는 것
+function gyuWait(t0, then) { var t = 0; return { moves: false, update: function (dt) { t += dt; return t >= t0; }, end: then }; }
+var GYU_SKILLS = {
+  // 1-1 날아가야돼: 새가 너무 좋아 + 양 옆 날개를 위아래로 빠르게 흔듦 (날개에 맞으면 피해 + 크게 넉백)
+  wings: function (bt, b) {
+    var c = b.cfg.wings, t = 0, flap = 0, cd = {};
+    bossCast(bt, b, '날아가야돼', '#e6c8ff');
+    GYUSUN_SKILLS.birds(bt, b, true);
+    b.data.wing = 0; b.vx = b.vy = 0;
+    return {
+      moves: false,
+      update: function (dt) {
+        t += dt; b.data.wing = t; b.jy = Math.sin(t * 40) * 6;
+        flap += dt;
+        if (flap < c.flapEvery) return t >= c.time;
+        flap -= c.flapEvery; FX.sfx('throw');
+        _bPlayers(bt, b).forEach(function (o) {
+          var dx = o.x - b.x, dy = o.y - b.y;
+          if (o.air || Math.abs(dy) > c.width / 2 + o.r * 0.5 || Math.abs(dx) < b.r * 0.6 || Math.abs(dx) > b.r + c.length + o.r * 0.5 || cd[o.id] > bt.time) return;
+          cd[o.id] = bt.time + c.hitGap;
+          bt.damage(o, c.damage, b, { color: '#e6c8ff', kind: 'bossWing' });
+          o.vx = (dx > 0 ? 1 : -1) * c.knock; o.vy = dy * 3;
+          FX.burst(o.x, o.y, '#ffffff', 12, 600, 10, 0.5, 'feather');
+          bt.emit('wingHit', { who: o.def.id });
+        });
+        return t >= c.time;
+      },
+      end: function () { b.data.wing = null; b.jy = 0; _restoreSpeed(b, Math.random() - 0.5, 1); },
+    };
+  },
+  // 1-2 춤: 토카토카 / 캐치캐치 / 체포하겠어 중 하나
+  dance: function (bt, b) {
+    var pick = ['toka', 'catch', 'arrest'][Math.floor(Math.random() * 3)];
+    b.data.danced = pick; bt.emit('gyuDance', { pick: pick });
+    if (pick === 'toka') { bossCast(bt, b, '춤: 토카토카', '#00f0ff'); return GYUSUN_SKILLS.toka(bt, b); }
+    if (pick === 'catch') return GYU_SKILLS._catch(bt, b);
+    return GYU_SKILLS._arrest(bt, b);
+  },
+  _catch: function (bt, b) {   // 제자리 점프 → 착지마다 좌우 끝까지 띠 파동
+    var c = b.cfg.catchc, i = 0, t = 0, keep = { vx: b.vx, vy: b.vy };
+    bossCast(bt, b, '춤: 캐치캐치', '#ff4fd8'); b.vx = b.vy = 0;
+    return {
+      moves: false,
+      update: function (dt) {
+        t += dt;
+        var p = Math.min(1, t / c.jumpTime);
+        b.lift = Math.sin(Math.PI * p) * 0.6; b.air = b.lift > 0.15;
+        if (p < 1) return false;
+        t = 0; i++; b.lift = 0; b.air = false;
+        bt.add(new HWave(bt, b, b.x, b.y, 1, c)); bt.add(new HWave(bt, b, b.x, b.y, -1, c));
+        FX.ring(b.x, b.y, b.r, b.r * 1.6, 0.3, '#ff4fd8', 12); FX.shake(14); FX.sfx('thump');
+        FX.text(b.x, b.y - b.r - 50, '캐치!', '#ff9cf0', 56, 0.6);
+        bt.emit('catchWave');
+        return i >= c.jumps;
+      },
+      end: function () { b.lift = 0; b.air = false; _restoreSpeed(b, keep.vx, keep.vy); },
+    };
+  },
+  _arrest: function (bt, b) {   // 휘슬 두 번: 휘슬마다 도전자 전원 그 자리에 정지
+    var c = b.cfg.arrest, n = 0, t = c.gap;
+    bossCast(bt, b, '춤: 체포하겠어', '#7dd3ff'); b.vx = b.vy = 0; b.data.whistle = true;
+    return {
+      moves: false,
+      update: function (dt) {
+        t += dt;
+        if (t < c.gap || n >= c.whistles) return t >= c.gap + 0.5;
+        t = 0; n++;
+        FX.text(b.x, b.y - b.r - 70, '삐익!!', '#ffffff', 80, 0.8); FX.sfx('ding'); FX.shake(10);
+        for (var k = 0; k < 3; k++) FX.ring(b.x, b.y, b.r, 1600, 0.5 + k * 0.12, k % 2 ? '#ffffff' : '#7dd3ff', 12 - k * 3);
+        _bPlayers(bt, b).forEach(function (o) { o.status.stun = Math.max(o.status.stun, c.stun); o.vx = o.vy = 0; FX.text(o.x, o.y - o.r - 40, '얼음!', '#7dd3ff', 42, 0.8); });
+        bt.emit('whistle', { n: n });
+        return false;
+      },
+      end: function () { b.data.whistle = false; _restoreSpeed(b, Math.random() - 0.5, 1); },
+    };
+  },
+  // 2-1 루차루차: 이비 루차루차와 같고 범위가 큼
+  lucha: function (bt, b) { bossCast(bt, b, '루차루차', '#ff4fd8'); return GYUSUN_SKILLS.lucha(bt, b); },
+  // 2-2 BURP VENOM: 진행 방향 부채꼴로 맵 끝까지 트림 + 냄새 지속 피해
+  burp: function (bt, b) {
+    var c = b.cfg.burp, t = 0, fired = false, sp = Math.hypot(b.vx, b.vy), tgt = _bPick(bt, b);
+    var ang = sp > 20 ? Math.atan2(b.vy, b.vx) : tgt ? Math.atan2(tgt.y - b.y, tgt.x - b.x) : _rnd(0, Math.PI * 2);
+    bossCast(bt, b, 'BURP VENOM', '#9cff57'); b.vx = b.vy = 0;
+    b.data.tele = { kind: 'cone', ang: ang, half: c.half };
+    return {
+      moves: false,
+      update: function (dt) {
+        t += dt; b.jx = _rnd(-3, 3) * Math.min(1, t / c.windup);
+        if (!fired && t >= c.windup) {
+          fired = true; b.data.tele = null;
+          FX.banner('구우우으으어어어어어어억!!!', { color: '#9cff57', size: 92, life: 1.4 });
+          FX.sfx('quake'); FX.shake(26);
+          for (var i = 0; i < 70; i++) { var a = ang + _rnd(-c.half, c.half), v = _rnd(500, 1500); FX.particle({ x: b.x + Math.cos(a) * b.r, y: b.y + Math.sin(a) * b.r, vx: Math.cos(a) * v, vy: Math.sin(a) * v, drag: 0.97, life: _rnd(0.8, 1.6), size: _rnd(30, 70), color: Math.random() < 0.5 ? 'rgba(156,255,87,0.5)' : 'rgba(110,170,40,0.45)', shape: 'smoke' }); }
+          _bPlayers(bt, b).forEach(function (o) {
+            var da = Math.atan2(o.y - b.y, o.x - b.x) - ang; da = Math.atan2(Math.sin(da), Math.cos(da));
+            if (Math.abs(da) > c.half + Math.atan2(o.r, Math.max(1, _dist(o, b)))) return;
+            bt.damage(o, c.damage, b, { color: '#9cff57', kind: 'bossBurp' });
+            o.status.poison = Math.max(o.status.poison, c.time); o.status.poisonDps = c.dps;
+            FX.text(o.x, o.y - o.r - 50, '으 냄새…', '#9cff57', 40, 1.0);
+            bt.emit('burpHit', { who: o.def.id });
+          });
+        }
+        return t >= c.windup + 0.6;
+      },
+      end: function () { b.data.tele = null; b.jx = 0; _restoreSpeed(b, Math.cos(ang), Math.sin(ang)); },
+    };
+  },
+  // 3-1 개큰돌 던지기
+  rock: function (bt, b) {
+    var c = b.cfg.rock, t = 0, thrown = false, tgt = _bPick(bt, b), ang = tgt ? Math.atan2(tgt.y - b.y, tgt.x - b.x) : _rnd(0, Math.PI * 2);
+    bossCast(bt, b, '개큰돌 던지기', '#d8c8b0'); b.vx = b.vy = 0;
+    b.data.tele = { kind: 'arrow', x: b.x, y: b.y, dx: Math.cos(ang), dy: Math.sin(ang), len: 1400 };
+    return {
+      moves: false,
+      update: function (dt) {
+        t += dt;
+        if (tgt && tgt.targetable && t < c.windup * 0.7) { ang = Math.atan2(tgt.y - b.y, tgt.x - b.x); b.data.tele.dx = Math.cos(ang); b.data.tele.dy = Math.sin(ang); }
+        if (!thrown && t >= c.windup) { thrown = true; b.data.tele = null; bt.add(new BigRock(bt, b, ang, c)); FX.sfx('throw'); FX.shake(12); bt.emit('rockThrow'); }
+        return t >= c.windup + 0.3;
+      },
+      end: function () { b.data.tele = null; _restoreSpeed(b, -Math.cos(ang), -Math.sin(ang)); },
+    };
+  },
+  // 3-2 쌔비기 마스터: 한 판에 한 번, 살아 있는 도전자 스킬 하나를 훔치고 그 스킬은 봉인. 이후 이 자리엔 훔친 스킬
+  steal: function (bt, b) {
+    var d = b.data, cands = [];
+    d.stoleUsed = true;
+    bossCast(bt, b, '쌔비기 마스터', '#c77dff');
+    _bPlayers(bt, b).forEach(function (o) {
+      if (o.def.id === 'ripley') return;   // ???는 변신하면 스킬이 바뀌어서 제외
+      o.skills.forEach(function (sk, i) { if (!sk.def.passive && !sk.sealed) cands.push({ o: o, i: i }); });
+    });
+    if (!cands.length) return gyuWait(0.6);
+    var p = cands[Math.floor(Math.random() * cands.length)], sk = p.o.skills[p.i];
+    sk.sealed = true;
+    d.stolen = { id: p.o.def.id, idx: p.i, name: sk.def.name, from: p.o.name };
+    // 훔친 스킬이 남긴 투사체 등이 나중에도 보스 cfg · data에서 그 캐릭터 값을 찾으므로, 보스에 없는 키만 합쳐 둠 (보스 고유 값은 그대로)
+    var cc = CONFIG.chars[p.o.def.id], tmp = {}, keep = { takenMult: b.takenMult, slow: b.slow, synTaken: b.synTaken, speed: b.speed, dmgMult: b.dmgMult, maxHp: b.maxHp, hp: b.hp, r: b.r, data: b.data, cfg: b.cfg }, add = bt.add;
+    Object.keys(cc).forEach(function (k) { if (!(k in b.cfg)) b.cfg[k] = cc[k]; });
+    if (p.o.def.init) {   // 그 캐릭터 init으로 상태 준비 (init이 까는 장판 등은 안 깜, 보스 능력치는 그대로)
+      bt.add = function (e) { return e; }; b.data = tmp; b.cfg = Object.assign({}, b.cfg, cc);
+      try { p.o.def.init(bt, b); } catch (e) { console.warn('[볼파이트] 규순이 쌔비기 init 오류: ' + p.o.def.id, e); }
+      bt.add = add; Object.assign(b, keep);
+      Object.keys(tmp).forEach(function (k) { if (!(k in d)) d[k] = tmp[k]; });
+    }
+    FX.text(p.o.x, p.o.y - p.o.r - 70, '🫳 ' + sk.def.name + ' 봉인!', '#c77dff', 46, 1.4);
+    FX.banner('쌔비기 마스터!', { color: '#c77dff', sub: p.o.name + '의 「' + sk.def.name + '」 훔침', size: 110, life: 1.6 });
+    for (var i = 0; i < 24; i++) { var k = i / 24; FX.particle({ x: p.o.x + (b.x - p.o.x) * k, y: p.o.y + (b.y - p.o.y) * k, vx: _rnd(-30, 30), vy: _rnd(-30, 30), life: 0.6 + k * 0.4, size: 10, color: '#c77dff', shape: 'spark' }); }
+    FX.sfx('glitch');
+    bt.emit('steal', { from: p.o.def.id, key: sk.def.key });
+    return gyuWait(0.8);
+  },
+  stolen: function (bt, b) { return gyuRunStolen(bt, b); },
+  // 패시브 발작: 맵 가운데로 가서 부들부들 떨며 머리를 세 번 내리침 → 구석까지는 안 닿는 파동
+  seizure: function (bt, b) {
+    var c = b.cfg.seizure, A = CONFIG.arena, st = 'move', t = 0, n = 0, from = { x: b.x, y: b.y }, to = { x: A.x + A.w / 2, y: A.y + A.h / 2 };
+    var R = Math.hypot(A.w / 2, A.h / 2) * c.reach;
+    FX.banner('발작', { color: '#ff4fd8', sub: '규순이 · 패시브', size: 140, life: 1.4 });
+    b.phasing = true; b.vx = b.vy = 0;
+    b.data.tele = { kind: 'ring', x: to.x, y: to.y, r: R };
+    return {
+      moves: false, uninterruptible: true,
+      update: function (dt) {
+        t += dt;
+        if (st === 'move') {
+          var k = Math.min(1, t / 0.6), e = 1 - (1 - k) * (1 - k);
+          b.x = from.x + (to.x - from.x) * e; b.y = from.y + (to.y - from.y) * e;
+          if (k >= 1) { st = 'shake'; t = 0; }
+          return false;
+        }
+        b.x = to.x + _rnd(-9, 9); b.y = to.y + _rnd(-9, 9);
+        if (st === 'shake') { if (t >= 0.5) { st = 'smash'; t = c.gap; } return false; }
+        if (t < c.gap) { b.scale = 1 + 0.15 * Math.max(0, 1 - t / 0.2); return false; }
+        if (n >= c.smashes) return true;
+        t = 0; n++; b.scale = 1.15;
+        bt.add(new Wave(bt, b, to.x, to.y, R, c.speed, c.damage, '#ff4fd8', 'seizureHit', { knock: 500 }));
+        FX.text(to.x, to.y - b.r - 60, '쾅!' + (n === c.smashes ? '!!' : ''), '#ffffff', 70, 0.7);
+        FX.shake(22); FX.sfx('slam'); FX.flash('#ff4fd8', 0.15, 0.2);
+        bt.emit('seizureSmash', { n: n });
+        return false;
+      },
+      end: function () { b.phasing = false; b.scale = 1; b.data.tele = null; b.x = to.x; b.y = to.y; _restoreSpeed(b, Math.random() - 0.5, 1); },
+    };
+  },
+  // 하드 전용 디바 자세
+  diva: function (bt, b) {
+    var c = b.cfg.diva;
+    FX.banner('디바 자세', { color: '#ff7ad9', sub: '"이것도 x발 너프해봐 개x끼들아!!!"', size: 120, life: 2.0 });
+    FX.text(b.x, b.y - b.r - 80, '이것도 x발 너프해봐 개x끼들아!!!', '#ff7ad9', 50, 1.8);
+    FX.sfx('awaken'); FX.shake(18);
+    bt.add(new ChairBomb(bt, b, c)); bt.emit('diva');
+    b.vx = b.vy = 0;
+    return gyuWait(0.7, function () { _restoreSpeed(b, Math.random() - 0.5, 1); });
+  },
+};
+
 
 var BOSSES = {
   heroBaton: {
@@ -706,17 +1089,11 @@ var BOSSES = {
         d.bacT = (d.bacT == null ? c.baccarat.first : d.bacT) - dt;
         if (d.bacT <= 0) { d.bacT = c.baccarat.cd; startBaccarat(bt, b); }
       }
-      if (!b.action && !b.hidden) d.cur = null;
-      if (b.action || b.hidden) return;
-      if (d.queue.length) { var q = d.queue.shift(); d.cur = q; b.action = BATON_SKILLS[q](bt, b); bt.emit('bossSkill', { skill: q }); return; }
-      if (b.disabled) return;
-      d.cd -= dt * b.cdRate;
-      if (d.cd > 0) return;
-      var pool = bossPool(b), opts = pool.filter(function (k) { return k !== d.last; }), k = (opts.length ? opts : pool)[Math.floor(Math.random() * (opts.length || pool.length))];
-      d.last = k; d.cur = k; d.cd = c.cd * (c.phaseCd[b.phase - 1] || 1);   // 페이즈가 오를수록 짧아짐
-      b.action = BATON_SKILLS[k](bt, b);
-      bt.emit('bossSkill', { skill: k });
+      bossNext(bt, b, dt, BATON_SKILLS);
     },
+    phaseQueue: function (n) { return n === 3 ? ['scream', 'wash'] : ['scream']; },
+    hudNames: function () { return { scream: '끼야아아악', wash: '일단 씻고 오겠습니다' }; },
+    lobbyNote: { easy: '4명 + 시너지 하나로 도전해 보세요 · 페이즈마다 스킬 두 개', hard: '더 많이 구르고 더 많이 뿌림 · 이전 페이즈 스킬도 섞어 씀 · 노광석의 힘 등장' },
     // 바통의 근원 킥보드: 공 밑에 크게 (주황 발판 + 노란 손잡이 + 바퀴 빛)
     drawUnder: function (ctx, b, bt, x, y, r, time) {
       if (!b.data.kick) return;
@@ -804,6 +1181,105 @@ var BOSSES = {
       }
     },
   },
+  gyusuni: {
+    id: 'gyusuni', name: '규순이', sub: '보스',
+    noMark: true,   // 패시브 이중인격자: 심리학자 진형권 표식 안 받음
+    female: function () { return true; },   // 여성으로 인식
+    images: {
+      base: { src: 'assets/ibi_gyusuni.jpg', fx: 0.64, fy: 0.5, s: 0.5 },
+      p2:   { src: 'assets/ibi_lucha.jpg', fx: 0.62, fy: 0.4, s: 0.8 },
+      p3:   { src: 'assets/ibi_gyusuni.jpg', fx: 0.55, fy: 0.55, s: 0.8 },
+    },
+    portrait: function (b) { return b.data.lucha || (b.phase === 2) ? 'p2' : b.phase >= 3 ? 'p3' : 'base'; },
+    blurb: '보스',
+    title: '안녕 난 규순이야',
+    intro: '한규성 안에 사는 또 다른 자아, 규순이. 이비의 각성기를 더 크게 쓰고, 페이즈가 바뀔 때마다 발작을 일으킨다. 같은 말을 누누이 반복하는 버릇이 있고, 마지막엔 남의 스킬까지 쌔벼 간다.',
+    info: {
+      passives: [
+        { name: 'I said 누누이', desc: function (c) { return Math.round(c.nunu * 100) + '% 확률로 "I said 누누이"와 함께 방금 쓴 스킬을 한 번 더 씀 (쌔비기 마스터 제외)'; } },
+        { name: '이중인격자', desc: function () { return '자아가 온전치 않아서 심리학자 진형권의 표식을 받지 않음'; } },
+        { name: '발작', desc: function (c) { return '페이즈가 바뀔 때마다 맵 가운데로 가서 부들부들 떨며 머리를 ' + c.seizure.smashes + '번 내리침. 내리칠 때마다 넓은 파동 (각 ' + c.seizure.damage + ', 맵 구석까지는 안 닿음)'; } },
+        { name: '여성', desc: function () { return '여성으로 인식 (조우연의 뱀 2배, 포식자의 포식은 회복만, 김선율은 피해 절반)'; } },
+      ],
+      skills: [
+        { key: 'wings', phase: 1, name: '날아가야돼', desc: function (c) { return '새가 너무 좋아(새 ' + c.birds.count + '마리)와 함께 양 옆 날개를 위아래로 빠르게 흔듦. 날개에 맞으면 ' + c.wings.damage + ' 피해 + 크게 넉백'; } },
+        { key: 'dance', phase: 1, name: '춤', desc: function (c) { return '셋 중 하나. 토카토카(이비보다 넓은 충격파) / 캐치캐치(제자리 점프 ' + c.catchc.jumps + '번, 착지마다 좌우 맵 끝까지 파동 ' + c.catchc.damage + ') / 체포하겠어(휘슬 ' + c.arrest.whistles + '번, 불 때마다 도전자 전원 ' + c.arrest.stun + '초 정지)'; } },
+        { key: 'lucha', phase: 2, name: '루차루차', desc: function (c) { return '이비의 루차루차와 같지만 훨씬 넓은 범위 (반경 ' + c.lucha.radius + ', ' + c.lucha.damage + ' 피해)'; } },
+        { key: 'burp', phase: 2, name: 'BURP VENOM', desc: function (c) { return '진행 방향으로 "구우우으으어어어어어어억!!!" 트림. 맵 끝까지 부채꼴, 맞으면 ' + c.burp.damage + ' 피해 + ' + c.burp.time + '초 동안 냄새 지속 피해'; } },
+        { key: 'rock', phase: 3, name: '개큰돌 던지기', desc: function (c) { return '아주 큰 돌을 굴림. 맞으면 ' + c.rock.damage + ' 피해 + 넉백 + ' + c.rock.stun + '초 기절. ' + c.rock.maxHits + '명을 맞히면 그 자리에서 부서짐'; } },
+        { key: 'steal', phase: 3, name: '쌔비기 마스터', desc: function () { return '한 판에 한 번, 살아 있는 도전자 스킬 하나(1 · 2스킬 상관없이)를 훔침. 훔친 스킬은 그 게임 동안 봉인되고, 이 자리는 훔친 스킬로 바뀜'; } },
+      ],
+      hard: { key: 'diva', name: '디바 자세', desc: function (c) { return '체력 ' + Math.round(c.diva.at * 100) + '% 이하에서 "이것도 x발 너프해봐 개x끼들아!!!" 하며 맵 가운데에 의자를 던짐. ' + c.diva.fuse + '초 뒤 폭발(' + c.diva.blastDamage + ') + 파편 ' + c.diva.shards + '개(각 ' + c.diva.shardDamage + ')'; } },
+    },
+    lobbyNote: { easy: '페이즈마다 스킬 두 개 · 페이즈가 바뀔 땐 구석으로 피하세요', hard: '더 넓고 더 오래 · 이전 페이즈 스킬도 섞어 씀 · 디바 자세 등장' },
+    skills: [], noAutoPhase2: true,
+    color: function (b) { return b.phase >= 3 ? b.cfg.phase3Color : b.phase >= 2 ? b.cfg.phase2Color : b.cfg.color; },
+    init: function (bt, b) {
+      b.data = { cd: b.cfg.firstCast, queue: [], last: null, cast: '', castT: 0 };
+      bt.add(new GyuAura(bt, b));
+    },
+    update: function (bt, b, dt) {
+      var c = b.cfg, d = b.data, st = b.status;
+      st.stun = Math.min(st.stun, c.ccCap); st.freeze = Math.min(st.freeze, c.ccCap);   // 보스는 군중 제어에 강함
+      if (d.castT > 0) d.castT -= dt;
+      if (b.phase === 1 && b.hp <= b.maxHp * c.phases[0]) bossPhase(bt, b, 2);
+      else if (b.phase === 2 && b.hp <= b.maxHp * c.phases[1]) bossPhase(bt, b, 3);
+      if (c.diva.at > 0 && !d.diva && b.hp <= b.maxHp * c.diva.at) { d.diva = true; d.queue.push('diva'); }
+      bossNext(bt, b, dt, GYU_SKILLS);
+    },
+    phaseQueue: function () { return ['seizure']; },
+    // 쌔비기 마스터는 한 번 쓰면 훔친 스킬로 바뀜 (못 훔쳤으면 빠짐)
+    poolFix: function (b, out) { var d = b.data; return out.map(function (k) { return k !== 'steal' ? k : d.stolen ? 'stolen' : d.stoleUsed ? null : k; }).filter(Boolean); },
+    // 패시브 I said 누누이: 끝난 스킬을 확률로 한 번 더 (다시 쓴 건 또 반복 안 함)
+    onSkillEnd: function (bt, b, k) {
+      var d = b.data;
+      if (d.nunu) { d.nunu = false; return; }
+      if (GYU_NO_REPEAT.indexOf(k) >= 0 || Math.random() >= b.cfg.nunu) return;
+      d.nunu = true; d.queue.unshift(k);
+      FX.banner('I said 누누이', { color: '#c77dff', sub: '규순이 · 패시브', size: 100, life: 1.1, y: CONFIG.arena.y + 260 });
+      FX.text(b.x, b.y - b.r - 70, 'I said 누누이', '#ffffff', 56, 1.1); FX.sfx('awaken');
+      bt.emit('nunu', { skill: k });
+    },
+    hudNames: function (b) { return { seizure: '발작', stolen: b.data.stolen ? '🫳 ' + b.data.stolen.name : '훔친 스킬' }; },
+    drawExtra: function (ctx, b, bt, x, y, r, time) {
+      var d = b.data, tl = d.tele, i;
+      if (tl && tl.kind === 'cone') {   // BURP VENOM 예고: 맵 끝까지 부채꼴
+        ctx.save(); ctx.globalAlpha = 0.18 + Math.sin(time * 26) * 0.08; ctx.fillStyle = '#9cff57';
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, 3000, tl.ang - tl.half, tl.ang + tl.half); ctx.closePath(); ctx.fill();
+        ctx.globalAlpha = 0.8; ctx.strokeStyle = '#9cff57'; ctx.lineWidth = 6; ctx.setLineDash([26, 16]); ctx.stroke(); ctx.restore();
+      }
+      if (tl && tl.kind === 'ring') {   // 발작 예고: 파동이 닿는 범위 (구석은 안전)
+        ctx.save(); ctx.globalAlpha = 0.12 + Math.sin(time * 18) * 0.05; ctx.fillStyle = '#ff4fd8';
+        ctx.beginPath(); ctx.arc(tl.x, tl.y, tl.r, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.9; ctx.strokeStyle = '#ff4fd8'; ctx.lineWidth = 8; ctx.setLineDash([30, 20]); ctx.lineDashOffset = -time * 200; ctx.stroke(); ctx.restore();
+      }
+      if (tl && tl.kind === 'arrow') {   // 개큰돌 예고
+        ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(time * 30) * 0.25; ctx.strokeStyle = '#d8c8b0'; ctx.lineWidth = b.cfg.rock.radius * 1.6; ctx.lineCap = 'round';
+        ctx.globalAlpha *= 0.35; ctx.beginPath(); ctx.moveTo(tl.x, tl.y); ctx.lineTo(tl.x + tl.dx * tl.len, tl.y + tl.dy * tl.len); ctx.stroke(); ctx.restore();
+      }
+      if (b.hidden) return;
+      if (d.wing != null) {   // 날개: 양 옆으로 펼쳐 위아래로 빠르게
+        var c = b.cfg.wings, fl = Math.sin(d.wing * 42) * 0.55;
+        [-1, 1].forEach(function (s) {
+          ctx.save(); ctx.translate(x + s * r * 0.75, y); ctx.scale(s, 1); ctx.rotate(-fl);
+          ctx.shadowColor = '#e6c8ff'; ctx.shadowBlur = 24;
+          for (i = 0; i < 5; i++) {
+            var L = c.length * (1 - i * 0.12) + r * 0.3;
+            ctx.fillStyle = i % 2 ? '#f3e6ff' : '#ffffff'; ctx.strokeStyle = 'rgba(120,60,160,0.8)'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.ellipse(L / 2, -c.width * 0.3 + i * c.width * 0.15, L / 2, c.width * 0.13, -0.15 + i * 0.07, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          }
+          ctx.restore();
+        });
+      }
+      // 리본 (바통 왕관 대신)
+      ctx.save(); ctx.translate(x, y - r - 18); ctx.rotate(Math.sin(time * 3) * 0.08);
+      ctx.fillStyle = '#ff4fd8'; ctx.strokeStyle = '#7a1060'; ctx.lineWidth = 4; ctx.shadowColor = '#ff4fd8'; ctx.shadowBlur = 18;
+      [-1, 1].forEach(function (s) { ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(s * 70, -46, s * 76, 0); ctx.quadraticCurveTo(s * 70, 40, 0, 0); ctx.fill(); ctx.stroke(); });
+      ctx.shadowBlur = 0; ctx.fillStyle = '#ffd6f4'; ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
+      if (d.whistle) { ctx.font = '70px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('📢', x + r * 0.9, y - r * 0.2); }
+      if (d.stolen) { ctx.font = '54px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🫳', x - r * 0.95, y + r * 0.6); }
+    },
+  },
 };
 
 // ---------- 보스전 UI ----------
@@ -859,10 +1335,10 @@ Battle.prototype.drawBossHUD = function (ctx, time) {
   // 이번 페이즈 스킬 칩: 지금 쓰는 스킬은 빛남 (패시브·하드 스킬이 발동 중이면 따로 한 칸)
   var names = {}, info = b.def.info;
   info.skills.forEach(function (s) { names[s.key] = s.name; });
-  names.scream = '끼야아아악'; names.wash = '일단 씻고 오겠습니다'; names[info.hard.key] = info.hard.name;
+  Object.assign(names, b.def.hudNames(b)); names[info.hard.key] = info.hard.name;
   var keys = bossPool(b).slice();
   if (d.cur && keys.indexOf(d.cur) < 0) keys.unshift(d.cur);
-  if (b.phase >= 3) { names.bacc = d.bac ? '🃏 바지 강림!' : '🃏 바지 강림 ' + Math.max(0, d.bacT == null ? b.cfg.baccarat.first : d.bacT).toFixed(1) + 's'; keys.unshift('bacc'); }   // 맨 앞에 (칩이 많아도 안 잘리게)
+  if (b.phase >= 3 && b.cfg.baccarat) { names.bacc = d.bac ? '🃏 바지 강림!' : '🃏 바지 강림 ' + Math.max(0, d.bacT == null ? b.cfg.baccarat.first : d.bacT).toFixed(1) + 's'; keys.unshift('bacc'); }   // 맨 앞에 (칩이 많아도 안 잘리게)
   ctx.font = '700 20px "Malgun Gothic",sans-serif'; ctx.textAlign = 'left';
   var cx2 = 190, cy2 = 140;
   keys.forEach(function (k) {
@@ -885,7 +1361,7 @@ Battle.prototype.drawBossHUD = function (ctx, time) {
   extra.push('⏱ ' + mm + ':' + (ss < 10 ? '0' : '') + ss);
   ctx.fillStyle = '#dddddd'; ctx.fillText(extra.join('   '), W - 40, 196);
   ctx.textAlign = 'left'; ctx.fillStyle = '#999999'; ctx.font = '700 18px "Malgun Gothic",sans-serif';
-  ctx.fillText('패시브: 울분 · 끼야아아악 · 점점 빨라짐 · 일단 씻고 오겠습니다' + (b.cfg.song.at > 0 ? ' · 하드: 노광석의 힘' : ''), 190, 196);
+  ctx.fillText('패시브: ' + info.passives.map(function (p) { return p.name; }).join(' · ') + (hard ? ' · 하드: ' + info.hard.name : ''), 190, 196, W / 2 - 60);
   ctx.restore();
 
   // 도전자 카드: 초상화 · 이름 · 체력(숫자) · 스킬 두 개 쿨타임
@@ -917,10 +1393,10 @@ Battle.prototype.drawBossHUD = function (ctx, time) {
     if (ch >= 70) {
       var gy = Math.max(hy + hb + 8 * k, cy + r + 5), gh = Math.max(9, 15 * k), gx0 = x + 8, gw = (cw - 16 - 6) / 2;
       o.skills.slice(0, 2).forEach(function (sk, q) {
-        var locked = q > 0 && o.phase < 2 && !(o.def.earlySkill2 && o.def.earlySkill2(self, o));
+        var locked = sk.sealed || (q > 0 && o.phase < 2 && !(o.def.earlySkill2 && o.def.earlySkill2(self, o)));
         var info = o.def.gauge ? o.def.gauge(o, q, sk, self) : null;
         var fill = info && info.fill != null ? info.fill : 1 - Math.max(0, sk.cd) / sk.max;
-        var label = locked ? '🔒 ' + sk.def.name : info && info.label ? info.label : sk.def.name + (sk.def.passive ? '' : ' ' + Math.max(0, sk.cd).toFixed(1) + 's');
+        var label = sk.sealed ? '🫳 봉인: ' + sk.def.name : locked ? '🔒 ' + sk.def.name : info && info.label ? info.label : sk.def.name + (sk.def.passive ? '' : ' ' + Math.max(0, sk.cd).toFixed(1) + 's');
         var gx = gx0 + q * (gw + 6);
         ctx.fillStyle = '#1b1530'; rr(ctx, gx, gy, gw, gh, gh / 2); ctx.fill();
         if (!locked) { ctx.fillStyle = fill >= 1 ? '#ffffff' : (info && info.color) || oc; rr(ctx, gx, gy, gw * Math.max(0, Math.min(1, fill)), gh, gh / 2); ctx.fill(); }
@@ -956,4 +1432,4 @@ Battle.prototype.drawBossBorder = function (ctx) {
 };
 
 // 테스트/디버그용
-Object.assign(Ents, { SheetFx: SheetFx, Hot6Box: Hot6Box, BossBullet: BossBullet, CoinShot: CoinShot, JokeShot: JokeShot, SongWave: SongWave, BossAura: BossAura });
+Object.assign(Ents, { GyuAura: GyuAura, HWave: HWave, BigRock: BigRock, ChairBomb: ChairBomb, Shard: Shard, SheetFx: SheetFx, Hot6Box: Hot6Box, BossBullet: BossBullet, CoinShot: CoinShot, JokeShot: JokeShot, SongWave: SongWave, BossAura: BossAura });

@@ -453,6 +453,7 @@ function psychTarget(bt, b) {
 function psychHit(bt, b, o) {
   var d = b.data, c = b.cfg.pavlov;
   if (d.marks[o.id]) return;
+  if (o.def.noMark) { if (!(d.noMarkMsg > bt.time)) { d.noMarkMsg = bt.time + 3; FX.text(o.x, o.y - o.r - 80, '이중인격자라 안 먹힘', '#c77dff', 46, 1.1); } return; }   // 규순이 이중인격자
   d.hits[o.id] = (d.hits[o.id] || 0) + 1;
   if (d.hits[o.id] < c.marks) return;
   d.marks[o.id] = true;
@@ -2563,6 +2564,7 @@ var CHARACTERS = {
             onHit: function () {
               if (refunds++ >= c.refundMax) return;   // 한 번 연주에 쿨감은 refundMax번까지 (기본 1번)
               var sk = b.skills[0];
+              if (!sk) return;   // 규순이가 훔쳐 쓴 경우 (보스는 스킬 칸이 없음)
               sk.cd = Math.max(0, sk.cd - c.refund);
               bt.emit('bassRefund');
             },

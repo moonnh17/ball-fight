@@ -434,6 +434,7 @@ var Battle = (function () {
       // 스킬 쿨타임 / 자동 발동
       for (var i = 0; i < b.skills.length; i++) {
         var sk = b.skills[i];
+        if (sk.sealed) continue;   // 규순이 쌔비기 마스터에 훔쳐진 스킬
         if (i > 0 && b.phase < 2 && !(b.def.earlySkill2 && b.def.earlySkill2(this, b))) continue;   // 2스킬은 페이즈 2부터 (earlySkill2면 처음부터)
         if (sk.def.passive) {                              // 쿨타임과 무관한 패시브 타이머(염색, 충전기)
           sk.cd -= dt * b.cdRate;

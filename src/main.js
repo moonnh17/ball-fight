@@ -769,7 +769,14 @@
     // 난이도
     chip(W / 2 - 400, 760, 380, 84, 'EASY · 이지', !hard, '#39c46a', function () { G.bossDiff = 'easy'; });
     chip(W / 2 + 20, 760, 380, 84, 'HARD · 하드', hard, '#ff2b3b', function () { G.bossDiff = 'hard'; });
-    outlined(ctx, hard ? '더 많이 구르고 더 많이 뿌림 · 이전 페이즈 스킬도 섞어 씀 · 노광석의 힘 등장' : (c.synergyBonus ? '이지 보너스: 도전자 시너지 하나당 공격력 +' + Math.round(c.synergyBonus.damage * 100) + '%' : '4명 + 시너지 하나로 도전해 보세요 · 페이즈마다 스킬 두 개'), W / 2, 872, 24, hard ? '#ff8a8a' : '#a8f0b8');
+    outlined(ctx, hard ? bd.lobbyNote.hard : (c.synergyBonus ? '이지 보너스: 도전자 시너지 하나당 공격력 +' + Math.round(c.synergyBonus.damage * 100) + '%' : bd.lobbyNote.easy), W / 2, 872, 24, hard ? '#ff8a8a' : '#a8f0b8');
+    // 보스 고르기: 초상 양옆 화살표
+    var bids = Object.keys(BOSSES), bi = bids.indexOf(G.bossId);
+    if (bids.length > 1) {
+      outlined(ctx, (bi + 1) + ' / ' + bids.length, W - 90, 520, 28, '#dddddd');
+      button(30, 360, 120, 120, '◀', function () { G.bossId = bids[(bi + bids.length - 1) % bids.length]; G.dexScroll = 0; }, { size: 60, color: '#555577', color2: '#333355' });
+      button(W - 150, 360, 120, 120, '▶', function () { G.bossId = bids[(bi + 1) % bids.length]; G.dexScroll = 0; }, { size: 60, color: '#555577', color2: '#333355' });
+    }
     // 설명 (스크롤)
     var top = 900, bot = 1660, maxS = Math.max(0, (G.lobbyEnd || 0) - bot + 30);
     G.dexScroll = Math.max(0, Math.min(maxS, G.dexScroll || 0));

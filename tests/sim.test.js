@@ -1559,5 +1559,97 @@ test('토너먼트 무승부 판정: 동시 탈락이면 승자 없음 (재경�
   assert(bt.over && !bt.winner, 'draw');
 });
 
+// ---------- 보스 2: 규순이 ----------
+const GS = () => vm.runInContext('GYU_SKILLS', ctx);
+function gyu(roster, diff) { return new Battle(roster, 'boss', { boss: 'gyusuni', difficulty: diff || 'easy' }); }
+test('규순이: 이지 · 하드 전투가 끝까지 진행된다 (여러 조합)', () => {
+  const ids = Object.keys(CHARACTERS);
+  for (let k = 0; k < 12; k++) {
+    const diff = k % 2 ? 'hard' : 'easy';
+    const bt = gyu(Array.from({ length: 3 + (k % 4) }, (_, i) => ids[(k * 5 + i * 3) % ids.length]), diff);
+    runToEnd(bt);
+    assert(bt.over, 'over ' + k);
+  }
+});
+test('규순이: 여성 · 이중인격자(심리학자 표식 안 받음) · 이지/하드 차이', () => {
+  const bt = gyu(['psych', 'gym']);
+  const boss = bt.boss, p = bt.balls.find(b => b.def.id === 'psych');
+  assert(vm.runInContext('_isFemale', ctx)(boss), '여성');
+  for (let i = 0; i < 5; i++) vm.runInContext('psychHit', ctx)(bt, p, boss);
+  assert(!p.data.marks[boss.id], '표식 안 받음');
+  const e = gyu(['gym', 'ibi']), h = gyu(['gym', 'ibi'], 'hard');
+  assert(e.boss.cfg.diva.at === 0 && h.boss.cfg.diva.at > 0 && h.boss.cfg.cumulative && !e.boss.cfg.cumulative, '디바 자세는 하드만');
+  assert(h.boss.cfg.lucha.radius > e.boss.cfg.lucha.radius, '하드 루차루차 더 넓게');
+});
+test('규순이: I said 누누이 — 끝난 스킬을 한 번 더 (다시 쓴 건 반복 안 함, 쌔비기 마스터 제외)', () => {
+  const bt = gyu(['gym', 'ibi', 'seori']); const b = bt.boss;
+  bt.balls.forEach(o => { o.maxHp = o.hp = 1e6; });
+  b.cfg.nunu = 1;
+  b.def.onSkillEnd(bt, b, 'wings'); assert(b.data.queue[0] === 'wings' && count(bt, 'nunu') === 1);
+  b.data.queue.length = 0; b.def.onSkillEnd(bt, b, 'wings'); assert(count(bt, 'nunu') === 1, '다시 쓴 건 또 반복 안 함');
+  b.def.onSkillEnd(bt, b, 'steal'); assert(count(bt, 'nunu') === 1, '쌔비기 마스터 제외');
+  // 실제 흐름: 스킬이 끝나면 같은 스킬이 다시 나감
+  const b2 = gyu(['gym', 'ibi']); b2.balls.forEach(o => { o.maxHp = o.hp = 1e6; }); b2.boss.cfg.nunu = 1;
+  run(b2, 12);
+  const sk = b2.log.filter(e => e.type === 'bossSkill').map(e => e.skill);
+  assert(count(b2, 'nunu') >= 1 && sk.some((k, i) => i && k === sk[i - 1]), '같은 스킬 연속 ' + sk.join(','));
+});
+test('규순이: 발작 — 페이즈가 바뀌면 가운데서 머리 세 번, 구석은 안 맞음', () => {
+  const bt = gyu(['gym', 'ibi']); const b = bt.boss, [g, i] = bt.balls.filter(o => !o.isBoss), A = bt.arena;
+  bt.balls.forEach(o => { o.maxHp = o.hp = 1e6; });
+  b.hp = b.maxHp * 0.65; bt.freeze = 0;
+  g.x = A.x + g.r + 2; g.y = A.y + g.r + 2; g.speed = 0; g.vx = g.vy = 0;   // 구석
+  i.x = A.x + A.w / 2 + 300; i.y = A.y + A.h / 2; i.speed = 0; i.vx = i.vy = 0;   // 가운데 근처
+  for (let k = 0; k < 60 * 6 && count(bt, 'seizureSmash') < 3; k++) bt.update(DT);
+  assert(Math.hypot(b.x - (A.x + A.w / 2), b.y - (A.y + A.h / 2)) < 40, '가운데');
+  run(bt, 1.5);
+  assert(b.phase === 2 && count(bt, 'seizureSmash') === 3, '세 번');
+  assert(count(bt, 'seizureHit', e => e.who === 'ibi') >= 1 && count(bt, 'seizureHit', e => e.who === 'gym') === 0, '구석은 안전');
+});
+test('규순이: 날개 넉백 · 체포하겠어 정지 · BURP 냄새 · 개큰돌 기절(두 명이면 부서짐)', () => {
+  const bt = gyu(['gym', 'ibi', 'seori']); const b = bt.boss, ps = bt.balls.filter(o => !o.isBoss);
+  bt.balls.forEach(o => { o.maxHp = o.hp = 1e6; o.speed = 0; o.vx = o.vy = 0; });
+  ps[0].x = b.x + b.r + 150; ps[0].y = b.y;
+  b.action = GS().wings(bt, b); run(bt, 0.5);
+  assert(count(bt, 'wingHit') >= 1, '날개에 맞음');
+  b.action = GS()._arrest(bt, b); run(bt, 0.6);
+  assert(count(bt, 'whistle') >= 1 && ps.every(o => o.status.stun > 0), '휘슬 정지');
+  run(bt, 1.5);
+  b.action = null; b.vx = 100; b.vy = 0; ps[1].x = b.x + 800; ps[1].y = b.y; ps[2].x = b.x - 800; ps[2].y = b.y;
+  b.action = GS().burp(bt, b); run(bt, 1.5);
+  assert(count(bt, 'burpHit', e => e.who === ps[1].def.id) === 1 && count(bt, 'burpHit', e => e.who === ps[2].def.id) === 0, '진행 방향만');
+  assert(ps[1].status.poison > 0, '냄새 지속 피해');
+  const r2 = gyu(['gym', 'ibi', 'seori']), bb = r2.boss, q = r2.balls.filter(o => !o.isBoss);
+  r2.balls.forEach(o => { o.maxHp = o.hp = 1e6; o.speed = 0; o.vx = o.vy = 0; });
+  q.forEach((o, k) => { o.x = bb.x + bb.r + 200 + k * 250; o.y = bb.y; });
+  r2.add(new Ents.BigRock(r2, bb, 0, bb.cfg.rock)); run(r2, 1.5);
+  assert(count(r2, 'rockHit') === 2 && count(r2, 'rockBreak') === 1 && q[0].status.stun > 0, '두 명 맞히고 부서짐');
+});
+test('규순이: 쌔비기 마스터 — 한 번만, 훔친 스킬 봉인, 이후 훔친 스킬 사용 (모든 캐릭터 액티브 스킬)', () => {
+  for (const id of Object.keys(CHARACTERS).filter(i => i !== 'ripley')) {
+    CHARACTERS[id].skills.forEach((sk, idx) => {
+      if (sk.passive) return;
+      const bt = gyu([id, 'gym']); const b = bt.boss, v = bt.balls.find(o => o.def.id === id);
+      bt.balls.forEach(o => { o.maxHp = o.hp = 1e6; });
+      b.phase = 3; v.skills.forEach((s, i) => { if (i !== idx) s.sealed = true; });   // 이 스킬만 훔치게
+      b.action = GS().steal(bt, b); run(bt, 1);
+      assert(v.skills[idx].sealed && b.data.stolen && b.data.stolen.id === id, id + ' 봉인');
+      assert(vm.runInContext('bossPool', ctx)(b).includes('stolen') && !vm.runInContext('bossPool', ctx)(b).includes('steal'), '한 번만');
+      b.action = GS().stolen(bt, b);
+      for (let k = 0; k < 60 * 4 && b.action; k++) bt.update(DT);
+      assert(count(bt, 'stolenCast') === 1, id + ' ' + sk.key);
+    });
+  }
+});
+test('규순이 하드: 디바 자세 — 의자가 가운데서 터지며 파편', () => {
+  const bt = gyu(['gym', 'ibi', 'seori'], 'hard'); const b = bt.boss;
+  bt.balls.forEach(o => { if (!o.isBoss) { o.maxHp = o.hp = 1e6; } });
+  b.hp = b.maxHp * 0.29; b.phase = 3;
+  for (let k = 0; k < 60 * 8 && !count(bt, 'divaBlast'); k++) bt.update(DT);
+  assert(count(bt, 'diva') === 1 && count(bt, 'divaBlast') === 1, '디바');
+  run(bt, 2);
+  assert(count(bt, 'damage', e => e.kind === 'divaShard' || e.kind === 'divaBlast') >= 1, '파편 피해');
+});
+
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);

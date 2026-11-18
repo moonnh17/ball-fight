@@ -107,6 +107,35 @@ var CONFIG = {
         song: { at: 0.25, time: 7, every: 0.7, speed: 560, width: 52, gaps: 1, gapDeg: 44, damage: 7 },   // 틈 하나, 좁고 빠르게 (대신 한 번 피해는 작게)
       },
     },
+    gyusuni: {   // 규순이 (두 번째 보스)
+      hpPerPlayer: 170, hpExp: 1.45, speed: 330, radius: 170,
+      color: '#c77dff', phase2Color: '#ff4fd8', phase3Color: '#00f0ff',
+      contactDamage: 6, dmgMult: 1, maxTime: 300,
+      phases: [0.66, 0.33], ccCap: 0.4, cd: 3.2, firstCast: 2.0, phaseCd: [1, 0.85, 0.7],
+      pools: { 1: ['wings', 'dance'], 2: ['lucha', 'burp'], 3: ['rock', 'steal'] },   // steal은 한 판에 한 번, 쓰고 나면 훔친 스킬(stolen)로 바뀜
+      cumulative: false,
+      nunu: 0.3,   // 패시브 I said 누누이: 스킬이 끝나면 이 확률로 같은 스킬 한 번 더 (쌔비기 마스터 · 발작 · 디바 자세 제외)
+      // 패시브 발작: 페이즈가 바뀌면 맵 가운데서 머리를 smashes번 내리침. 파동 반경 = 가운데~구석 거리 x reach (구석은 안전)
+      seizure: { reach: 0.78, smashes: 3, gap: 0.6, speed: 1100, damage: 12 },
+      birds: { count: 3, damage: 10, life: 4, speed: 640, turn: 5.5, shake: 8 },   // 날아가야돼: 이비 새가 너무 좋아와 같은 새
+      wings: { time: 1.8, flapEvery: 0.15, length: 320, width: 170, damage: 8, knock: 1500, hitGap: 0.45 },   // 양 옆 날개 (길이 · 두께)
+      toka: { jumps: 3, jumpTime: 0.55, waveRadius: 420, waveSpeed: 1000, damage: 12, shake: 16 },   // 춤: 토카토카 (이비보다 넓게)
+      catchc: { jumps: 3, jumpTime: 0.5, band: 220, speed: 1500, damage: 12 },   // 춤: 캐치캐치 (착지마다 좌우 끝까지 띠 파동, band: 띠 두께)
+      arrest: { whistles: 2, gap: 0.45, stun: 1.2 },                            // 춤: 체포하겠어 (휘슬마다 도전자 전원 stun초 정지)
+      lucha: { riseTime: 0.8, hangTime: 0.35, fallTime: 0.25, radius: 420, damage: 28, knockback: 1300, shake: 36 },   // 이비 루차루차의 큰 범위판
+      burp: { windup: 0.7, half: 0.6, damage: 12, dps: 4, time: 4 },            // BURP VENOM: 진행 방향 부채꼴(반각 half 라디안) 맵 끝까지 + 냄새 지속 피해
+      rock: { windup: 0.5, radius: 110, speed: 950, damage: 20, stun: 1.6, knock: 1200, maxHits: 2 },   // 개큰돌: 두 명 맞히면 부서짐
+      diva: { at: 0 },   // 하드 전용 디바 자세 (0 = 안 씀)
+      synergyBonus: null,
+      easy: { hpPerPlayer: 175, dmgMult: 1.1, cd: 3.4 },
+      hard: {
+        hpPerPlayer: 130, dmgMult: 1.1, cd: 3.2, contactDamage: 8, cumulative: true, phaseCd: [1, 0.9, 0.78],
+        seizure: { damage: 18 }, wings: { time: 2.4, damage: 10 }, catchc: { jumps: 4 }, arrest: { stun: 1.6 },
+        lucha: { radius: 480, damage: 34 }, burp: { half: 0.75, dps: 6 }, rock: { damage: 26, stun: 2 },
+        // 디바 자세: 체력 at 이하에서 한 번, 맵 가운데 의자 → fuse초 뒤 폭발 + 파편 shards개
+        diva: { at: 0.3, fuse: 1.8, shards: 18, shardSpeed: 650, shardDamage: 9, blastRadius: 260, blastDamage: 20 },
+      },
+    },
   },
 
   // 팀전 시너지 (조건은 이름 기준: 같은 이름의 이격도 그 사람으로 침)
