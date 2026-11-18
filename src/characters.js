@@ -732,30 +732,60 @@ class BlindOrb {
   }
   light() { return { x: this.x, y: this.y, r: this.o.r * 3 }; }
 }
-// 영역 전개: 흰 영역 안의 적은 멈춤
+// 영역 전개: 테두리가 있는 동안 안에 있던 적만 붙잡혀 영역이 끝날 때까지 멈춤 (나중에 들어온 적은 안 걸림)
+// 테두리가 사라질 때 아무도 못 잡았으면 영역도 바로 사라짐. 끝나면 유재운은 lock초 동안 스킬 못 씀
 class BlindDomain {
-  constructor(bt, owner, c) { this.bt = bt; this.owner = owner; this.c = c; this.x = owner.x; this.y = owner.y; this.t = 0; this.z = -1; }
+  constructor(bt, owner, c) {
+    this.bt = bt; this.owner = owner; this.c = c; this.x = owner.x; this.y = owner.y; this.t = 0; this.z = -1; this.caught = new Set(); this.endT = null;
+    this.stars = []; for (var i = 0; i < 90; i++) { var a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()); this.stars.push({ a: a, d: d, s: _rnd(1.5, 4.5), p: Math.random() * 6 }); }
+  }
   get r() { return this.c.radius * Math.min(1, this.t / 0.35); }
+  finish() {
+    var b = this.owner;
+    this.dead = true; b.data.domain = null; b.data.burn = this.c.lock;
+    FX.ring(this.x, this.y, this.c.radius, this.c.radius * 1.2, 0.4, '#b8a8ff', 10);
+    this.bt.emit('domainEnd', { caught: this.caught.size });
+  }
   update(dt) {
-    var bt = this.bt, self = this, b = this.owner;
+    var bt = this.bt, self = this, b = this.owner, c = this.c;
     this.t += dt;
-    if (!b.alive || this.t > this.c.time) { this.dead = true; b.data.domain = null; FX.ring(this.x, this.y, this.c.radius, this.c.radius * 1.2, 0.4, '#ffffff', 10); return; }
-    bt.enemies(b).forEach(function (e) {
-      if (!e.targetable || Math.hypot(e.x - self.x, e.y - self.y) > self.r + e.r * 0.3) return;
-      if (!(e.status.stun > 0.05)) bt.emit('domainStop', { who: e.def.id });
+    if (!b.alive || this.t > c.time) return this.finish();
+    if (this.t < c.border) bt.enemies(b).forEach(function (e) {   // 테두리가 있는 동안만 붙잡음
+      if (!e.targetable || self.caught.has(e) || Math.hypot(e.x - self.x, e.y - self.y) > self.r + e.r * 0.3) return;
+      self.caught.add(e); bt.emit('domainStop', { who: e.def.id });
+      FX.ring(e.x, e.y, e.r, e.r * 1.8, 0.4, '#ffffff', 6);
+    });
+    else if (!this.caught.size) return this.finish();   // 아무도 안 걸리면 바로 사라짐
+    this.caught.forEach(function (e) {
+      if (!e.alive) return;
       e.status.stun = Math.max(e.status.stun, 0.15); e.vx *= 0.5; e.vy *= 0.5;
     });
   }
   draw(ctx) {
-    var r = this.r, t = this.t, fade = Math.min(1, (this.c.time - t) / 0.4);
-    ctx.save(); ctx.globalAlpha = Math.max(0, fade);
-    var g = ctx.createRadialGradient(this.x, this.y, r * 0.2, this.x, this.y, r);
-    g.addColorStop(0, 'rgba(255,255,255,0.08)'); g.addColorStop(0.85, 'rgba(230,240,255,0.32)'); g.addColorStop(1, 'rgba(255,255,255,0.75)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(this.x, this.y, r, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 6; ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 30; ctx.stroke(); ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2;   // 끝없이 펼쳐지는 선 (무량공처 느낌)
-    for (var i = 0; i < 24; i++) { var a = i / 24 * Math.PI * 2 + t * 0.3; ctx.beginPath(); ctx.moveTo(this.x + Math.cos(a) * r * 0.15, this.y + Math.sin(a) * r * 0.15); ctx.lineTo(this.x + Math.cos(a) * r, this.y + Math.sin(a) * r); ctx.stroke(); }
-    for (var q = 1; q <= 3; q++) { ctx.beginPath(); ctx.arc(this.x, this.y, r * ((q / 3 + t * 0.2) % 1), 0, Math.PI * 2); ctx.stroke(); }
+    var r = this.r, t = this.t, c = this.c, x = this.x, y = this.y, fade = Math.max(0, Math.min(1, (c.time - t) / 0.4, t / 0.2));
+    ctx.save(); ctx.globalAlpha = fade;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.save(); ctx.clip();
+    var g = ctx.createRadialGradient(x, y, 0, x, y, r);   // 깊은 우주
+    g.addColorStop(0, '#2a1a5e'); g.addColorStop(0.5, '#0d0a2e'); g.addColorStop(1, '#03020c');
+    ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    ctx.globalCompositeOperation = 'lighter';
+    [['#7a3cff', 0.55, 0.3], ['#2b7bff', 0.45, -0.2], ['#ff3cc8', 0.35, 0.5]].forEach(function (n, i) {   // 성운
+      var a = t * n[2] + i * 2.1, nx = x + Math.cos(a) * r * 0.4, ny = y + Math.sin(a) * r * 0.4, ng = ctx.createRadialGradient(nx, ny, 0, nx, ny, r * n[1]);
+      ng.addColorStop(0, n[0] + '55'); ng.addColorStop(1, n[0] + '00'); ctx.fillStyle = ng; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    });
+    ctx.strokeStyle = 'rgba(200,190,255,0.18)'; ctx.lineWidth = 10;   // 은하 소용돌이 팔
+    for (var k = 0; k < 2; k++) { ctx.beginPath(); for (var q = 0; q <= 40; q++) { var u = q / 40, aa = k * Math.PI + u * 4 + t * 0.6, rr = u * r; q ? ctx.lineTo(x + Math.cos(aa) * rr, y + Math.sin(aa) * rr) : ctx.moveTo(x, y); } ctx.stroke(); }
+    this.stars.forEach(function (s) {   // 반짝이는 별
+      var a = s.a + t * 0.15, sx = x + Math.cos(a) * s.d * r, sy = y + Math.sin(a) * s.d * r;
+      ctx.globalAlpha = fade * (0.5 + 0.5 * Math.sin(t * 4 + s.p)); ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(sx, sy, s.s, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.restore();
+    var bd = Math.max(0, Math.min(1, (c.border - t) / 0.3));   // 테두리: 전개 동안만 보이고 사라짐
+    if (bd > 0) {
+      ctx.globalAlpha = fade * bd; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 10; ctx.shadowColor = '#c8b8ff'; ctx.shadowBlur = 40;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+    } else { ctx.globalAlpha = fade * 0.35; ctx.strokeStyle = '#8a7aff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke(); }
     ctx.restore();
   }
   light() { return { x: this.x, y: this.y, r: this.r }; }
@@ -3605,7 +3635,7 @@ var CHARACTERS = {
       },
       {
         key: 'furious', name: 'furious-blackhead',
-        desc: '5초 동안 지금까지 얻은 무기들을 이어 쓰며 연사. 권총으로 시작해서, 산탄총을 쏘기 전엔 카타나로 파고들고 저격총을 쏘기 전엔 카타나로 뒤로 빠지는 식으로 부드럽게 연계',
+        desc: CONFIG.chars.kojeom.furious.time + '초 동안 지금까지 얻은 무기들을 (피해 x' + CONFIG.chars.kojeom.furious.damage + ') 이어 쓰며 연사. 권총으로 시작해서, 산탄총을 쏘기 전엔 카타나로 파고들고 저격총을 쏘기 전엔 카타나로 뒤로 빠지는 식으로 부드럽게 연계',
         cd: function (c) { return c.furious.cd; },
         start: function (bt, b) {
           var c = b.cfg.furious, seq = kjCombo(b), i = 0, t = 0, step = null, stepT = 0, fire = 0, keep = b.data.weapon;
@@ -3682,12 +3712,12 @@ var CHARACTERS = {
     },
     portrait: function (b) { return b.phase >= 2 ? 'p2' : 'base'; },
     blurb: '이동 보통 · 원거리 술식',
-    intro: '눈을 가린 유재운. 터지며 적을 밀어내는 푸른 구체를 날리고, 체력이 적을수록 더 강한 붉은 구체가 자주 나온다. 페이즈 2에서는 흰 영역을 펼쳐 안의 적을 멈추고, 영역이 펼쳐진 동안엔 붉은 구체만 쏘며 가끔 둘을 합친 보라색 구체를 맵 끝까지 쏜다.',
+    intro: '눈을 가린 유재운. 터지며 적을 끌어당기는 푸른 구체를 날리고, 체력이 적을수록 밀쳐 내는 더 강한 붉은 구체가 자주 나온다. 페이즈 2에서는 우주 같은 영역을 펼쳐 테두리가 있는 동안 안에 있던 적을 붙잡아 멈추고, 영역이 펼쳐진 동안엔 붉은 구체만 쏘며 가끔 둘을 합친 보라색 구체를 맵 끝까지 쏜다.',
     init: function (bt, b) { b.data.domain = null; },
     skills: [
       {
-        key: 'infinity', name: '무한의 술식',
-        desc: (function () { var c = CONFIG.chars.blind.infinity; return '터지면서 적을 밀어내는 푸른 구체(' + c.blue.damage + '). 일정 확률로 더 세게 터지는 붉은 구체(' + c.red.damage + '), 체력이 적을수록 확률 증가 (' + Math.round(c.redChance.base * 100) + '% → 최대 ' + Math.round((c.redChance.base + c.redChance.low) * 100) + '%)'; })(),
+        key: 'infinity', name: '무한의 술식', holds: function (b) { return b.data.burn > 0; },
+        desc: (function () { var c = CONFIG.chars.blind.infinity; return '터지면서 폭발 지점으로 적을 끌어당기는 푸른 구체(' + c.blue.damage + '). 일정 확률로 더 세게 터지며 밀쳐 내는 붉은 구체(' + c.red.damage + '), 체력이 적을수록 확률 증가 (' + Math.round(c.redChance.base * 100) + '% → 최대 ' + Math.round((c.redChance.base + c.redChance.low) * 100) + '%)'; })(),
         cd: function (c) { return c.infinity.cd; },
         start: function (bt, b) {
           var c = b.cfg.infinity, t = bt.nearest(b);
@@ -3700,8 +3730,8 @@ var CHARACTERS = {
         },
       },
       {
-        key: 'domain', name: '영역 전개',
-        desc: (function () { var c = CONFIG.chars.blind; return c.domain.time + '초 동안 흰 영역을 펼쳐 안에 있는 적을 멈춤. 펼쳐진 동안 1스킬이 더 빨리 돌고 항상 붉은 구체, 일정 확률로 푸른 · 붉은 구체를 합친 보라색 구체(' + c.infinity.purple.damage + ', 맵 끝까지 관통)를 쏨. 체력이 적을수록 확률 증가'; })(),
+        key: 'domain', name: '영역 전개', holds: function (b) { return b.data.burn > 0; },
+        desc: (function () { var c = CONFIG.chars.blind; return '우주 같은 영역을 펼침. 테두리가 보이는 ' + c.domain.border + '초 동안 안에 있던 적만 붙잡혀 영역이 끝날 때까지(최대 ' + c.domain.time + '초) 멈춤, 아무도 못 잡으면 영역이 바로 사라짐. 끝나면 ' + c.domain.lock + '초 동안 스킬 못 씀. 펼쳐진 동안 1스킬이 더 빨리 돌고 항상 붉은 구체, 일정 확률로 푸른 · 붉은 구체를 합친 보라색 구체(' + c.infinity.purple.damage + ', 맵 끝까지 관통)를 쏨. 체력이 적을수록 확률 증가'; })(),
         cd: function (c) { return c.domain.cd; },
         start: function (bt, b) {
           var c = b.cfg.domain, tt = 0;
@@ -3716,7 +3746,10 @@ var CHARACTERS = {
       },
     ],
     // 영역 전개 중엔 1스킬 쿨타임이 더 빨리
-    update: function (bt, b, dt) { if (b.data.domain && b.skills[0].cd > 0) b.skills[0].cd -= dt * (b.cfg.domain.cdBoost - 1) * b.cdRate; },
+    update: function (bt, b, dt) {
+      if (b.data.burn > 0) b.data.burn -= dt;   // 영역 전개 뒤 스킬 봉인
+      if (b.data.domain && b.skills[0].cd > 0) b.skills[0].cd -= dt * (b.cfg.domain.cdBoost - 1) * b.cdRate;
+    },
     // 보라색 합치는 중: 양옆에서 파랑 · 빨강이 모여듦
     drawExtra: function (ctx, b, bt, x, y, r, time) {
       var m = b.data.merge;
@@ -3729,6 +3762,7 @@ var CHARACTERS = {
       });
     },
     gauge: function (b, k) {
+      if (k === 0 && b.data.burn > 0) return { label: '술식 봉인 ' + b.data.burn.toFixed(1) + 's' };
       if (k === 0) { var c = b.cfg.infinity; return { label: '무한 · ' + (b.data.domain ? '보라 ' + Math.round(_blindChance(b, c.purpleChance) * 100) : '빨강 ' + Math.round(_blindChance(b, c.redChance) * 100)) + '%' }; }
       return null;
     },

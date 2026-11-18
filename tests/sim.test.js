@@ -1683,7 +1683,7 @@ test('원요섭(코점남): 시작부터 무기, 10초마다 다른 무기, 무�
     assert(count(b2, 'damage', e => e.kind === kinds[w]) >= 1, w);
   }
 });
-test('원요섭 2스킬 furious-blackhead: 권총으로 시작, 얻은 무기를 이어 쓰고 5초 뒤 끝', () => {
+test('원요섭 2스킬 furious-blackhead: 권총으로 시작, 얻은 무기를 이어 쓰고 지속시간 뒤 끝', () => {
   const bt = new Battle(['kojeom', 'gym']); const k = bt.balls[0];
   bt.balls.forEach(b => { b.maxHp = b.hp = 1e5; });
   ['pistol', 'shotgun', 'katana', 'sniper'].forEach(w => { k.data.owned[w] = true; });
@@ -1691,24 +1691,41 @@ test('원요섭 2스킬 furious-blackhead: 권총으로 시작, 얻은 무기를
   assert(seq[0] === 'pistol' && seq[seq.indexOf('shotgun') - 1] === 'katanaIn' && seq[seq.indexOf('sniper') - 1] === 'katanaOut', seq.join(','));
   k.action = k.def.skills[1].start(bt, k); k.skills[0].cd = 99;
   let t = 0; while (k.action && t < 8) { bt.update(DT); t += DT; }
-  assert(!k.action && t > 4.5 && t < 6.5 && !k.data.furious, '5초 ' + t.toFixed(2));
+  assert(!k.action && Math.abs(t - CONFIG.chars.kojeom.furious.time) < 0.6 && !k.data.furious, '지속 ' + t.toFixed(2));
   const dmg = new Set(bt.log.filter(e => e.type === 'damage' && e.src === 'kojeom').map(e => e.kind));
   assert(dmg.size >= 2, '여러 무기로 피해 ' + [...dmg].join(','));
 });
-test('유재운(맹인): 체력이 적을수록 붉은 구체 확률↑, 푸른 폭발은 밀어냄, 영역 전개는 멈추고 붉은·보라만', () => {
+test('유재운(맹인): 체력이 적을수록 붉은 구체 확률↑, 푸른은 당기고 붉은은 밀침, 영역 전개는 멈추고 붉은·보라만', () => {
   const ch = vm.runInContext('_blindChance', ctx), C = CONFIG.chars.blind.infinity;
   const bt = new Battle(['blind', 'gym', 'ibi']); const b = bt.balls[0], [, g, i] = bt.balls;
   bt.balls.forEach(o => { o.maxHp = o.hp = 1000; });
   const hi = ch(b, C.redChance); b.hp = 100; assert(ch(b, C.redChance) > hi + 0.2, '체력 적으면 확률 증가'); b.hp = 1000;
+  b.x = CONFIG.arena.x + CONFIG.arena.w / 2; b.y = CONFIG.arena.y + CONFIG.arena.h / 2;
   g.speed = 0; g.vx = g.vy = 0; g.x = b.x + 300; g.y = b.y; i.x = b.x - 400; i.y = b.y + 400;
   bt.add(new Ents.BlindOrb(bt, b, 'blue', g.x - 60, g.y, 0, C.blue)); bt.update(DT);
-  assert(count(bt, 'orbBoom', e => e.kind === 'blue') === 1 && g.vx > 500, '푸른 폭발 밀어냄');
+  assert(count(bt, 'orbBoom', e => e.kind === 'blue') === 1 && g.vx < -500, '푸른 폭발은 당김');
+  g.vx = 0; bt.add(new Ents.BlindOrb(bt, b, 'red', g.x - 60, g.y, 0, C.red)); bt.update(DT);
+  assert(g.vx > 500, '붉은 폭발은 밀침'); g.vx = 0;
   b.x = CONFIG.arena.x + CONFIG.arena.w / 2; b.y = CONFIG.arena.y + CONFIG.arena.h / 2; g.x = b.x + 150; g.y = b.y; g.speed = 300;
   b.def.skills[1].start(bt, b); run(bt, 0.6);
   assert(g.status.stun > 0 && count(bt, 'domainStop') >= 1, '영역 안 적 멈춤');
   for (let n = 0; n < 40; n++) { b.data.domain && b.def.skills[0].start(bt, b); }
   const kinds = bt.log.filter(e => e.type === 'blindOrb').map(e => e.kind);
   assert(kinds.length > 0 && kinds.every(k => k === 'red'), '영역 중엔 붉은 구체만 ' + kinds.join(','));
+});
+test('유재운 영역 전개: 테두리 동안 들어온 적만 멈춤, 아무도 없으면 바로 사라짐, 끝나면 스킬 봉인', () => {
+  const D = CONFIG.chars.blind.domain;
+  let bt = new Battle(['blind', 'gym', 'ibi']); let [b, g, i] = bt.balls;
+  bt.balls.forEach(o => { o.maxHp = o.hp = 1e5; });
+  b.x = CONFIG.arena.x + CONFIG.arena.w / 2; b.y = CONFIG.arena.y + CONFIG.arena.h / 2; g.x = b.x + 150; g.y = b.y; i.x = b.x; i.y = b.y + D.radius + 300; i.speed = 0;
+  b.def.skills[1].start(bt, b); run(bt, D.border + 0.1);
+  i.x = b.data.domain.x; i.y = b.data.domain.y + 100; i.status.stun = 0; run(bt, 0.5);
+  assert(g.status.stun > 0 && !(i.status.stun > 0), '테두리 뒤 들어온 적은 안 멈춤');
+  run(bt, D.time); assert(!b.data.domain && b.data.burn > 0 && bt.balls[0].skills.every(s => s.def.holds(b)), '끝나면 스킬 봉인');
+  bt = new Battle(['blind', 'gym']); [b, g] = bt.balls;
+  b.x = CONFIG.arena.x + 100; b.y = CONFIG.arena.y + 100; g.x = CONFIG.arena.x + CONFIG.arena.w - 100; g.y = CONFIG.arena.y + CONFIG.arena.h - 100; g.speed = 0;
+  b.def.skills[1].start(bt, b); run(bt, D.border + 0.2);
+  assert(!b.data.domain && count(bt, 'domainEnd') === 1, '아무도 없으면 바로 사라짐');
 });
 test('유재운 보라색 구체: 직선으로 경로의 모든 적 관통', () => {
   const C = CONFIG.chars.blind.infinity.purple, bt = new Battle(['blind', 'gym', 'ibi', 'seori']); const [b, ...ps] = bt.balls;

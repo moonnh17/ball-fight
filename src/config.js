@@ -245,13 +245,13 @@ var CONFIG = {
       drawEvery: 10,   // 1스킬 코점남의 모험: 이 간격으로 무기 뽑기
       // 무기별 every: 평소 공격 간격, 기관총은 mag발 쏘고 reload초 장전
       weapons: {
-        pistol:  { every: 0.7, damage: 5, speed: 1400 },
+        pistol:  { every: 0.7, damage: 3, speed: 1400 },
         mg:      { every: 0.13, damage: 1.8, speed: 1300, spread: 0.12, mag: 14, reload: 1.2 },
         shotgun: { every: 1.5, damage: 3, pellets: 7, spread: 0.35, speed: 1100, life: 0.45 },
         sniper:  { every: 2.6, damage: 20, aim: 0.6, boss: 2 },   // boss: 보스에게 주는 피해 배율
         katana:  { every: 2.2, damage: 10, dash: 380, speed: 1500 },
       },
-      furious: { cd: 12, time: 5, step: 0.55, damage: 0.5 },   // 2스킬: time초 동안 step초마다 다음 무기로, 연계 중 무기 피해 x damage
+      furious: { cd: 12, time: 4, step: 0.55, damage: 0.5 },   // 2스킬: time초 동안 step초마다 다음 무기로, 연계 중 무기 피해 x damage
     },
     blind: {   // 유재운 (맹인의 모습)
       hp: 180, speed: 430, radius: 72, color: '#eaf6ff', phase2Color: '#b84dff',
@@ -264,7 +264,7 @@ var CONFIG = {
         redChance:    { base: 0.1, low: 0.3 },
         purpleChance: { base: 0.1, low: 0.3 },   // 영역 전개 중에만
       },
-      domain: { cd: 13, time: 5, radius: 380, cdBoost: 2 },   // 2스킬 영역 전개: 안의 적 정지, 1스킬 쿨타임 cdBoost배 빨리
+      domain: { cd: 13, time: 5, radius: 380, cdBoost: 2, border: 1, lock: 5 },   // 2스킬 영역 전개: 테두리 border초 동안 안에 있던 적 정지, 1스킬 쿨타임 cdBoost배 빨리, 끝나면 lock초 스킬 봉인
     },
     ripley: {   // ??? (리플리의 모습)
       hp: 175, speed: 460, radius: 70, color: '#5a5a7a', phase2Color: '#ff2bd6',
