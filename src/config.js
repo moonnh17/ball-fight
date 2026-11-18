@@ -165,7 +165,7 @@ var CONFIG = {
     },
     ibi: {
       hp: 170, speed: 480, radius: 70, color: '#b04dff', phase2Color: '#00f0ff', phase2Ratio: 0.7,   // 한규성: 체력 70%에서 페이즈 2
-      stone: { cd: 3, damage: 18, speed: 1400, shake: 9 },
+      stone: { cd: 3, damage: 16, speed: 1400, shake: 9 },
       awaken: { cd: 12, introTime: 0.9, darkness: 0.8, fadeOut: 1.2, weights: { birds: 1, lucha: 1, toka: 1, waterbomb: 1 } },
       waterbomb: { time: 3, shots: 18, spin: 9, minDist: 150, maxDist: 520, damage: 8, puddleR: 70, puddleLife: 2.5, slip: 1.5, slipTime: 1, menhera: { time: 4, slow: 0.6, dps: 4 } },
       birds: { count: 3, damage: 12, life: 4, speed: 640, turn: 5.5, shake: 8 },
@@ -232,16 +232,16 @@ var CONFIG = {
       protein: { interval: 6, max: 2, heal: 15, hasteTime: 4, hasteMul: 1.5, otherHeal: 5 },
     },
     psych: {   // 진형권 (심리학자의 모습)
-      hp: 240, speed: 420, radius: 76, color: '#1fd6c4', phase2Color: '#ffe680',   // 헬스장(하늘색)과 헷갈리지 않게 청록
+      hp: 220, speed: 420, radius: 76, color: '#1fd6c4', phase2Color: '#ffe680',   // 헬스장(하늘색)과 헷갈리지 않게 청록
       contactDamage: 7, antiUninvited: 2,   // 특성 손님 사냥꾼은 헬스장 진형권과 같음
       // 1스킬: 고정 타겟에게 돌진, 맞힐 때마다 표식 +1 (최대 max). 적이 여럿이면 switchAt개 찍고 덜 찍힌 적으로. 표식 max개인 적에게 주는 피해 x full
       // turn: 돌진 중 타겟 쪽으로 꺾는 정도(라디안/초)
-      pavlov: { cd: 5, speed: 1500, distance: 900, damage: 20, max: 5, switchAt: 3, full: 1.3, turn: 4 },
+      pavlov: { cd: 5.8, speed: 1500, distance: 900, damage: 16, max: 5, switchAt: 3, full: 1.3, turn: 4 },
       // 2스킬: 핸드폰 (tick초마다 표식 찍힌 적에게 pavlov.damage, life초가 최대, 적이 radius 안에 닿으면 끝)
       pavlov2: { cd: 9, tick: 1, life: 8, radius: 46, offAngle: 0.6, restun: 0.3 },   // 경로가 offAngle(라디안) 넘게 틀어지면 restun초 멈칫 후 다시 핸드폰으로
     },
     kojeom: {   // 원요섭 (코점남의 모습)
-      hp: 160, speed: 450, radius: 70, color: '#ff2bd6', phase2Color: '#ffd400',
+      hp: 150, speed: 450, radius: 70, color: '#ff2bd6', phase2Color: '#ffd400',
       drawEvery: 10,   // 1스킬 코점남의 모험: 이 간격으로 무기 뽑기
       slot: 1.1,       // 뽑을 때 슬롯머신 도는 시간 (그동안 안 쏨)
       // 무기별 every: 평소 공격 간격, 기관총은 mag발 쏘고 reload초 장전
@@ -359,7 +359,7 @@ var CONFIG = {
       //   fuse초 뒤 하얗게 터지며 bullets발 탄막(속도 speed, 1발 damage)
       vitamin: { fuse: 2.6, bullets: 6, speed: 650, damage: 4, max: 12, wallCd: 0.6, stickDamage: 4 },   // stickDamage: 상대 몸에 붙은 껍질이 터질 때 그 상대가 받는 피해
       // 2스킬 포식: 쿨타임이 차면 장전 → 다음 박치기에 damage + 그 lifesteal만큼 흡혈 (여성은 피해 없이 damage만큼 회복)
-      feast: { cd: 4, damage: 32, lifesteal: 0.5 },
+      feast: { cd: 4, damage: 25, lifesteal: 0.5 },
     },
   },
 };
