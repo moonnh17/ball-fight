@@ -3735,16 +3735,16 @@ var CHARACTERS = {
     },
     portrait: function (b) { return b.phase >= 2 ? 'p2' : 'base'; },
     blurb: '이동 보통 · 원거리 술식',
-    intro: '눈을 가린 유재운. 터지며 적을 끌어당기는 푸른 구체를 날리고, 체력이 적을수록 밀쳐 내는 더 강한 붉은 구체가 자주 나온다. 페이즈 2에서는 우주 같은 영역을 펼쳐 테두리가 있는 동안 안에 있던 적을 붙잡아 멈추고, 영역이 펼쳐진 동안엔 붉은 구체만 쏘며 가끔 둘을 합친 보라색 구체를 맵 끝까지 쏜다.',
+    intro: '눈을 가린 유재운. 터지며 적을 끌어당기는 푸른 구체를 날리고, 체력이 적을수록 밀쳐 내는 더 강한 붉은 구체가 자주 나온다. 페이즈 2부터는 붉은 구체를 기본으로 쏘며 가끔 둘을 합친 보라색 구체를 맵 끝까지 쏘고, 우주 같은 영역을 펼쳐 테두리가 있는 동안 안에 있던 적을 붙잡아 멈춘다.',
     init: function (bt, b) { b.data.domain = null; },
     skills: [
       {
         key: 'infinity', name: '무한의 술식', holds: function (b) { return b.data.burn > 0; },
-        desc: (function () { var c = CONFIG.chars.blind.infinity; return '터지면서 폭발 지점으로 적을 끌어당기는 푸른 구체(' + c.blue.damage + '). 일정 확률로 더 세게 터지며 밀쳐 내는 붉은 구체(' + c.red.damage + '), 체력이 적을수록 확률 증가 (' + Math.round(c.redChance.base * 100) + '% → 최대 ' + Math.round((c.redChance.base + c.redChance.low) * 100) + '%)'; })(),
+        desc: (function () { var c = CONFIG.chars.blind.infinity; return '터지면서 폭발 지점으로 적을 끌어당기는 푸른 구체(' + c.blue.damage + '). 일정 확률로 더 세게 터지며 밀쳐 내는 붉은 구체(' + c.red.damage + '), 체력이 적을수록 확률 증가 (' + Math.round(c.redChance.base * 100) + '% → 최대 ' + Math.round((c.redChance.base + c.redChance.low) * 100) + '%). 페이즈 2부터는 붉은 구체가 기본이고, 일정 확률로 둘을 합친 보라색 구체(' + c.purple.damage + ', 맵 끝까지 관통)를 쏨 (' + Math.round(c.purpleChance.base * 100) + '% → 최대 ' + Math.round((c.purpleChance.base + c.purpleChance.low) * 100) + '%)'; })(),
         cd: function (c) { return c.infinity.cd; },
         start: function (bt, b) {
           var c = b.cfg.infinity, t = bt.nearest(b);
-          if (b.data.domain) {   // 영역 전개 중: 항상 붉은 구체, 일정 확률로 보라색
+          if (b.phase >= 2) {   // 페이즈 2: 붉은 구체가 기본, 일정 확률로 보라색 (영역 전개와 무관)
             if (Math.random() < _blindChance(b, c.purpleChance)) return blindPurple(bt, b, t);
             blindShoot(bt, b, 'red', t); return null;
           }
@@ -3754,7 +3754,7 @@ var CHARACTERS = {
       },
       {
         key: 'domain', name: '영역 전개', holds: function (b) { return b.data.burn > 0; },
-        desc: (function () { var c = CONFIG.chars.blind; return '우주 같은 영역을 펼침. 테두리가 보이는 ' + c.domain.border + '초 동안 안에 있던 적만 붙잡혀 영역이 끝날 때까지(최대 ' + c.domain.time + '초) 멈춤, 아무도 못 잡으면 영역이 바로 사라짐. 끝나면 ' + c.domain.lock + '초 동안 스킬 못 씀. 펼쳐진 동안 1스킬이 더 빨리 돌고 항상 붉은 구체, 일정 확률로 푸른 · 붉은 구체를 합친 보라색 구체(' + c.infinity.purple.damage + ', 맵 끝까지 관통)를 쏨. 체력이 적을수록 확률 증가'; })(),
+        desc: (function () { var c = CONFIG.chars.blind; return '우주 같은 영역을 펼침. 테두리가 보이는 ' + c.domain.border + '초 동안 안에 있던 적만 붙잡혀 영역이 끝날 때까지(최대 ' + c.domain.time + '초) 멈춤, 아무도 못 잡으면 영역이 바로 사라짐. 끝나면 (못 잡았어도) ' + c.domain.lock + '초 동안 스킬 못 씀. 펼쳐진 동안 1스킬이 ' + c.domain.cdBoost + '배 빨리 돎'; })(),
         cd: function (c) { return c.domain.cd; },
         start: function (bt, b) {
           var c = b.cfg.domain, tt = 0;
@@ -3786,7 +3786,7 @@ var CHARACTERS = {
     },
     gauge: function (b, k) {
       if (k === 0 && b.data.burn > 0) return { label: '술식 봉인 ' + b.data.burn.toFixed(1) + 's' };
-      if (k === 0) { var c = b.cfg.infinity; return { label: '무한 · ' + (b.data.domain ? '보라 ' + Math.round(_blindChance(b, c.purpleChance) * 100) : '빨강 ' + Math.round(_blindChance(b, c.redChance) * 100)) + '%' }; }
+      if (k === 0) { var c = b.cfg.infinity; return { label: '무한 · ' + (b.phase >= 2 ? '보라 ' + Math.round(_blindChance(b, c.purpleChance) * 100) : '빨강 ' + Math.round(_blindChance(b, c.redChance) * 100)) + '%' }; }
       return null;
     },
   },

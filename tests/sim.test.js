@@ -1709,23 +1709,25 @@ test('유재운(맹인): 체력이 적을수록 붉은 구체 확률↑, 푸른�
   b.x = CONFIG.arena.x + CONFIG.arena.w / 2; b.y = CONFIG.arena.y + CONFIG.arena.h / 2; g.x = b.x + 150; g.y = b.y; g.speed = 300;
   b.def.skills[1].start(bt, b); run(bt, 0.6);
   assert(g.status.stun > 0 && count(bt, 'domainStop') >= 1, '영역 안 적 멈춤');
-  for (let n = 0; n < 40; n++) { b.data.domain && b.def.skills[0].start(bt, b); }
+  b.phase = 1; for (let n = 0; n < 40; n++) b.def.skills[0].start(bt, b);
+  assert(bt.log.some(e => e.type === 'blindOrb' && e.kind === 'blue'), '페이즈 1은 푸른 구체 기본'); bt.log.length = 0;
+  b.phase = 2; for (let n = 0; n < 40; n++) { b.def.skills[0].start(bt, b); b.action = null; b.data.merge = null; }
   const kinds = bt.log.filter(e => e.type === 'blindOrb').map(e => e.kind);
-  assert(kinds.length > 0 && kinds.every(k => k === 'red'), '영역 중엔 붉은 구체만 ' + kinds.join(','));
+  assert(kinds.length > 0 && kinds.every(k => k === 'red'), '페이즈 2는 붉은 구체만 (보라 제외) ' + kinds.join(','));
 });
 test('유재운 영역 전개: 테두리 동안 들어온 적만 멈춤, 아무도 없으면 바로 사라짐, 끝나면 스킬 봉인', () => {
   const D = CONFIG.chars.blind.domain;
   let bt = new Battle(['blind', 'gym', 'ibi']); let [b, g, i] = bt.balls;
   bt.balls.forEach(o => { o.maxHp = o.hp = 1e5; });
   b.x = CONFIG.arena.x + CONFIG.arena.w / 2; b.y = CONFIG.arena.y + CONFIG.arena.h / 2; g.x = b.x + 150; g.y = b.y; i.x = b.x; i.y = b.y + D.radius + 300; i.speed = 0;
-  b.def.skills[1].start(bt, b); run(bt, D.border + 0.1);
+  b.def.skills[1].start(bt, b); run(bt, 0.05); i.x = CONFIG.arena.x + 60; i.y = CONFIG.arena.y + 60; run(bt, D.border);
   i.x = b.data.domain.x; i.y = b.data.domain.y + 100; i.status.stun = 0; run(bt, 0.5);
-  assert(g.status.stun > 0 && !(i.status.stun > 0), '테두리 뒤 들어온 적은 안 멈춤');
+  assert(g.status.stun > 0 && b.data.domain.caught.has(g) && !b.data.domain.caught.has(i) && !(i.status.stun > 0), '테두리 뒤 들어온 적은 안 멈춤 ' + b.data.domain.caught.has(i));
   run(bt, D.time); assert(!b.data.domain && b.data.burn > 0 && bt.balls[0].skills.every(s => s.def.holds(b)), '끝나면 스킬 봉인');
   bt = new Battle(['blind', 'gym']); [b, g] = bt.balls;
   b.x = CONFIG.arena.x + 100; b.y = CONFIG.arena.y + 100; g.x = CONFIG.arena.x + CONFIG.arena.w - 100; g.y = CONFIG.arena.y + CONFIG.arena.h - 100; g.speed = 0;
   b.def.skills[1].start(bt, b); run(bt, D.border + 0.2);
-  assert(!b.data.domain && count(bt, 'domainEnd') === 1, '아무도 없으면 바로 사라짐');
+  assert(!b.data.domain && count(bt, 'domainEnd') === 1 && b.data.burn > 0, '아무도 없으면 바로 사라지고 그래도 봉인');
 });
 test('원요섭 슬롯머신: 돌다가 뽑힌 무기에 멈추고, 도는 동안은 안 쏨 / 유재운 폭발 범위 밖도 밀침', () => {
   let bt = new Battle(['kojeom', 'gym']); const [k] = bt.balls;
