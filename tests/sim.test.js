@@ -1769,6 +1769,24 @@ test('원요섭 슬롯머신: 돌다가 뽑힌 무기에 멈추고, 도는 동�
   const o = new Ents.BlindOrb(bt, b, 'red', g.x - C.blast * 1.4, g.y, 0, C); o.boom();
   assert(g.vx > 300 && g.hp === g.maxHp, '범위 밖: 피해 없이 밀침');
 });
+test('유재운 자폭 무라사키: 모았다가 광범위 폭발, 자신도 절반 / 원요섭 산탄 점프 · 돌려 잡기 끊겨도 원래대로', () => {
+  const M = CONFIG.chars.blind.infinity.murasaki; let bt = new Battle(['blind', 'gym', 'ibi']); const [b, g, i] = bt.balls;
+  bt.balls.forEach(o => { o.maxHp = o.hp = 1e5; o.speed = 0; o.vx = o.vy = 0; });
+  b.x = 540; b.y = 1100; g.x = b.x + M.radius - 50; g.y = b.y; i.x = 60; i.y = 500;
+  b.action = vm.runInContext('blindMurasaki', ctx)(bt, b); run(bt, M.charge + 0.6);
+  const dm = bt.log.filter(e => e.type === 'damage' && e.kind === 'blindMurasaki').map(e => e.who);
+  assert(count(bt, 'blindMurasaki') === 1 && dm.includes('gym') && !dm.includes('ibi'), '범위 안만 ' + dm);
+  const self = bt.log.filter(e => e.type === 'damage' && e.kind === 'blindMurasakiSelf');
+  assert(self.length === 1 && Math.abs(self[0].amt - M.damage * M.self) < 0.01, '자신도 절반');
+  bt = new Battle(['kojeom', 'gym']); const [k, t] = bt.balls;
+  bt.balls.forEach(o => { o.maxHp = o.hp = 1e5; }); t.speed = 0; t.vx = t.vy = 0;
+  k.data.owned = { pistol: true, shotgun: true }; k.data.slot = null;
+  const seq = vm.runInContext('kjCombo', ctx)(k); assert(seq.includes('shotJump') && !seq.some(w => w.startsWith('katana')), '카타나 없으면 산탄 점프 ' + seq);
+  k.x = 200; k.y = 1500; t.x = 900; t.y = 600; const d0 = Math.hypot(t.x - k.x, t.y - k.y);
+  k.action = vm.runInContext('KJ_FIRE', ctx).shotJump(bt, k, t); run(bt, 0.8);
+  assert(Math.hypot(t.x - k.x, t.y - k.y) < d0 - 300, '날아 들어감');
+  k.data.spin = 0.6; k.action = null; run(bt, 0.3); assert(k.data.spin === 0, '돌려 잡기 끊겨도 0으로');
+});
 test('유재운 보라색 구체: 직선으로 경로의 모든 적 관통', () => {
   const C = CONFIG.chars.blind.infinity.purple, bt = new Battle(['blind', 'gym', 'ibi', 'seori']); const [b, ...ps] = bt.balls;
   bt.balls.forEach(o => { o.maxHp = o.hp = 1e5; o.speed = 0; o.vx = o.vy = 0; });

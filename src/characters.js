@@ -626,6 +626,27 @@ var KJ_FIRE = {
       end: function () { b.data.scope = null; _restoreSpeed(b, Math.cos(a), Math.sin(a)); },
     };
   },
+  // 산탄 점프 (연계 중 카타나가 없을 때): 적 반대쪽으로 산탄을 쏴서 그 반동으로 산탄 사거리 안까지 날아 들어감
+  shotJump: function (bt, b, t) {
+    var c = b.cfg.weapons.shotgun, j = b.cfg.furious.jump, tt = 0, cd = 0, range = c.speed * c.life * j.range, a = 0;
+    function blast() {
+      a = _kjAngle(bt, b, t) + Math.PI; b.data.aim = a;
+      for (var i = 0; i < c.pellets; i++) bt.add(new KjBullet(bt, b, a + _rnd(-c.spread, c.spread), { speed: c.speed * _rnd(0.85, 1.1), damage: _kjDmg(b, c.damage), life: c.life, size: 7, color: '#ff8c42', kind: 'kjShotgun' }));
+      _kjMuzzle(b, a, '#ff8c42'); FX.burst(b.x + Math.cos(a) * (b.r + 40), b.y + Math.sin(a) * (b.r + 40), '#cccccc', 10, 350, 18, 0.4, 'smoke');
+      b.vx = -Math.cos(a) * j.speed; b.vy = -Math.sin(a) * j.speed; FX.shake(12); FX.sfx('bigHit');
+    }
+    blast(); bt.skillText(b, '샷건 점프!', '#ff8c42');
+    return {
+      moves: false,
+      update: function (dt) {
+        tt += dt; cd -= dt; b.x += b.vx * dt; b.y += b.vy * dt; bt.walls(b);
+        if (!t.alive || _dist(b, t) <= range || tt >= j.time) return true;
+        if (cd <= 0 && tt > 0.2) { cd = 0.2; blast(); }   // 아직 멀면 한 번 더
+        return false;
+      },
+      end: function () { var aa = Math.atan2(t.y - b.y, t.x - b.x); b.data.aim = aa; _restoreSpeed(b, Math.cos(aa), Math.sin(aa)); },
+    };
+  },
   // 카타나: 앞(또는 뒤)으로 돌진하며 경로의 적을 벰
   katana: function (bt, b, t, back) {
     var c = b.cfg.weapons.katana, a = _kjAngle(bt, b, t) + (back ? Math.PI : 0), d = back ? c.dash * 0.6 : c.dash, gone = 0, hit = new Set(), gt = 0;
@@ -687,6 +708,7 @@ function kjSlotTick(bt, b, dt) {
 function kjTick(bt, b, dt) {
   var d = b.data, c = b.cfg.weapons;
   if (d.wShow > 0) d.wShow -= dt;
+  if (d.spin > 0) d.spin = Math.max(0, d.spin - dt * 4);   // 돌려 잡기 (끊겨도 계속 줄어서 원래 방향으로)
   if (d.slot) kjSlotTick(bt, b, dt);
   if (b.action || b.disabled || b.hidden || !d.weapon) return;
   d.wcd -= dt;
@@ -708,8 +730,9 @@ function kjCombo(b) {
   list.forEach(function (w) {
     if (w === 'katana') return;
     if (hasK && seq.length) seq.push(w === 'sniper' ? 'katanaOut' : 'katanaIn');
+    if (!hasK && w === 'shotgun' && seq.length) seq.push('shotJump');   // 카타나가 없으면 산탄을 뒤로 쏴서 날아 들어감
     seq.push(w);
-    if (w !== 'shotgun' && w !== 'sniper' && b.data.owned.shotgun) { if (hasK) seq.push('katanaIn'); seq.push('shotgun'); }
+    if (w !== 'shotgun' && w !== 'sniper' && b.data.owned.shotgun) { seq.push(hasK ? 'katanaIn' : 'shotJump'); seq.push('shotgun'); }
   });
   if (hasK && seq.indexOf('katanaIn') < 0) seq.splice(1, 0, 'katanaIn');
   return seq.length ? seq : ['pistol'];
@@ -867,6 +890,37 @@ function blindPunchTick(bt, b, dt) {
     done.push(e, o);
     return false;
   });
+}
+// 자폭 무라사키: 창 · 혁이 유재운 주위를 돌며 위로 올라가 합쳐진 뒤, 제자리에서 광범위 폭발 (자신도 절반 피해)
+function blindMurasaki(bt, b) {
+  var c = b.cfg.infinity.murasaki, tt = 0, boomed = false;
+  b.vx = b.vy = 0; b.data.mura = 0;
+  FX.banner('자폭 무라사키', { color: '#b84dff', sub: '유재운 · 허식 「자」 폭주', size: 120, life: 1.4 });
+  FX.sfx('laserCharge');
+  return {
+    moves: false, uninterruptible: true,
+    update: function (dt) {
+      tt += dt; b.data.mura = Math.min(1, tt / c.charge); b.vx = b.vy = 0;
+      if (Math.random() < dt * 30) FX.particle({ x: b.x + _rnd(-c.radius, c.radius) * 0.5, y: b.y + _rnd(-c.radius, c.radius) * 0.5, vx: 0, vy: 0, life: 0.5, size: _rnd(6, 12), color: '#b84dff', shape: 'spark' });
+      if (!boomed && tt >= c.charge) {
+        boomed = true; b.data.mura = null;
+        FX.flash('#b84dff', 0.6, 0.5); FX.shake(45); FX.sfx('crash'); FX.sfx('laser');
+        FX.ring(b.x, b.y, b.r, c.radius, 0.6, '#b84dff', 30); FX.ring(b.x, b.y, b.r, c.radius * 1.15, 0.8, '#ffffff', 10);
+        FX.burst(b.x, b.y, '#b84dff', 60, 1600, 14, 0.8, 'spark'); FX.burst(b.x, b.y, '#ffffff', 30, 1000, 10, 0.6, 'spark');
+        bt.enemies(b).forEach(function (e) {
+          if (!e.targetable || e.air) return;
+          var d = Math.hypot(e.x - b.x, e.y - b.y);
+          if (d > c.radius + e.r * 0.5) return;
+          bt.damage(e, c.damage, b, { color: '#e0a0ff', kind: 'blindMurasaki' });
+          e.vx = (e.x - b.x) / (d || 1) * c.knock; e.vy = (e.y - b.y) / (d || 1) * c.knock;
+        });
+        bt.damage(b, c.damage * c.self, null, { color: '#e0a0ff', kind: 'blindMurasakiSelf' });   // 자폭: 자신도 절반
+        bt.emit('blindMurasaki');
+      }
+      return boomed && tt >= c.charge + 0.4;
+    },
+    end: function () { b.data.mura = null; _restoreSpeed(b, Math.random() - 0.5, 1); },
+  };
 }
 function blindShoot(bt, b, kind, t) {
   var c = b.cfg.infinity[kind], p = t ? bt.aim(b, t.x, t.y) : bt.randomPoint(), a = Math.atan2(p.y - b.y, p.x - b.x);
@@ -3721,11 +3775,12 @@ var CHARACTERS = {
           b.data.furious = true;
           function next() {
             var w = seq[i++ % seq.length], tgt = bt.nearest(b);
-            stepT = 0; fire = 0.08; step = { w: w, act: null, k: w === 'katanaIn' || w === 'katanaOut' ? 'katana' : w };
+            stepT = 0; fire = 0.08; step = { w: w, act: null, k: w === 'katanaIn' || w === 'katanaOut' ? 'katana' : w === 'shotJump' ? 'shotgun' : w };
             b.data.weapon = step.k; b.data.spin = step.k === 'pistol' || step.k === 'shotgun' ? 1 : 0;   // 권총 · 산탄총은 한 바퀴 돌려 잡음
             FX.ring(b.x, b.y, b.r, b.r * 1.8, 0.25, Math.random() < 0.5 ? '#ff2bd6' : '#111111', 8); FX.sfx('click');
             if (!tgt) return;
             if (w === 'katanaIn' || w === 'katanaOut') step.act = KJ_FIRE.katana(bt, b, tgt, w === 'katanaOut');
+            else if (w === 'shotJump') step.act = KJ_FIRE.shotJump(bt, b, tgt);
             else if (w === 'sniper') step.act = KJ_FIRE.sniper(bt, b, tgt, true);
           }
           next();
@@ -3736,7 +3791,6 @@ var CHARACTERS = {
               if (Math.random() < dt * 40) FX.particle({ x: b.x + _rnd(-b.r, b.r), y: b.y + _rnd(-b.r, b.r), vx: _rnd(-80, 80), vy: _rnd(-200, -80), life: _rnd(0.4, 0.8), size: _rnd(8, 16), color: Math.random() < 0.8 ? '#0a0a0a' : '#ff2bd6', shape: 'square' });   // 검은 파티클 (블랙헤드)
               if (Math.random() < dt * 12) FX.particle({ x: b.x + _rnd(-b.r, b.r) * 0.6, y: b.y + _rnd(-b.r, b.r) * 0.6, vx: _rnd(-40, 40), vy: -60, life: 0.9, size: _rnd(30, 50), color: 'rgba(0,0,0,0.55)', shape: 'smoke' });
               var tgt = bt.nearest(b);
-              if (b.data.spin > 0) b.data.spin -= dt * 4;
               gt += dt; if (gt > 0.06) { gt = 0; _ghost(b); }   // 잔상
               if (step.act) {
                 if (step.act.update(dt)) {   // 카타나 · 저격이 끝나면 잠깐 자세 잡고 (칼은 휙 털기) 다음으로
@@ -3752,7 +3806,7 @@ var CHARACTERS = {
               if (!step.act && stepT >= (step.done ? c.after[step.k] || 0 : c.steps[step.k] || 0.3)) next();
               return false;
             },
-            end: function () { if (step && step.act && step.act.end) step.act.end(); b.data.furious = false; b.data.weapon = keep; b.data.wcd = 0.5; },
+            end: function () { if (step && step.act && step.act.end) step.act.end(); b.data.furious = false; b.data.spin = 0; b.data.weapon = keep; b.data.wcd = 0.5; },
           };
         },
       },
@@ -3815,7 +3869,7 @@ var CHARACTERS = {
         start: function (bt, b) {
           var c = b.cfg.infinity, t = bt.nearest(b);
           if (b.phase >= 2) {   // 페이즈 2: 붉은 구체가 기본, 일정 확률로 보라색 (영역 전개와 무관)
-            if (Math.random() < _blindChance(b, c.purpleChance)) return blindPurple(bt, b, t);
+            if (Math.random() < _blindChance(b, c.purpleChance)) return Math.random() < c.murasaki.chance ? blindMurasaki(bt, b) : blindPurple(bt, b, t);   // 가끔 자폭 무라사키
             blindShoot(bt, b, 'red', t); return null;
           }
           blindShoot(bt, b, Math.random() < _blindChance(b, c.redChance) ? 'red' : 'blue', t);
@@ -3840,6 +3894,17 @@ var CHARACTERS = {
     update: function (bt, b, dt) { blindPunchTick(bt, b, dt); },
     // 보라색 합치는 중: 양옆에서 파랑 · 빨강이 모여듦
     drawExtra: function (ctx, b, bt, x, y, r, time) {
+      if (b.data.mura != null) {   // 자폭 무라사키: 둘이 돌며 위로 올라가 합쳐짐
+        var p = b.data.mura, top = y - r - 40 - p * 160, rad = (1 - p) * r * 1.4, ang = time * (6 + p * 18), gs = 40 + p * 50;
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        [['#3fa9ff', 0], ['#ff2b3b', Math.PI]].forEach(function (q) {
+          var ox = x + Math.cos(ang + q[1]) * rad, oy = y + (top - y) * p + Math.sin(ang + q[1]) * rad * 0.4, g = ctx.createRadialGradient(ox, oy, 0, ox, oy, 44);
+          g.addColorStop(0, '#ffffff'); g.addColorStop(0.4, q[0]); g.addColorStop(1, q[0] + '00');
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ox, oy, 44, 0, Math.PI * 2); ctx.fill();
+        });
+        if (p > 0.6) { var k2 = (p - 0.6) / 0.4, g2 = ctx.createRadialGradient(x, top, 0, x, top, gs * 1.6); g2.addColorStop(0, '#ffffff'); g2.addColorStop(0.35, '#b84dff'); g2.addColorStop(1, 'rgba(184,77,255,0)'); ctx.globalAlpha = k2; ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(x, top, gs * 1.6, 0, Math.PI * 2); ctx.fill(); }
+        ctx.restore();
+      }
       var m = b.data.merge;
       if (m == null) return;
       var a = b.data.mergeAng || 0, px = -Math.sin(a), py = Math.cos(a), d = (1 - m) * r * 1.6, fx = x + Math.cos(a) * r * 0.9, fy = y + Math.sin(a) * r * 0.9;

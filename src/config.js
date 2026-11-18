@@ -258,6 +258,7 @@ var CONFIG = {
         fire:  { pistol: 0.14, mg: 0.04, shotgun: 0.25 },   // 그 시간 안에서 쏘는 간격
         after: { katana: 0, sniper: 0 },                    // 돌진 · 저격이 끝나고 다음 무기까지
         dash: 1.6,                                          // 연계 중 카타나 돌진 속도 배율
+        jump: { speed: 1300, range: 0.6, time: 0.7 },       // 카타나가 없을 때 산탄 점프: 산탄 사거리 x range 안까지 날아 들어감
       },
     },
     blind: {   // 유재운 (맹인의 모습)
@@ -267,12 +268,13 @@ var CONFIG = {
         cd: 2.4,
         blue:   { speed: 950, r: 30, damage: 8, blast: 170, reach: 1.8, knock: -750, life: 1.6 },   // knock < 0: 폭발 지점으로 당김 (창)
         red:    { speed: 1050, r: 34, damage: 24, blast: 150, reach: 1.8, knock: 950, life: 1.6 },   // knock > 0: 폭발 지점에서 밀침 (혁)
-        purple: { speed: 1300, r: 70, damage: 44, life: 3, charge: 0.7 },
+        purple: { speed: 1300, r: 95, damage: 40, life: 3, charge: 1.1 },
+        murasaki: { chance: 0.07, charge: 1.8, radius: 560, damage: 50, self: 0.5, knock: 1200 },   // 허식 「자」 쓸 때 chance 확률로 자폭: 제자리 광범위 폭발, 자신은 damage x self
         punch:  { damage: 15, knock: 1300, time: 0.6, keep: 0.6 },   // 인력 펀치: 푸른 구체에 끌려 날아가는 중(끌린 방향 속도가 keep배 이상)에 유재운이나 다른 적과 부딪히면
         redChance:    { base: 0.1, low: 0.3 },
-        purpleChance: { base: 0.1, low: 0.3 },   // 페이즈 2부터 (붉은 구체가 기본)
+        purpleChance: { base: 0.06, low: 0.2 },   // 페이즈 2부터 (붉은 구체가 기본)
       },
-      domain: { cd: 13, time: 5, radius: 480, border: 1, recover: 5 },   // 2스킬 영역 전개: 테두리 border초 동안 안에 있던 적 정지, 닫히면 술식 회복으로 recover 피해
+      domain: { cd: 13, time: 5, radius: 480, border: 1, recover: 10 },   // 2스킬 영역 전개: 테두리 border초 동안 안에 있던 적 정지, 닫히면 술식 회복으로 recover 피해
     },
     ripley: {   // ??? (리플리의 모습)
       hp: 175, speed: 460, radius: 70, color: '#5a5a7a', phase2Color: '#ff2bd6',
