@@ -1699,7 +1699,7 @@ test('유재운(맹인): 체력이 적을수록 붉은 구체 확률↑, 푸른 
   const ch = vm.runInContext('_blindChance', ctx), C = CONFIG.chars.blind.infinity;
   const bt = new Battle(['blind', 'gym', 'ibi']); const b = bt.balls[0], [, g, i] = bt.balls;
   bt.balls.forEach(o => { o.maxHp = o.hp = 1000; });
-  const hi = ch(b, C.redChance); b.hp = 100; assert(ch(b, C.redChance) > hi + 0.3, '체력 적으면 확률 증가'); b.hp = 1000;
+  const hi = ch(b, C.redChance); b.hp = 100; assert(ch(b, C.redChance) > hi + 0.2, '체력 적으면 확률 증가'); b.hp = 1000;
   g.speed = 0; g.vx = g.vy = 0; g.x = b.x + 300; g.y = b.y; i.x = b.x - 400; i.y = b.y + 400;
   bt.add(new Ents.BlindOrb(bt, b, 'blue', g.x - 60, g.y, 0, C.blue)); bt.update(DT);
   assert(count(bt, 'orbBoom', e => e.kind === 'blue') === 1 && g.vx > 500, '푸른 폭발 밀어냄');

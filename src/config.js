@@ -147,8 +147,8 @@ var CONFIG = {
     // 정발산: IZK 넷 + 유재후. 이동속도 x speed, 주는 피해 x decayDamage에서 decayTime초에 걸쳐 1까지 감소. IZK는 긴급소집 효과만 남음
     // nogwangRange/nogwangHeal: 노광석의 모습 유재후의 포코의 불협화음 범위·팀원 회복량 배율
     jeongbalsan: { members: ['한규성', '김선율', '조우연', '조하람', '유재후'], speed: 1.4, decayDamage: 1.3, decayTime: 120, nogwangRange: 1.3, nogwangHeal: 1.6 },
-    // 서울방송고: 팀 전체 받는 회복 x heal, 스킬 쿨타임이 cdr배 빨리 돎 / per: 그 사람만 추가
-    seoulbc: { members: ['최휘', '문남휘', '유재운', '차승민'], heal: 1.1, cdr: 1.15, per: { '최휘': { damage: 1.2 } } },
+    // 서울방송고: 멤버 중 need명 이상이 같은 팀이면 발동. 팀 전체 받는 회복 x heal, 스킬 쿨타임이 cdr배 빨리 돎 / per: 그 사람만 추가
+    seoulbc: { members: ['최휘', '문남휘', '유재운', '차승민', '원요섭'], need: 4, heal: 1.1, cdr: 1.15, per: { '최휘': { damage: 1.2 } } },
     // 디마디영디: 한규성(이비만)·문남휘·유재운·진형권·이윤빈·??? 한 팀. 팀 체력 x hp + 멤버별 고유 효과
     dmdyd: { members: ['한규성', '문남휘', '유재운', '진형권', '이윤빈', '???'], needIds: ['ibi'], hp: 1.1, chiefMul: 1.3, chiefTaken: 1.3, devAlly: 0.02, devAllyMax: 10, gyusuniCd: 1.3, stinkMul: 2, gymSpawn: 0.75, chinoGrow: 0.334, ripleyCall: 10 },
     dogowner: { members: ['유재후', '서리'], droolRate: 1.6, per: { '서리': { speed: 1.3, damage: 1.1 }, '유재후': { speed: 0.8 } } },   // 개와 주인 (droolRate: 서리 침흘리기 빈도 배율)
@@ -245,24 +245,24 @@ var CONFIG = {
       drawEvery: 10,   // 1스킬 코점남의 모험: 이 간격으로 무기 뽑기
       // 무기별 every: 평소 공격 간격, 기관총은 mag발 쏘고 reload초 장전
       weapons: {
-        pistol:  { every: 0.7, damage: 7, speed: 1400 },
-        mg:      { every: 0.13, damage: 2.5, speed: 1300, spread: 0.12, mag: 14, reload: 1.2 },
-        shotgun: { every: 1.5, damage: 4, pellets: 7, spread: 0.35, speed: 1100, life: 0.45 },
-        sniper:  { every: 2.6, damage: 26, aim: 0.6 },
-        katana:  { every: 2.2, damage: 14, dash: 380, speed: 1500 },
+        pistol:  { every: 0.7, damage: 5, speed: 1400 },
+        mg:      { every: 0.13, damage: 1.8, speed: 1300, spread: 0.12, mag: 14, reload: 1.2 },
+        shotgun: { every: 1.5, damage: 3, pellets: 7, spread: 0.35, speed: 1100, life: 0.45 },
+        sniper:  { every: 2.6, damage: 20, aim: 0.6, boss: 2 },   // boss: 보스에게 주는 피해 배율
+        katana:  { every: 2.2, damage: 10, dash: 380, speed: 1500 },
       },
-      furious: { cd: 12, time: 5, step: 0.55 },   // 2스킬: time초 동안 step초마다 다음 무기로
+      furious: { cd: 12, time: 5, step: 0.55, damage: 0.5 },   // 2스킬: time초 동안 step초마다 다음 무기로, 연계 중 무기 피해 x damage
     },
     blind: {   // 유재운 (맹인의 모습)
       hp: 180, speed: 430, radius: 72, color: '#eaf6ff', phase2Color: '#b84dff',
       // 1스킬 무한의 술식: 확률 = base + (1 - 체력 비율) x low
       infinity: {
         cd: 2.4,
-        blue:   { speed: 950, r: 30, damage: 8, blast: 130, knock: 900, life: 1.6 },
-        red:    { speed: 1050, r: 34, damage: 18, blast: 150, knock: 700, life: 1.6 },
+        blue:   { speed: 950, r: 30, damage: 8, blast: 170, knock: -750, life: 1.6 },   // knock < 0: 폭발 지점으로 당김 (창)
+        red:    { speed: 1050, r: 34, damage: 18, blast: 150, knock: 950, life: 1.6 },   // knock > 0: 폭발 지점에서 밀침 (혁)
         purple: { speed: 1300, r: 70, damage: 34, life: 3, charge: 0.7 },
-        redChance:    { base: 0.15, low: 0.5 },
-        purpleChance: { base: 0.2, low: 0.5 },   // 영역 전개 중에만
+        redChance:    { base: 0.1, low: 0.3 },
+        purpleChance: { base: 0.1, low: 0.3 },   // 영역 전개 중에만
       },
       domain: { cd: 13, time: 5, radius: 380, cdBoost: 2 },   // 2스킬 영역 전개: 안의 적 정지, 1스킬 쿨타임 cdBoost배 빨리
     },

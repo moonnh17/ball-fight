@@ -146,7 +146,8 @@ var Battle = (function () {
         var ids = mem.map(function (b) { return b.def.id; });          // needIds: 특정 모습이 꼭 있어야 하는 시너지 (화정듀오)
         var on = SYNERGIES.filter(function (sy) {
           if (sy.solo) return mem.length === 1 && sy.solo.indexOf(names[0]) >= 0;
-          return sy.members().every(function (n) { return names.indexOf(n) >= 0; })
+          var c = CONFIG.synergy[sy.key], have = sy.members().filter(function (n) { return names.indexOf(n) >= 0; }).length;   // need: 멤버 중 그만큼만 있어도 됨
+          return have >= (c.need || sy.members().length)
             && (!sy.needIds || sy.needIds().every(function (id) { return ids.indexOf(id) >= 0; }));
         });
         var keys = on.map(function (sy) { return sy.key; });

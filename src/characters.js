@@ -556,23 +556,24 @@ class KjBullet {
     ctx.restore();
   }
 }
+function _kjDmg(b, v) { return v * (b.data.furious ? b.cfg.furious.damage : 1); }   // 연계 중엔 피해 감소
 function _kjAngle(bt, b, t) { var p = bt.aim(b, t.x, t.y); return Math.atan2(p.y - b.y, p.x - b.x); }
 function _kjMuzzle(b, ang, col) { FX.burst(b.x + Math.cos(ang) * (b.r + 30), b.y + Math.sin(ang) * (b.r + 30), col, 5, 400, 7, 0.15, 'spark'); }
 // 무기 한 번 쓰기 (평소 공격 · 연계 공용). 돌진처럼 시간이 걸리는 건 action을 돌려줌
 var KJ_FIRE = {
   pistol: function (bt, b, t) {
     var c = b.cfg.weapons.pistol, a = _kjAngle(bt, b, t); b.data.aim = a;
-    bt.add(new KjBullet(bt, b, a, { speed: c.speed, damage: c.damage, life: 1.2, size: 8, color: '#ffe066', kind: 'kjPistol' }));
+    bt.add(new KjBullet(bt, b, a, { speed: c.speed, damage: _kjDmg(b, c.damage), life: 1.2, size: 8, color: '#ffe066', kind: 'kjPistol' }));
     _kjMuzzle(b, a, '#ffe066'); FX.sfx('throw');
   },
   mg: function (bt, b, t) {
     var c = b.cfg.weapons.mg, a = _kjAngle(bt, b, t) + _rnd(-c.spread, c.spread); b.data.aim = a;
-    bt.add(new KjBullet(bt, b, a, { speed: c.speed, damage: c.damage, life: 1.0, size: 6, color: '#ffb347', kind: 'kjMg' }));
+    bt.add(new KjBullet(bt, b, a, { speed: c.speed, damage: _kjDmg(b, c.damage), life: 1.0, size: 6, color: '#ffb347', kind: 'kjMg' }));
     _kjMuzzle(b, a, '#ffb347'); FX.sfx('hit');
   },
   shotgun: function (bt, b, t) {
     var c = b.cfg.weapons.shotgun, a = _kjAngle(bt, b, t); b.data.aim = a;
-    for (var i = 0; i < c.pellets; i++) bt.add(new KjBullet(bt, b, a + _rnd(-c.spread, c.spread), { speed: c.speed * _rnd(0.85, 1.1), damage: c.damage, life: c.life, size: 7, color: '#ff8c42', kind: 'kjShotgun' }));
+    for (var i = 0; i < c.pellets; i++) bt.add(new KjBullet(bt, b, a + _rnd(-c.spread, c.spread), { speed: c.speed * _rnd(0.85, 1.1), damage: _kjDmg(b, c.damage), life: c.life, size: 7, color: '#ff8c42', kind: 'kjShotgun' }));
     _kjMuzzle(b, a, '#ff8c42'); FX.burst(b.x + Math.cos(a) * (b.r + 40), b.y + Math.sin(a) * (b.r + 40), '#cccccc', 8, 300, 16, 0.4, 'smoke');
     b.vx -= Math.cos(a) * 250; b.vy -= Math.sin(a) * 250; FX.shake(8); FX.sfx('bigHit');
   },
@@ -599,7 +600,7 @@ var KJ_FIRE = {
           ctx2.save(); ctx2.globalAlpha = k; ctx2.strokeStyle = '#7dd3ff'; ctx2.shadowColor = '#7dd3ff'; ctx2.shadowBlur = 20; ctx2.lineWidth = 8 * k + 2;
           ctx2.beginPath(); ctx2.moveTo(px, py); ctx2.lineTo(px + ux * L, py + uy * L); ctx2.stroke(); ctx2.restore();
         } });
-        if (best) { bt.damage(best, c.damage, b, { color: '#7dd3ff', kind: 'kjSniper' }); FX.ring(best.x, best.y, best.r, best.r * 2, 0.3, '#7dd3ff', 10); }
+        if (best) { bt.damage(best, _kjDmg(b, c.damage) * (best.isBoss ? c.boss : 1), b, { color: '#7dd3ff', kind: 'kjSniper' }); FX.ring(best.x, best.y, best.r, best.r * 2, 0.3, '#7dd3ff', 10); }
         FX.shake(12); FX.sfx('laser'); b.vx -= ux * 400; b.vy -= uy * 400;
         bt.emit('kjSniper', { hit: !!best });
         return false;
@@ -622,7 +623,7 @@ var KJ_FIRE = {
         if (!back) bt.enemies(b).forEach(function (o) {
           if (hit.has(o) || !o.targetable || o.air || _dist(o, b) > o.r + b.r + 40) return;
           hit.add(o);
-          bt.damage(o, c.damage, b, { color: '#d8e4ff', kind: 'kjKatana' });
+          bt.damage(o, _kjDmg(b, c.damage), b, { color: '#d8e4ff', kind: 'kjKatana' });
           FX.burst(o.x, o.y, '#ffffff', 10, 600, 6, 0.3, 'spark'); FX.shake(8);
           bt.emit('kjSlash', { who: o.def.id });
         });
@@ -3591,14 +3592,14 @@ var CHARACTERS = {
       furious: { src: 'assets/kj_furious.jpg', s: 0.92 },
     },
     // 연계 중엔 퓨리오소, 무기를 들고 있으면 그 무기 그림, 아니면 페이즈 사진
-    portrait: function (b) { return b.data.furious ? 'furious' : b.data.weapon || (b.phase >= 2 ? 'p2' : 'base'); },
+    portrait: function (b) { return b.phase >= 2 ? 'p2' : 'base'; },   // 무기 그림은 머리 위 아이콘으로만
     blurb: '이동 약간 빠름 · 무기 뽑기',
     intro: '10초마다 무기를 새로 뽑아서 싸우는 코점남. 권총 · 기관총 · 산탄총 · 저격총 · 카타나 중 뭐가 나올지 모른다. 페이즈 2에서는 지금까지 얻은 무기를 이어 쓰는 연계 furious-blackhead를 쓴다.',
     init: function (bt, b) { b.data.owned = {}; b.data.aim = 0; kjDraw(bt, b, true); },
     skills: [
       {
         key: 'adventure', name: '코점남의 모험', passive: true,
-        desc: (function () { var w = CONFIG.chars.kojeom.weapons; return CONFIG.chars.kojeom.drawEvery + '초마다 무기를 랜덤으로 뽑아 그 무기로 싸움 (머리 위에 무기 아이콘). 권총 ' + w.pistol.damage + ' · 기관총 ' + w.mg.damage + '씩 연사 · 산탄총 ' + w.shotgun.pellets + '발 x' + w.shotgun.damage + ' · 저격총 ' + w.sniper.damage + ' (조준 후 한 발) · 카타나 앞으로 돌진하며 ' + w.katana.damage; })(),
+        desc: (function () { var w = CONFIG.chars.kojeom.weapons; return CONFIG.chars.kojeom.drawEvery + '초마다 무기를 랜덤으로 뽑아 그 무기로 싸움 (머리 위에 무기 아이콘). 권총 ' + w.pistol.damage + ' · 기관총 ' + w.mg.damage + '씩 연사 · 산탄총 ' + w.shotgun.pellets + '발 x' + w.shotgun.damage + ' · 저격총 ' + w.sniper.damage + ' (조준 후 한 발, 보스에겐 x' + w.sniper.boss + ') · 카타나 앞으로 돌진하며 ' + w.katana.damage; })(),
         cd: function (c) { return c.drawEvery; },
         start: function (bt, b) { kjDraw(bt, b); },
       },
@@ -3657,11 +3658,13 @@ var CHARACTERS = {
       }
       drawKjWeapon(ctx, w, 2.3);
       ctx.restore();
-      var big = d.wShow > 0 ? 1 + Math.min(1, d.wShow) * 0.8 : 1;
-      ctx.save(); ctx.translate(x, y - r - 40 - (big - 1) * 30);
-      ctx.fillStyle = 'rgba(10,6,20,0.75)'; ctx.strokeStyle = '#ff2bd6'; ctx.lineWidth = 3;
-      Battle.roundRect(ctx, -60 * big, -28 * big, 120 * big, 56 * big, 16 * big); ctx.fill(); ctx.stroke();
-      ctx.translate(-8 * big, 0); drawKjWeapon(ctx, w, 1.05 * big);
+      // 머리 위 아이콘: 보내 준 무기 사진 (연계 중엔 퓨리오소), 막 뽑았을 땐 크게
+      var big = d.wShow > 0 ? 1 + Math.min(1, d.wShow) * 0.8 : 1, h = 40 * big, img = Assets.cache['kojeom:' + (d.furious ? 'furious' : w)];
+      ctx.save(); ctx.translate(x, y - r - 16 - h);
+      ctx.fillStyle = 'rgba(10,6,20,0.75)'; Battle.roundRect(ctx, -h, -h, h * 2, h * 2, 12 * big); ctx.fill();
+      if (img) { ctx.save(); Battle.roundRect(ctx, -h, -h, h * 2, h * 2, 12 * big); ctx.clip(); ctx.drawImage(img, -h, -h, h * 2, h * 2); ctx.restore(); }
+      else drawKjWeapon(ctx, w, 0.7 * big);
+      ctx.strokeStyle = '#ff2bd6'; ctx.lineWidth = 4; Battle.roundRect(ctx, -h, -h, h * 2, h * 2, 12 * big); ctx.stroke();
       ctx.restore();
     },
     gauge: function (b, k, sk) {

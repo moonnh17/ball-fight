@@ -1020,7 +1020,7 @@
       ctx.textAlign = 'left';
       ctx.font = '700 24px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#bbbbbb';
       ctx.fillText(q.solo ? '조건: ' + q.solo.join(' 또는 ') + '가 팀에 혼자 (모습 상관없음)'
-        : '조건: 아래 ' + mem.length + '명이 모두 같은 팀' + (q.note ? ' (' + q.note + ')' : ' (모습 상관없음)'), 60, y + 100);
+        : '조건: 아래 ' + mem.length + '명' + (CONFIG.synergy[q.key].need ? ' 중 ' + CONFIG.synergy[q.key].need + '명 이상이' : '이 모두') + ' 같은 팀' + (q.note ? ' (' + q.note + ')' : ' (모습 상관없음)'), 60, y + 100);
       var step = Math.min(150, (W - 160) / mem.length);
       mem.forEach(function (nm, k) {
         var id = need.filter(function (q2) { return CHARACTERS[q2].name === nm; })[0] || idOfName(nm);
