@@ -575,7 +575,7 @@ var KJ_FIRE = {
     var c = b.cfg.weapons.shotgun, a = _kjAngle(bt, b, t); b.data.aim = a;
     for (var i = 0; i < c.pellets; i++) bt.add(new KjBullet(bt, b, a + _rnd(-c.spread, c.spread), { speed: c.speed * _rnd(0.85, 1.1), damage: _kjDmg(b, c.damage), life: c.life, size: 7, color: '#ff8c42', kind: 'kjShotgun' }));
     _kjMuzzle(b, a, '#ff8c42'); FX.burst(b.x + Math.cos(a) * (b.r + 40), b.y + Math.sin(a) * (b.r + 40), '#cccccc', 8, 300, 16, 0.4, 'smoke');
-    b.vx -= Math.cos(a) * 250; b.vy -= Math.sin(a) * 250; FX.shake(8); FX.sfx('bigHit');
+    b.vx -= Math.cos(a) * c.recoil; b.vy -= Math.sin(a) * c.recoil; FX.shake(12); FX.sfx('bigHit');
   },
   // 저격: 잠깐 조준선 → 한 줄로 쏨 (가장 먼저 걸리는 적 하나)
   sniper: function (bt, b, t, quick) {
@@ -748,7 +748,7 @@ class BlindOrb {
   light() { return { x: this.x, y: this.y, r: this.o.r * 3 }; }
 }
 // 영역 전개: 테두리가 있는 동안 안에 있던 적만 붙잡혀 영역이 끝날 때까지 멈춤 (나중에 들어온 적은 안 걸림)
-// 테두리가 사라질 때 아무도 못 잡았으면 영역도 바로 사라짐. 끝나면 유재운은 lock초 동안 스킬 못 씀
+// 테두리가 사라질 때 아무도 못 잡았으면 영역도 바로 사라짐 (스킬 봉인은 2스킬 start에서)
 class BlindDomain {
   constructor(bt, owner, c) {
     this.bt = bt; this.owner = owner; this.c = c; this.x = owner.x; this.y = owner.y; this.t = 0; this.z = -1; this.caught = new Set(); this.endT = null;
@@ -757,7 +757,7 @@ class BlindDomain {
   get r() { return this.c.radius * Math.min(1, this.t / 0.35); }
   finish() {
     var b = this.owner;
-    this.dead = true; b.data.domain = null; b.data.burn = this.c.lock;
+    this.dead = true; b.data.domain = null;
     FX.ring(this.x, this.y, this.c.radius, this.c.radius * 1.2, 0.4, '#b8a8ff', 10);
     this.bt.emit('domainEnd', { caught: this.caught.size });
   }
@@ -3754,24 +3754,23 @@ var CHARACTERS = {
       },
       {
         key: 'domain', name: '영역 전개', holds: function (b) { return b.data.burn > 0; },
-        desc: (function () { var c = CONFIG.chars.blind; return '우주 같은 영역을 펼침. 테두리가 보이는 ' + c.domain.border + '초 동안 안에 있던 적만 붙잡혀 영역이 끝날 때까지(최대 ' + c.domain.time + '초) 멈춤, 아무도 못 잡으면 영역이 바로 사라짐. 끝나면 (못 잡았어도) ' + c.domain.lock + '초 동안 스킬 못 씀. 펼쳐진 동안 1스킬이 ' + c.domain.cdBoost + '배 빨리 돎'; })(),
+        desc: (function () { var c = CONFIG.chars.blind; return '우주 같은 영역을 펼침. 테두리가 보이는 ' + c.domain.border + '초 동안 안에 있던 적만 붙잡혀 영역이 끝날 때까지(최대 ' + c.domain.time + '초) 멈춤, 아무도 못 잡으면 영역이 바로 사라짐. 펼친 뒤 잡든 못 잡든 ' + c.domain.lock + '초 동안 스킬 못 씀'; })(),
         cd: function (c) { return c.domain.cd; },
         start: function (bt, b) {
           var c = b.cfg.domain, tt = 0;
           b.data.domain = bt.add(new BlindDomain(bt, b, c));
           FX.banner('영역 전개', { color: '#ffffff', sub: '무량공처', size: 130, life: 1.4 });
           FX.flash('#ffffff', 0.4, 0.4); FX.shake(18); FX.sfx('awaken');
-          b.skills[0].cd = Math.min(b.skills[0].cd, 0.4);
+          b.data.burn = c.lock;   // 펼치자마자 잡든 못 잡든 술식 봉인
           bt.emit('domain');
           b.vx = b.vy = 0;
           return { moves: false, update: function (dt) { tt += dt; return tt >= 0.5; }, end: function () { _restoreSpeed(b, Math.random() - 0.5, 1); } };
         },
       },
     ],
-    // 영역 전개 중엔 1스킬 쿨타임이 더 빨리
+    // 영역 전개 뒤 스킬 봉인 시간
     update: function (bt, b, dt) {
       if (b.data.burn > 0) b.data.burn -= dt;   // 영역 전개 뒤 스킬 봉인
-      if (b.data.domain && b.skills[0].cd > 0) b.skills[0].cd -= dt * (b.cfg.domain.cdBoost - 1) * b.cdRate;
     },
     // 보라색 합치는 중: 양옆에서 파랑 · 빨강이 모여듦
     drawExtra: function (ctx, b, bt, x, y, r, time) {

@@ -1720,10 +1720,10 @@ test('유재운 영역 전개: 테두리 동안 들어온 적만 멈춤, 아무�
   let bt = new Battle(['blind', 'gym', 'ibi']); let [b, g, i] = bt.balls;
   bt.balls.forEach(o => { o.maxHp = o.hp = 1e5; });
   b.x = CONFIG.arena.x + CONFIG.arena.w / 2; b.y = CONFIG.arena.y + CONFIG.arena.h / 2; g.x = b.x + 150; g.y = b.y; i.x = b.x; i.y = b.y + D.radius + 300; i.speed = 0;
-  b.def.skills[1].start(bt, b); run(bt, 0.05); i.x = CONFIG.arena.x + 60; i.y = CONFIG.arena.y + 60; run(bt, D.border);
+  b.def.skills[1].start(bt, b); assert(bt.balls[0].skills.every(s => s.def.holds(b)), '잡아도 펼치자마자 봉인'); run(bt, 0.05); i.x = CONFIG.arena.x + 60; i.y = CONFIG.arena.y + 60; run(bt, D.border);
   i.x = b.data.domain.x; i.y = b.data.domain.y + 100; i.status.stun = 0; run(bt, 0.5);
   assert(g.status.stun > 0 && b.data.domain.caught.has(g) && !b.data.domain.caught.has(i) && !(i.status.stun > 0), '테두리 뒤 들어온 적은 안 멈춤 ' + b.data.domain.caught.has(i));
-  run(bt, D.time); assert(!b.data.domain && b.data.burn > 0 && bt.balls[0].skills.every(s => s.def.holds(b)), '끝나면 스킬 봉인');
+  run(bt, D.time); assert(!b.data.domain && !(b.data.burn > 0), '봉인은 ' + D.lock + '초 뒤 풀림');
   bt = new Battle(['blind', 'gym']); [b, g] = bt.balls;
   b.x = CONFIG.arena.x + 100; b.y = CONFIG.arena.y + 100; g.x = CONFIG.arena.x + CONFIG.arena.w - 100; g.y = CONFIG.arena.y + CONFIG.arena.h - 100; g.speed = 0;
   b.def.skills[1].start(bt, b); run(bt, D.border + 0.2);

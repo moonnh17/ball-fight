@@ -248,7 +248,7 @@ var CONFIG = {
       weapons: {
         pistol:  { every: 0.7, damage: 3, speed: 1400 },
         mg:      { every: 0.13, damage: 1.8, speed: 1300, spread: 0.12, mag: 14, reload: 1.2 },
-        shotgun: { every: 1.5, damage: 3, pellets: 7, spread: 0.35, speed: 1100, life: 0.45 },
+        shotgun: { every: 1.5, recoil: 650, damage: 3, pellets: 7, spread: 0.35, speed: 1100, life: 0.45 },
         sniper:  { every: 2.6, damage: 18, aim: 0.6, boss: 2 },   // boss: 보스에게 주는 피해 배율
         katana:  { every: 2.2, damage: 9, dash: 380, speed: 1500 },
       },
@@ -265,7 +265,7 @@ var CONFIG = {
         redChance:    { base: 0.1, low: 0.3 },
         purpleChance: { base: 0.1, low: 0.3 },   // 페이즈 2부터 (붉은 구체가 기본)
       },
-      domain: { cd: 13, time: 5, radius: 480, cdBoost: 2, border: 1, lock: 5 },   // 2스킬 영역 전개: 테두리 border초 동안 안에 있던 적 정지, 1스킬 쿨타임 cdBoost배 빨리, 끝나면 lock초 스킬 봉인
+      domain: { cd: 13, time: 5, radius: 480, border: 1, lock: 3 },   // 2스킬 영역 전개: 테두리 border초 동안 안에 있던 적 정지, 펼치자마자 lock초 스킬 봉인
     },
     ripley: {   // ??? (리플리의 모습)
       hp: 175, speed: 460, radius: 70, color: '#5a5a7a', phase2Color: '#ff2bd6',
