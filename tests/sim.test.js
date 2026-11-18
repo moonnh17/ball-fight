@@ -1727,6 +1727,21 @@ test('유재운 영역 전개: 테두리 동안 들어온 적만 멈춤, 아무�
   b.def.skills[1].start(bt, b); run(bt, D.border + 0.2);
   assert(!b.data.domain && count(bt, 'domainEnd') === 1, '아무도 없으면 바로 사라짐');
 });
+test('원요섭 슬롯머신: 돌다가 뽑힌 무기에 멈추고, 도는 동안은 안 쏨 / 유재운 폭발 범위 밖도 밀침', () => {
+  let bt = new Battle(['kojeom', 'gym']); const [k] = bt.balls;
+  bt.balls.forEach(o => { o.maxHp = o.hp = 1e5; });
+  k.def.skills[0].start(bt, k); const w = k.data.weapon;
+  assert(k.data.slot, '슬롯 시작'); run(bt, CONFIG.chars.kojeom.slot * 0.8);
+  assert(count(bt, 'kjFire') === 0, '도는 동안 안 쏨');
+  const keyAt = vm.runInContext('kjSlotKey', ctx); k.data.slot.t = 99; const fn = vm.runInContext('kjSlotTick', ctx);
+  k.data.slot.n = k.data.slot.times.length - 1; assert(keyAt(k.data) === w, '뽑힌 무기에서 멈춤 ' + keyAt(k.data) + ' ' + w);
+  fn(bt, k, 0); assert(!k.data.slot && k.data.weapon === w, '슬롯 끝');
+  bt = new Battle(['blind', 'gym']); const [b, g] = bt.balls; const C = CONFIG.chars.blind.infinity.red;
+  bt.balls.forEach(o => { o.maxHp = o.hp = 1e5; });
+  g.x = CONFIG.arena.x + CONFIG.arena.w / 2; g.y = CONFIG.arena.y + CONFIG.arena.h / 2; g.vx = g.vy = 0;
+  const o = new Ents.BlindOrb(bt, b, 'red', g.x - C.blast * 1.4, g.y, 0, C); o.boom();
+  assert(g.vx > 300 && g.hp === g.maxHp, '범위 밖: 피해 없이 밀침');
+});
 test('유재운 보라색 구체: 직선으로 경로의 모든 적 관통', () => {
   const C = CONFIG.chars.blind.infinity.purple, bt = new Battle(['blind', 'gym', 'ibi', 'seori']); const [b, ...ps] = bt.balls;
   bt.balls.forEach(o => { o.maxHp = o.hp = 1e5; o.speed = 0; o.vx = o.vy = 0; });

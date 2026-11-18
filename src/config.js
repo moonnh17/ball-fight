@@ -243,13 +243,14 @@ var CONFIG = {
     kojeom: {   // 원요섭 (코점남의 모습)
       hp: 175, speed: 450, radius: 70, color: '#ff2bd6', phase2Color: '#ffd400',
       drawEvery: 10,   // 1스킬 코점남의 모험: 이 간격으로 무기 뽑기
+      slot: 1.1,       // 뽑을 때 슬롯머신 도는 시간 (그동안 안 쏨)
       // 무기별 every: 평소 공격 간격, 기관총은 mag발 쏘고 reload초 장전
       weapons: {
         pistol:  { every: 0.7, damage: 3, speed: 1400 },
-        mg:      { every: 0.13, damage: 1.8, speed: 1300, spread: 0.12, mag: 14, reload: 1.2 },
-        shotgun: { every: 1.5, damage: 3, pellets: 7, spread: 0.35, speed: 1100, life: 0.45 },
-        sniper:  { every: 2.6, damage: 20, aim: 0.6, boss: 2 },   // boss: 보스에게 주는 피해 배율
-        katana:  { every: 2.2, damage: 10, dash: 380, speed: 1500 },
+        mg:      { every: 0.13, damage: 1.6, speed: 1300, spread: 0.12, mag: 14, reload: 1.2 },
+        shotgun: { every: 1.5, damage: 2.7, pellets: 7, spread: 0.35, speed: 1100, life: 0.45 },
+        sniper:  { every: 2.6, damage: 18, aim: 0.6, boss: 2 },   // boss: 보스에게 주는 피해 배율
+        katana:  { every: 2.2, damage: 9, dash: 380, speed: 1500 },
       },
       furious: { cd: 12, time: 4, step: 0.55, damage: 0.5 },   // 2스킬: time초 동안 step초마다 다음 무기로, 연계 중 무기 피해 x damage
     },
@@ -258,9 +259,9 @@ var CONFIG = {
       // 1스킬 무한의 술식: 확률 = base + (1 - 체력 비율) x low
       infinity: {
         cd: 2.4,
-        blue:   { speed: 950, r: 30, damage: 8, blast: 170, knock: -750, life: 1.6 },   // knock < 0: 폭발 지점으로 당김 (창)
-        red:    { speed: 1050, r: 34, damage: 18, blast: 150, knock: 950, life: 1.6 },   // knock > 0: 폭발 지점에서 밀침 (혁)
-        purple: { speed: 1300, r: 70, damage: 34, life: 3, charge: 0.7 },
+        blue:   { speed: 950, r: 30, damage: 8, blast: 170, reach: 1.8, knock: -750, life: 1.6 },   // knock < 0: 폭발 지점으로 당김 (창)
+        red:    { speed: 1050, r: 34, damage: 24, blast: 150, reach: 1.8, knock: 950, life: 1.6 },   // knock > 0: 폭발 지점에서 밀침 (혁)
+        purple: { speed: 1300, r: 70, damage: 44, life: 3, charge: 0.7 },
         redChance:    { base: 0.1, low: 0.3 },
         purpleChance: { base: 0.1, low: 0.3 },   // 영역 전개 중에만
       },

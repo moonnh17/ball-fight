@@ -281,6 +281,8 @@ var FX = (function () {
     drool: function () { noise(0.12, 0.25, 600, 'lowpass'); tone('sine', 300, 120, 0.12, 0.2); },
     bite: function () { noise(0.1, 0.5, 2500); tone('square', 520, 180, 0.12, 0.25); tone('sawtooth', 900, 1300, 0.15, 0.12, 0.05); },
     punch: function () { noise(0.25, 0.8, 900); tone('sine', 180, 40, 0.35, 0.9); tone('square', 90, 60, 0.2, 0.25); },
+    slotTick: function () { tone('square', 1500 + Math.random() * 300, 1400, 0.035, 0.08); },   // 원요섭 슬롯머신 따라라랑
+    jackpot: function () { [784, 988, 1175, 1568].forEach(function (f, i) { tone('square', f, f, 0.12, 0.13, i * 0.06); }); },
     coin: function () { tone('square', 988, 988, 0.07, 0.12); tone('square', 1319, 1319, 0.25, 0.12, 0.07); },
     stockUp: function () { [523, 659, 784].forEach(function (f, i) { tone('triangle', f, f, 0.12, 0.2, i * 0.06); }); },
     stockDown: function () { tone('sawtooth', 600, 120, 0.4, 0.22); noise(0.3, 0.3, 700); },

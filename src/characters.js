@@ -637,15 +637,29 @@ function kjDraw(bt, b, quiet) {   // 무기 뽑기 (지금 무기와 다른 것)
   var ks = Object.keys(KJ_WEAPONS).filter(function (k) { return k !== b.data.weapon; }), k = ks[Math.floor(Math.random() * ks.length)];
   b.data.weapon = k; b.data.owned[k] = true; b.data.wcd = 0.4; b.data.mag = 0;
   if (quiet) return;
-  b.data.wShow = 1.4;
-  FX.ring(b.x, b.y, b.r, b.r * 2, 0.4, '#ff2bd6', 10); FX.sfx('arm');
-  bt.skillText(b, KJ_WEAPONS[k] + '!', '#ffe066');
+  // 슬롯머신: 아이콘이 무기들을 빠르게 돌다가 점점 느려지며 뽑힌 무기에 멈춤 (도는 동안은 안 쏨)
+  var dur = b.cfg.slot, times = [], tt = 0, all = Object.keys(KJ_WEAPONS);
+  while (tt < dur) { times.push(tt); tt += 0.045 + 0.2 * Math.pow(tt / dur, 2); }
+  b.data.slot = { t: 0, dur: dur, times: times, n: 0, start: (all.indexOf(k) - (times.length - 1) % all.length + all.length * 9) % all.length };
+  b.data.wcd = dur + 0.15;
   bt.emit('kjDraw', { weapon: k });
+}
+function kjSlotKey(d) { var all = Object.keys(KJ_WEAPONS); return all[(d.slot.start + d.slot.n) % all.length]; }
+function kjSlotTick(bt, b, dt) {
+  var s = b.data.slot;
+  s.t += dt;
+  var n = Math.max(0, s.times.filter(function (q) { return q <= s.t; }).length - 1);
+  if (n !== s.n) { s.n = n; FX.sfx('slotTick'); }
+  if (s.t < s.dur) return;
+  b.data.slot = null; b.data.wShow = 1.4;   // 당첨!
+  FX.ring(b.x, b.y, b.r, b.r * 2.2, 0.45, '#ffe066', 12); FX.burst(b.x, b.y - b.r - 60, '#ffe066', 16, 500, 8, 0.5, 'spark'); FX.sfx('jackpot');
+  bt.skillText(b, KJ_WEAPONS[b.data.weapon] + '!', '#ffe066');
 }
 // 평소: 들고 있는 무기로 자동 공격
 function kjTick(bt, b, dt) {
   var d = b.data, c = b.cfg.weapons;
   if (d.wShow > 0) d.wShow -= dt;
+  if (d.slot) kjSlotTick(bt, b, dt);
   if (b.action || b.disabled || b.hidden || !d.weapon) return;
   d.wcd -= dt;
   var t = bt.nearest(b);
@@ -708,15 +722,16 @@ class BlindOrb {
   boom() {
     var bt = this.bt, o = this.o, self = this, col = BLIND_ORB[this.kind].col;
     this.dead = true;
-    FX.ring(this.x, this.y, o.r, o.blast, 0.35, col, 16); FX.ring(this.x, this.y, o.r, o.blast * 1.2, 0.5, '#ffffff', 6);
+    FX.ring(this.x, this.y, o.r, o.blast, 0.35, col, 16); FX.ring(this.x, this.y, o.r, o.blast * o.reach, 0.5, '#ffffff', 6);
     FX.burst(this.x, this.y, col, 22, 700, 9, 0.5, 'spark'); FX.shake(this.kind === 'red' ? 14 : 8); FX.sfx(this.kind === 'red' ? 'slam' : 'thump');
     bt.enemies(this.owner).forEach(function (e) {
       if (!e.targetable || e.air) return;
-      var d = Math.hypot(e.x - self.x, e.y - self.y);
-      if (d > o.blast + e.r * 0.5) return;
-      bt.damage(e, o.damage, self.owner, { color: col, kind: self.kind === 'red' ? 'blindRed' : 'blindBlue' });
-      var nx = (e.x - self.x) / (d || 1), ny = (e.y - self.y) / (d || 1);   // 폭발이 밀어냄
-      e.vx = nx * o.knock; e.vy = ny * o.knock;
+      var d = Math.hypot(e.x - self.x, e.y - self.y), far = o.blast * o.reach;
+      if (d > far + e.r * 0.5) return;
+      if (d <= o.blast + e.r * 0.5) bt.damage(e, o.damage, self.owner, { color: col, kind: self.kind === 'red' ? 'blindRed' : 'blindBlue' });
+      // 폭발 범위보다 멀리(reach배까지) 있어도 밀치기 · 당기기, 멀수록 약하게
+      var nx = (e.x - self.x) / (d || 1), ny = (e.y - self.y) / (d || 1), k = d <= o.blast ? 1 : 1 - 0.5 * (d - o.blast) / (far - o.blast);
+      e.vx = nx * o.knock * k; e.vy = ny * o.knock * k;
     });
     bt.emit('orbBoom', { kind: this.kind });
   }
@@ -3655,7 +3670,8 @@ var CHARACTERS = {
             get moves() { return !step || !step.act; },
             update: function (dt) {
               t += dt; stepT += dt; fire -= dt;
-              if (Math.random() < dt * 20) FX.particle({ x: b.x + _rnd(-b.r, b.r), y: b.y + _rnd(-b.r, b.r), vx: 0, vy: -120, life: 0.4, size: 9, color: '#ff2bd6', shape: 'square' });
+              if (Math.random() < dt * 40) FX.particle({ x: b.x + _rnd(-b.r, b.r), y: b.y + _rnd(-b.r, b.r), vx: _rnd(-80, 80), vy: _rnd(-200, -80), life: _rnd(0.4, 0.8), size: _rnd(8, 16), color: Math.random() < 0.8 ? '#0a0a0a' : '#ff2bd6', shape: 'square' });   // 검은 파티클 (블랙헤드)
+              if (Math.random() < dt * 12) FX.particle({ x: b.x + _rnd(-b.r, b.r) * 0.6, y: b.y + _rnd(-b.r, b.r) * 0.6, vx: _rnd(-40, 40), vy: -60, life: 0.9, size: _rnd(30, 50), color: 'rgba(0,0,0,0.55)', shape: 'smoke' });
               var tgt = bt.nearest(b);
               if (step.act) { if (step.act.update(dt)) { if (step.act.end) step.act.end(); step.act = null; stepT = c.step; } }
               else if (tgt && fire <= 0) {   // 총은 한 단계 동안 몇 번 쏨
@@ -3680,21 +3696,28 @@ var CHARACTERS = {
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(d.scope.a) * 2400, y + Math.sin(d.scope.a) * 2400); ctx.stroke(); ctx.restore();
       }
       if (!w) return;
-      ctx.save(); ctx.translate(x + Math.cos(a) * r * 0.8, y + Math.sin(a) * r * 0.8); ctx.rotate(a);
+      if (d.slot) w = null;   // 슬롯 도는 동안은 손이 빔
+      if (w) { ctx.save(); ctx.translate(x + Math.cos(a) * r * 0.8, y + Math.sin(a) * r * 0.8); ctx.rotate(a);
       if (Math.cos(a) < 0) ctx.scale(1, -1);
       if (w === 'katana' && d.slash != null) {   // 베는 궤적
         ctx.save(); ctx.globalAlpha = 0.7; ctx.strokeStyle = '#ffffff'; ctx.shadowColor = '#d8e4ff'; ctx.shadowBlur = 20; ctx.lineWidth = 10;
         ctx.beginPath(); ctx.arc(0, 0, 90, -1.2, 1.2); ctx.stroke(); ctx.restore();
       }
       drawKjWeapon(ctx, w, 2.3);
-      ctx.restore();
-      // 머리 위 아이콘: 보내 준 무기 사진 (연계 중엔 퓨리오소), 막 뽑았을 땐 크게
-      var big = d.wShow > 0 ? 1 + Math.min(1, d.wShow) * 0.8 : 1, h = 40 * big, img = Assets.cache['kojeom:' + (d.furious ? 'furious' : w)];
+      ctx.restore(); }
+      // 머리 위 아이콘: 보내 준 무기 사진 (연계 중엔 퓨리오소, 슬롯 도는 중엔 돌아가는 무기), 막 뽑았을 땐 크게
+      var key = d.furious ? 'furious' : d.slot ? kjSlotKey(d) : d.weapon, img = Assets.cache['kojeom:' + key];
+      var big = d.slot ? 1.6 : d.wShow > 0 ? 1 + Math.min(1, d.wShow) * 0.8 : 1, h = 40 * big;
+      w = key === 'furious' ? d.weapon : key;
       ctx.save(); ctx.translate(x, y - r - 16 - h);
       ctx.fillStyle = 'rgba(10,6,20,0.75)'; Battle.roundRect(ctx, -h, -h, h * 2, h * 2, 12 * big); ctx.fill();
       if (img) { ctx.save(); Battle.roundRect(ctx, -h, -h, h * 2, h * 2, 12 * big); ctx.clip(); ctx.drawImage(img, -h, -h, h * 2, h * 2); ctx.restore(); }
       else drawKjWeapon(ctx, w, 0.7 * big);
-      ctx.strokeStyle = '#ff2bd6'; ctx.lineWidth = 4; Battle.roundRect(ctx, -h, -h, h * 2, h * 2, 12 * big); ctx.stroke();
+      if (d.slot) {   // 슬롯 창: 위아래로 흔들리는 띠 + 금색 테두리
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.25 * Math.max(0, 1 - (d.slot.t - d.slot.times[d.slot.n]) * 12)) + ')'; ctx.fillRect(-h, -h, h * 2, h * 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(-h, -h, h * 2, h * 0.35); ctx.fillRect(-h, h * 0.65, h * 2, h * 0.35);
+      }
+      ctx.strokeStyle = d.slot || d.wShow > 0 ? '#ffe066' : '#ff2bd6'; ctx.lineWidth = d.slot ? 6 : 4; Battle.roundRect(ctx, -h, -h, h * 2, h * 2, 12 * big); ctx.stroke();
       ctx.restore();
     },
     gauge: function (b, k, sk) {
