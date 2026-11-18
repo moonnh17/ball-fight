@@ -1519,27 +1519,44 @@ test('마을회관: 이장님이 컴퓨터를 끄고, 다른 사람이 닿으면
   c2.data.pcCd = 0; touch(c2); assert(c2.data.pc, '다음엔 게임');
 });
 
-test('진형권(심리학자): 고정 타겟 3번 맞히면 표식 → 표식 없는 적으로, 2스킬은 표식 찍힌 적만 피해', () => {
+test('진형권(심리학자): 돌진마다 표식 +1, 적이 여럿이면 3개 찍고 덜 찍힌 적으로, 혼자면 5개까지, 5개면 피해 증가', () => {
+  const c = CONFIG.chars.psych.pavlov, hit = vm.runInContext('psychHit', ctx), tgt = vm.runInContext('psychTarget', ctx);
   const bt = new Battle(['psych', 'hau', 'ibi', 'seori']);   // 유재후는 손님 사냥꾼 2배라 뺌
-  const p = bt.balls[0], c = CONFIG.chars.psych.pavlov;
+  const p = bt.balls[0];
   bt.balls.forEach(b => { b.maxHp = b.hp = 1e5; });
-  const t = vm.runInContext('psychTarget', ctx)(bt, p);
-  for (let i = 0; i < c.marks - 1; i++) vm.runInContext('psychHit', ctx)(bt, p, t);
-  assert(!p.data.marks[t.id] && p.data.target === t, '아직 같은 타겟');
-  vm.runInContext('psychHit', ctx)(bt, p, t);
-  assert(p.data.marks[t.id] && p.data.target && p.data.target !== t && !p.data.marks[p.data.target.id], '표식 후 표식 없는 적으로');
-  bt.hitstop = 0;
-  const hp = bt.balls.map(b => b.hp);
-  p.def.skills[1].start(bt, p);
-  bt.balls.forEach((b, i) => { if (i === 0) return; if (b === t) assert(Math.abs(hp[i] - b.hp - c.damage) < 1e-6, '표식: 같은 피해'); else assert(b.hp === hp[i], '표식 없으면 피해 없음'); });
-  // 실제 전투에서도 돌진이 맞고 표식이 찍힘
+  const t = tgt(bt, p);
+  for (let i = 0; i < c.switchAt - 1; i++) hit(bt, p, t);
+  assert(p.data.marks[t.id] === c.switchAt - 1 && p.data.target === t, '아직 같은 타겟');
+  hit(bt, p, t);
+  assert(p.data.marks[t.id] === c.switchAt && p.data.target !== t && !p.data.marks[p.data.target.id], c.switchAt + '개 찍으면 덜 찍힌 적으로');
+  const solo = new Battle(['psych', 'hau']), sp = solo.balls[0], st = tgt(solo, sp);
+  for (let i = 0; i < 9; i++) hit(solo, sp, st);
+  assert(sp.data.marks[st.id] === c.max && sp.data.target === st, '혼자면 ' + c.max + '개까지');
+  solo.hitstop = 0; const hp = st.hp; solo.damage(st, 10, sp, {}); assert(Math.abs(hp - st.hp - 10 * c.full) < 1e-6, c.max + '개면 피해 x' + c.full);
+  // 실제 전투: 돌진이 맞고 표식이 쌓이고, 돌진 반동으로 본인도 박치기 피해
   const b2 = new Battle(['psych', 'gym']); b2.balls.forEach(b => { b.maxHp = b.hp = 1e5; });
   run(b2, 40);
-  assert(count(b2, 'damage', e => e.kind === 'pavlov') >= 3 && count(b2, 'pavlovMark') === 1, '돌진 ' + count(b2, 'damage', e => e.kind === 'pavlov'));
   const hits = b2.log.filter(e => e.type === 'damage' && e.kind === 'pavlov');
-  assert(hits.every(h => b2.log.some(e => e.type === 'damage' && e.who === 'psych' && e.src === 'gym' && e.kind === 'contact' && e.t === h.t)), '돌진 반동: 본인도 박치기 피해');
+  assert(hits.length >= 3 && count(b2, 'pavlovMark') >= 3, '돌진 ' + hits.length);
+  assert(hits.every(h => b2.log.some(e => e.type === 'damage' && e.who === 'psych' && e.src === 'gym' && e.kind === 'contact' && e.t === h.t)), '돌진 반동');
 });
-
+test('진형권(심리학자) 2스킬: 핸드폰 — 표식 +1, 표식 찍힌 적은 핸드폰 쪽으로, 1초마다 피해, 닿으면 노래 끝', () => {
+  const c = CONFIG.chars.psych, bt = new Battle(['psych', 'hau', 'ibi']);
+  const [p, h, i] = bt.balls;
+  bt.balls.forEach(b => { b.maxHp = b.hp = 1e5; b.speed = 300; });
+  p.data.marks[h.id] = 1;
+  h.x = p.x + 600; h.y = p.y; i.x = p.x - 600; i.y = p.y + 300;
+  p.def.skills[1].start(bt, p);
+  const ph = bt.ents.find(e => e instanceof Ents.PsychPhone);
+  assert(ph && p.data.marks[h.id] === 2 && !p.data.marks[i.id], '표식 +1 (찍힌 적만)');
+  assert((ph.x - h.x) * h.vx + (ph.y - h.y) * h.vy > 0, '핸드폰 쪽으로');
+  h.speed = 0; h.vx = h.vy = 0; i.speed = 0; i.vx = i.vy = 0; p.speed = 0; p.vx = p.vy = 0;
+  h.x = ph.x + 500; i.x = ph.x - 500; bt.hitstop = 0;
+  run(bt, 2.2);
+  assert(count(bt, 'damage', e => e.kind === 'pavlov2' && e.who === 'hau') >= 2 && count(bt, 'damage', e => e.kind === 'pavlov2' && e.who === 'ibi') === 0, '1초마다 표식 찍힌 적만');
+  h.x = ph.x; h.y = ph.y; run(bt, 0.1);
+  assert(ph.dead && count(bt, 'phoneEnd') === 1, '닿으면 노래 끝');
+});
 test('워터밤은 마을회관에서만 · 코딩은 +5%', () => {
   const seen = { none: 0, hall: 0 };
   for (const m of ['none', 'hall']) for (let k = 0; k < 60; k++) {

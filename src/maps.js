@@ -264,6 +264,7 @@ class MapRun {
         var gone = pool.slice(0, k);
         gone.forEach(function (b) {
           if (b.action) { if (b.action.end) b.action.end(); b.action = null; }
+          if (b.def.id === 'sy') FX.text(b.x, b.y - b.r - 60, '에..? 잠시만요...', '#ffd6ec', 44, 1.6);   // 낯가림
           FX.ring(b.x, b.y, b.r, b.r * 2.5, 0.5, '#ffffff', 12); FX.burst(b.x, b.y, '#ffffff', 20, 500, 8, 0.5, 'spark');
           b.data.rehearsal = c.away; b.hidden = true; b.vx = b.vy = 0;
         });
@@ -654,13 +655,14 @@ function drawDivider(ctx, A, dy, k, time) {
   }
   ctx.restore();
 }
-function drawChair(ctx, s) {
+function drawChair(ctx, s, black) {   // black: 디바 자세의 검은 의자
+  var dk = black ? '#1c1c22' : '#6b4a2e', lt = black ? '#34343e' : '#8a5f3a';
   ctx.save(); ctx.scale(s, s);
-  ctx.fillStyle = '#6b4a2e'; ctx.strokeStyle = '#2a1a0e'; ctx.lineWidth = 3;
+  ctx.fillStyle = dk; ctx.strokeStyle = black ? '#55556a' : '#2a1a0e'; ctx.lineWidth = 3;
   ctx.fillRect(-22, -34, 44, 10); ctx.strokeRect(-22, -34, 44, 10);   // 등받이
   ctx.fillRect(-18, -24, 6, 22); ctx.fillRect(12, -24, 6, 22);
-  ctx.fillStyle = '#8a5f3a'; ctx.fillRect(-26, -4, 52, 10); ctx.strokeRect(-26, -4, 52, 10);   // 앉는 판
-  ctx.fillStyle = '#6b4a2e'; ctx.fillRect(-22, 6, 6, 26); ctx.fillRect(16, 6, 6, 26);
+  ctx.fillStyle = lt; ctx.fillRect(-26, -4, 52, 10); ctx.strokeRect(-26, -4, 52, 10);   // 앉는 판
+  ctx.fillStyle = dk; ctx.fillRect(-22, 6, 6, 26); ctx.fillRect(16, 6, 6, 26);
   ctx.restore();
 }
 

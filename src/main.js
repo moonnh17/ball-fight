@@ -139,7 +139,7 @@
     G.battle = G.mode === 'boss'
       ? new Battle(G.roster.map(function (e) { return e.id; }), 'boss', { boss: G.bossId, difficulty: G.bossDiff })
       : new Battle(G.roster.map(function (e) { return { id: e.id, team: e.team }; }), G.mode, { map: pickMap() });
-    G.scene = 'battle'; G.phase = 'intro'; G.pt = 0; G.lastCount = -1;
+    G.scene = 'battle'; G.phase = 'intro'; G.pt = 0; G.lastCount = -1; bgm.restart = true;   // 다시 하기면 곡도 처음부터
     mapBanner(G.battle);
     G.battle.synergies.forEach(function (s, i) {
       FX.banner(s.name, { color: s.color || '#ffe14d', sub: TEAMS[s.team % TEAMS.length].label + '팀 시너지', size: 100, life: 2.2, y: 560 + i * 170 });
@@ -563,7 +563,7 @@
     G.battle.balls[0].name = a.name; G.battle.balls[1].name = b.name;
     G.battle.balls.forEach(function (x) { var m = /(\d+)$/.exec(x.name); if (x.dupNo && m) x.dupNo = +m[1]; });   // 번호 배지를 대진표 이름과 맞춤
     G.battle.tourEntries = [a, b];
-    G.scene = 'battle'; G.phase = 'intro'; G.pt = 0; G.lastCount = -1;
+    G.scene = 'battle'; G.phase = 'intro'; G.pt = 0; G.lastCount = -1; bgm.restart = true;
     FX.banner(roundName(m.r), { color: '#ffd400', sub: a.name + ' vs ' + b.name, size: 130, life: 2.0, y: 560 });
   }
   // 무승부(동시 탈락)면 같은 대진으로 재경기
@@ -1309,11 +1309,13 @@
     var want = bgmPick(), any = false;
     if (want && !bgm.tracks[want]) bgmLoad(want);
     if (want === 'winner' && bgm.prev !== 'winner') { bgmStart(bgm.tracks.winner); bgm.tracks.winner.vol = CONFIG.sound.bgm.winner; }   // 승리하면 처음부터 바로
+    if (bgm.restart && want && G.scene === 'battle') { bgmStart(bgm.tracks[want]); bgm.restart = false; }   // 다시 하기 · 재시작: 전투 곡 처음부터
     bgm.prev = want;
     Object.keys(bgm.tracks).forEach(function (k) {
       var tr = bgm.tracks[k], to = k === want ? CONFIG.sound.bgm[k] : 0;
       tr.vol += Math.max(-dt * 0.8, Math.min(dt * 0.8, to - tr.vol));
       tr.gain.gain.value = tr.vol;
+      if (tr.src) tr.src.playbackRate.value = k === want && G.scene === 'battle' ? speed() : 1;   // 배속이면 곡도 빠르게
       if (tr.vol > 0.001) any = true;
     });
     if (want && bgm.ctx.state === 'suspended') bgm.ctx.resume();

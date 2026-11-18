@@ -368,6 +368,12 @@ class SongWave {
   light() { return { x: this.x, y: this.y + this.r * 0.7, r: this.r * 0.6 + 80 }; }
 }
 // 보스 오라: 발밑 마법진(pixelfx) + 흩날리는 불티
+// 보스 예고 표시 (보스 공이 숨어 있을 때도 그려야 해서 따로)
+class BossTele {
+  constructor(bt, b) { this.bt = bt; this.b = b; this.z = -1; }
+  update() { if (!this.b.alive) this.dead = true; }
+  draw(ctx) { if (this.b.def.drawTele) this.b.def.drawTele(ctx, this.b, this.bt.time); }
+}
 class BossAura {
   constructor(bt, b) { this.bt = bt; this.b = b; this.t = 0; this.z = -2; }
   update(dt) {
@@ -491,7 +497,7 @@ var BATON_SKILLS = {
         t += dt;
         if (st === 'out') { if (t >= c.out) plan(); return false; }
         if (st === 'warn') {
-          if (t >= c.warn) { st = 'dash'; t = 0; b.hidden = false; b.x = line.x0; b.y = line.y0; b.data.kick = true; b.data.tele = null; FX.sfx('roll'); FX.text(b.x, b.y, '부릉~', '#7dff9a', 50, 0.8); }
+          if (t >= c.warn) { st = 'dash'; t = 0; b.hidden = false; b.x = line.x0; b.y = line.y0; b.data.kick = true; b.data.tele.dash = true; FX.sfx('roll'); FX.text(b.x, b.y, '부릉~', '#7dff9a', 50, 0.8); }
           return false;
         }
         var dx = line.x1 - line.x0, dy = line.y1 - line.y0, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L;
@@ -508,7 +514,7 @@ var BATON_SKILLS = {
           bt.emit('bossKickHit', { who: o.def.id });
         });
         if ((b.x - line.x1) * ux + (b.y - line.y1) * uy < 0) return false;
-        if (Math.random() < (c.chain[done++] || 0)) { b.hidden = true; b.data.kick = false; st = 'out'; t = c.out * 0.5; FX.text(b.x, b.y, '한 번 더!', '#7dff9a', 46, 0.8); return false; }
+        if (Math.random() < (c.chain[done++] || 0)) { b.hidden = true; b.data.kick = false; b.data.tele = null; st = 'out'; t = c.out * 0.5; FX.text(b.x, b.y, '한 번 더!', '#7dff9a', 46, 0.8); return false; }
         return true;
       },
       end: function () {
@@ -732,7 +738,7 @@ class HWave {
     ctx.restore();
   }
 }
-// 개큰돌: 굴러가며 맞은 적 넉백 + 기절, maxHits명 맞히면 그 자리에서 부서짐
+// 짱돌: 굴러가며 맞은 적 넉백 + 기절, maxHits명 맞히면 그 자리에서 부서짐
 class BigRock {
   constructor(bt, owner, ang, c) {
     this.bt = bt; this.owner = owner; this.c = c; this.r = c.radius; this.vx = Math.cos(ang) * c.speed; this.vy = Math.sin(ang) * c.speed;
@@ -787,12 +793,16 @@ class ChairBomb {
     if (!this.landed) {
       var k = Math.min(1, this.t / 0.6);
       this.x = this.sx + (this.tx - this.sx) * k; this.y = this.sy + (this.ty - this.sy) * k - Math.sin(k * Math.PI) * 220; this.rot += dt * 14;
-      if (k >= 1) { this.landed = true; this.t = 0; this.rot = 0.2; FX.shake(14); FX.sfx('thump'); FX.burst(this.x, this.y, '#8a5f3a', 14, 400, 10, 0.5, 'square'); }
+      if (k >= 1) { this.landed = true; this.t = 0; this.rot = 0.2; FX.shake(24); FX.sfx('slam'); FX.ring(this.x, this.y, 30, 260, 0.4, '#ffffff', 10); FX.burst(this.x, this.y, '#2a2a33', 24, 500, 14, 0.6, 'square'); }
       return;
     }
     if (this.t < c.fuse) return;
     this.dead = true;
-    bfx(bt, 'blast_gold', this.x, this.y, { scale: c.blastRadius / 75 }); FX.shake(30); FX.sfx('slam'); FX.flash('#ff7ad9', 0.25, 0.25);
+    bfx(bt, 'blast_gold', this.x, this.y, { scale: c.blastRadius / 75 }); FX.shake(55); FX.sfx('crash'); FX.sfx('slam'); FX.flash('#ffffff', 0.55, 0.35);
+    for (var q = 0; q < 4; q++) FX.ring(this.x, this.y, 40, c.blastRadius * (1.1 + q * 0.35), 0.5 + q * 0.15, q % 2 ? '#ff7ad9' : '#ffffff', 22 - q * 4);
+    FX.burst(this.x, this.y, '#1c1c22', 50, 1400, 18, 0.9, 'square'); FX.burst(this.x, this.y, '#ff7ad9', 30, 1100, 10, 0.6, 'spark'); FX.burst(this.x, this.y, '#55556a', 24, 600, 40, 1.0, 'smoke');
+    FX.text(this.x, this.y - 80, '콰광!!', '#ff7ad9', 110, 0.9);
+    bt.hitstop = Math.max(bt.hitstop, 0.12);
     _bPlayers(bt, this.owner).forEach(function (o) { if (_dist(o, self) < c.blastRadius + o.r * 0.5) bt.damage(o, c.blastDamage, self.owner, { color: '#ffb066', kind: 'divaBlast' }); });
     for (var i = 0; i < c.shards; i++) bt.add(new Shard(bt, this.owner, this.x, this.y, i / c.shards * Math.PI * 2 + _rnd(-0.08, 0.08), c));
     bt.emit('divaBlast');
@@ -806,7 +816,7 @@ class ChairBomb {
       ctx.globalAlpha = 1; ctx.setLineDash([16, 12]); ctx.strokeStyle = '#ff4f6a'; ctx.lineWidth = 5; ctx.stroke(); ctx.setLineDash([]);
       ctx.translate(_rnd(-1, 1) * k * 6, 0);
     }
-    ctx.rotate(this.rot); if (typeof drawChair === 'function') drawChair(ctx, 2.2);
+    ctx.rotate(this.rot); if (typeof drawChair === 'function') drawChair(ctx, this.c.chairSize, true);
     ctx.restore();
   }
 }
@@ -816,13 +826,13 @@ class Shard {
     var A = CONFIG.arena, self = this;
     this.t += dt; this.x += this.vx * dt; this.y += this.vy * dt; this.rot += dt * 12;
     if (this.t > 3 || this.x < A.x || this.x > A.x + A.w || this.y < A.y || this.y > A.y + A.h) { this.dead = true; return; }
-    var o = _bPlayers(this.bt, this.owner).find(function (q) { return !q.air && _dist(q, self) < q.r + 16; });
+    var o = _bPlayers(this.bt, this.owner).find(function (q) { return !q.air && _dist(q, self) < q.r + 30; });
     if (!o) return;
     this.dead = true;
     this.bt.damage(o, this.c.shardDamage, this.owner, { color: '#ffb066', kind: 'divaShard' });
     FX.burst(this.x, this.y, '#8a5f3a', 6, 300, 6, 0.3, 'square');
   }
-  draw(ctx) { ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.rot); ctx.fillStyle = '#8a5f3a'; ctx.strokeStyle = '#2a1a0e'; ctx.lineWidth = 3; ctx.fillRect(-16, -5, 32, 10); ctx.strokeRect(-16, -5, 32, 10); ctx.restore(); }
+  draw(ctx) { ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.rot); ctx.shadowColor = '#ff7ad9'; ctx.shadowBlur = 14; ctx.fillStyle = '#1c1c22'; ctx.strokeStyle = '#8a8aa0'; ctx.lineWidth = 4; ctx.fillRect(-32, -10, 64, 20); ctx.strokeRect(-32, -10, 64, 20); ctx.restore(); }
 }
 // 훔친 스킬은 그 캐릭터 수치(cfg)로 돌림: 쓰는 동안만 보스 cfg 위에 그 캐릭터 cfg를 덮음 (보스 고유 값은 유지)
 function gyuRunStolen(bt, b) {
@@ -949,10 +959,10 @@ var GYU_SKILLS = {
       end: function () { b.data.tele = null; b.jx = 0; _restoreSpeed(b, Math.cos(ang), Math.sin(ang)); },
     };
   },
-  // 3-1 개큰돌 던지기
+  // 3-1 짱돌 던지기
   rock: function (bt, b) {
     var c = b.cfg.rock, t = 0, thrown = false, tgt = _bPick(bt, b), ang = tgt ? Math.atan2(tgt.y - b.y, tgt.x - b.x) : _rnd(0, Math.PI * 2);
-    bossCast(bt, b, '개큰돌 던지기', '#d8c8b0'); b.vx = b.vy = 0;
+    bossCast(bt, b, '짱돌 던지기', '#d8c8b0'); b.vx = b.vy = 0;
     b.data.tele = { kind: 'arrow', x: b.x, y: b.y, dx: Math.cos(ang), dy: Math.sin(ang), len: 1400 };
     return {
       moves: false,
@@ -1076,7 +1086,7 @@ var BOSSES = {
     dealMult: function (bt, s, t) { return _isIzk(t) ? s.cfg.izkRage : 1; },
     init: function (bt, b) {
       b.data = { cd: b.cfg.firstCast, queue: [], last: null, sang: false, cast: '', castT: 0 };
-      bt.add(new BossAura(bt, b));
+      bt.add(new BossAura(bt, b)); bt.add(new BossTele(bt, b));
     },
     update: function (bt, b, dt) {
       var c = b.cfg, d = b.data, st = b.status;
@@ -1111,9 +1121,9 @@ var BOSSES = {
       [-L + 20, L - 20].forEach(function (wx) { ctx.beginPath(); ctx.arc(wx, 0, 26, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#7dff9a'; ctx.lineWidth = 6; ctx.stroke(); });
       ctx.restore();
     },
-    drawExtra: function (ctx, b, bt, x, y, r, time) {
-      var d = b.data, tl = d.tele;
-      // 예고: 구르기 화살표 / 킥보드 돌격 차선
+    // 예고 (보스가 숨어 있어도 보이게 BossTele가 그림): 구르기 화살표 / 킥보드 돌격 차선 (돌격하는 동안도 흐리게)
+    drawTele: function (ctx, b, time) {
+      var tl = b.data.tele;
       if (tl && tl.kind === 'arrow') {
         ctx.save(); ctx.globalAlpha = 0.55 + Math.sin(time * 30) * 0.25; ctx.strokeStyle = '#ffd400'; ctx.lineWidth = 10; ctx.setLineDash([24, 14]);
         ctx.beginPath(); ctx.moveTo(tl.x, tl.y); ctx.lineTo(tl.x + tl.dx * tl.len, tl.y + tl.dy * tl.len); ctx.stroke(); ctx.restore();
@@ -1121,10 +1131,13 @@ var BOSSES = {
       if (tl && tl.kind === 'lane') {
         var dx = tl.x1 - tl.x0, dy = tl.y1 - tl.y0, L = Math.hypot(dx, dy);
         ctx.save(); ctx.translate(tl.x0, tl.y0); ctx.rotate(Math.atan2(dy, dx));
-        ctx.globalAlpha = 0.18 + Math.sin(time * 24) * 0.1; ctx.fillStyle = '#7dff9a'; ctx.fillRect(0, -tl.w / 2, L, tl.w);
+        ctx.globalAlpha = tl.dash ? 0.1 : 0.18 + Math.sin(time * 24) * 0.1; ctx.fillStyle = '#7dff9a'; ctx.fillRect(0, -tl.w / 2, L, tl.w);
         ctx.globalAlpha = 0.8; ctx.strokeStyle = '#7dff9a'; ctx.lineWidth = 5; ctx.setLineDash([30, 18]); ctx.lineDashOffset = -time * 400;
         ctx.strokeRect(0, -tl.w / 2, L, tl.w); ctx.restore();
       }
+    },
+    drawExtra: function (ctx, b, bt, x, y, r, time) {
+      var d = b.data;
       if (b.hidden) return;
       // 히어로 왕관
       ctx.save(); ctx.translate(x, y - r - 26); ctx.fillStyle = '#ffd400'; ctx.strokeStyle = '#7a4a00'; ctx.lineWidth = 4; ctx.shadowColor = '#ffd400'; ctx.shadowBlur = 20;
@@ -1217,7 +1230,7 @@ var BOSSES = {
         { key: 'dance', phase: 1, name: '춤', desc: function (c) { return '셋 중 하나. 토카토카(이비보다 넓은 충격파) / 캐치캐치(제자리 점프 ' + c.catchc.jumps + '번, 착지마다 좌우 맵 끝까지 파동 ' + c.catchc.damage + ') / 체포하겠어(휘슬 ' + c.arrest.whistles + '번, 불 때마다 도전자 전원 ' + c.arrest.stun + '초 정지)'; } },
         { key: 'lucha', phase: 2, name: '루차루차', desc: function (c) { return '이비의 루차루차와 같지만 훨씬 넓은 범위 (반경 ' + c.lucha.radius + ', ' + c.lucha.damage + ' 피해)'; } },
         { key: 'burp', phase: 2, name: 'BURP VENOM', desc: function (c) { return '진행 방향으로 "구우우으으어어어어어어억!!!" 트림. 맵 끝까지 부채꼴, 맞으면 ' + c.burp.damage + ' 피해 + ' + c.burp.time + '초 동안 냄새 지속 피해'; } },
-        { key: 'rock', phase: 3, name: '개큰돌 던지기', desc: function (c) { return '아주 큰 돌을 굴림. 맞으면 ' + c.rock.damage + ' 피해 + 넉백 + ' + c.rock.stun + '초 기절. ' + c.rock.maxHits + '명을 맞히면 그 자리에서 부서짐'; } },
+        { key: 'rock', phase: 3, name: '짱돌 던지기', desc: function (c) { return '아주 큰 돌을 굴림. 맞으면 ' + c.rock.damage + ' 피해 + 넉백 + ' + c.rock.stun + '초 기절. ' + c.rock.maxHits + '명을 맞히면 그 자리에서 부서짐'; } },
         { key: 'steal', phase: 3, name: '쌔비기 마스터', desc: function () { return '한 판에 한 번, 살아 있는 도전자 스킬 하나(1 · 2스킬 상관없이)를 훔침. 훔친 스킬은 그 게임 동안 봉인되고, 이 자리는 훔친 스킬로 바뀜'; } },
       ],
       hard: { key: 'diva', name: '디바 자세', desc: function (c) { return '체력 ' + Math.round(c.diva.at * 100) + '% 이하에서 "이것도 x발 너프해봐 개x끼들아!!!" 하며 맵 가운데에 의자를 던짐. ' + c.diva.fuse + '초 뒤 폭발(' + c.diva.blastDamage + ') + 파편 ' + c.diva.shards + '개(각 ' + c.diva.shardDamage + ')'; } },
@@ -1227,7 +1240,7 @@ var BOSSES = {
     color: function (b) { return b.phase >= 3 ? b.cfg.phase3Color : b.phase >= 2 ? b.cfg.phase2Color : b.cfg.color; },
     init: function (bt, b) {
       b.data = { cd: b.cfg.firstCast, queue: [], last: null, cast: '', castT: 0 };
-      bt.add(new GyuAura(bt, b));
+      bt.add(new GyuAura(bt, b)); bt.add(new BossTele(bt, b));
     },
     update: function (bt, b, dt) {
       var c = b.cfg, d = b.data, st = b.status;
@@ -1252,11 +1265,24 @@ var BOSSES = {
       bt.emit('nunu', { skill: k });
     },
     hudNames: function (b) { return { seizure: '발작', stolen: b.data.stolen ? '🫳 ' + b.data.stolen.name : '훔친 스킬' }; },
-    drawExtra: function (ctx, b, bt, x, y, r, time) {
-      var d = b.data, tl = d.tele, i;
+    drawTele: function (ctx, b, time) {
+      var d = b.data, c = b.cfg, A = CONFIG.arena;
+      if (d.lucha && b.air) {   // 루차루차 떨어질 자리
+        ctx.save(); ctx.globalAlpha = 0.16 + Math.sin(time * 30) * 0.08; ctx.fillStyle = '#ff4fd8'; ctx.beginPath(); ctx.arc(b.x, b.y, c.lucha.radius, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.85; ctx.strokeStyle = '#ff4fd8'; ctx.lineWidth = 7; ctx.setLineDash([24, 14]); ctx.stroke(); ctx.restore();
+      }
+      if (d.cur === 'dance' && d.danced === 'toka') {   // 토카토카 충격파 범위
+        ctx.save(); ctx.globalAlpha = 0.6; ctx.strokeStyle = '#00f0ff'; ctx.lineWidth = 5; ctx.setLineDash([18, 14]); ctx.lineDashOffset = time * 60;
+        ctx.beginPath(); ctx.arc(b.x, b.y, c.toka.waveRadius, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+      }
+      if (d.cur === 'dance' && d.danced === 'catch') {   // 캐치캐치 띠 파동이 지나갈 줄
+        ctx.save(); ctx.globalAlpha = 0.14 + Math.sin(time * 20) * 0.06; ctx.fillStyle = '#ff4fd8'; ctx.fillRect(A.x, b.y - c.catchc.band / 2, A.w, c.catchc.band);
+        ctx.globalAlpha = 0.7; ctx.strokeStyle = '#ff4fd8'; ctx.lineWidth = 4; ctx.setLineDash([20, 14]); ctx.strokeRect(A.x, b.y - c.catchc.band / 2, A.w, c.catchc.band); ctx.restore();
+      }
+      var tl = d.tele;
       if (tl && tl.kind === 'cone') {   // BURP VENOM 예고: 맵 끝까지 부채꼴
         ctx.save(); ctx.globalAlpha = 0.18 + Math.sin(time * 26) * 0.08; ctx.fillStyle = '#9cff57';
-        ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, 3000, tl.ang - tl.half, tl.ang + tl.half); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.arc(b.x, b.y, 3000, tl.ang - tl.half, tl.ang + tl.half); ctx.closePath(); ctx.fill();
         ctx.globalAlpha = 0.8; ctx.strokeStyle = '#9cff57'; ctx.lineWidth = 6; ctx.setLineDash([26, 16]); ctx.stroke(); ctx.restore();
       }
       if (tl && tl.kind === 'ring') {   // 발작 예고: 파동이 닿는 범위 (구석은 안전)
@@ -1264,10 +1290,13 @@ var BOSSES = {
         ctx.beginPath(); ctx.arc(tl.x, tl.y, tl.r, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 0.9; ctx.strokeStyle = '#ff4fd8'; ctx.lineWidth = 8; ctx.setLineDash([30, 20]); ctx.lineDashOffset = -time * 200; ctx.stroke(); ctx.restore();
       }
-      if (tl && tl.kind === 'arrow') {   // 개큰돌 예고
-        ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(time * 30) * 0.25; ctx.strokeStyle = '#d8c8b0'; ctx.lineWidth = b.cfg.rock.radius * 1.6; ctx.lineCap = 'round';
+      if (tl && tl.kind === 'arrow') {   // 짱돌 예고
+        ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(time * 30) * 0.25; ctx.strokeStyle = '#d8c8b0'; ctx.lineWidth = c.rock.radius * 1.6; ctx.lineCap = 'round';
         ctx.globalAlpha *= 0.35; ctx.beginPath(); ctx.moveTo(tl.x, tl.y); ctx.lineTo(tl.x + tl.dx * tl.len, tl.y + tl.dy * tl.len); ctx.stroke(); ctx.restore();
       }
+    },
+    drawExtra: function (ctx, b, bt, x, y, r, time) {
+      var d = b.data, i;
       if (b.hidden) return;
       if (d.wing != null) {   // 날개: 양 옆으로 펼쳐 위아래로 빠르게
         var c = b.cfg.wings, fl = Math.sin(d.wing * 42) * 0.55;

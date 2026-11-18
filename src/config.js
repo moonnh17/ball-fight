@@ -124,7 +124,7 @@ var CONFIG = {
       arrest: { whistles: 2, gap: 0.45, stun: 1.2 },                            // 춤: 체포하겠어 (휘슬마다 도전자 전원 stun초 정지)
       lucha: { riseTime: 0.8, hangTime: 0.35, fallTime: 0.25, radius: 420, damage: 28, knockback: 1300, shake: 36 },   // 이비 루차루차의 큰 범위판
       burp: { windup: 0.7, half: 0.6, damage: 12, dps: 4, time: 4 },            // BURP VENOM: 진행 방향 부채꼴(반각 half 라디안) 맵 끝까지 + 냄새 지속 피해
-      rock: { windup: 0.5, radius: 110, speed: 950, damage: 20, stun: 1.6, knock: 1200, maxHits: 2 },   // 개큰돌: 두 명 맞히면 부서짐
+      rock: { windup: 0.5, radius: 110, speed: 950, damage: 20, stun: 1.6, knock: 1200, maxHits: 2 },   // 짱돌: 두 명 맞히면 부서짐
       diva: { at: 0 },   // 하드 전용 디바 자세 (0 = 안 씀)
       synergyBonus: null,
       easy: { hpPerPlayer: 175, dmgMult: 1.1, cd: 3.4 },
@@ -133,7 +133,7 @@ var CONFIG = {
         seizure: { damage: 18 }, wings: { time: 2.4, damage: 10 }, catchc: { jumps: 4 }, arrest: { stun: 1.6 },
         lucha: { radius: 480, damage: 34 }, burp: { half: 0.75, dps: 6 }, rock: { damage: 26, stun: 2 },
         // 디바 자세: 체력 at 이하에서 한 번, 맵 가운데 의자 → fuse초 뒤 폭발 + 파편 shards개
-        diva: { at: 0.3, fuse: 1.8, shards: 18, shardSpeed: 650, shardDamage: 9, blastRadius: 260, blastDamage: 20 },
+        diva: { at: 0.3, fuse: 1.8, shards: 28, shardSpeed: 750, shardDamage: 9, blastRadius: 420, blastDamage: 22, chairSize: 3.6 },   // chairSize: 의자 크기 배율
       },
     },
   },
@@ -234,9 +234,11 @@ var CONFIG = {
     psych: {   // 진형권 (심리학자의 모습)
       hp: 240, speed: 420, radius: 76, color: '#1fd6c4', phase2Color: '#ffe680',   // 헬스장(하늘색)과 헷갈리지 않게 청록
       contactDamage: 7, antiUninvited: 2,   // 특성 손님 사냥꾼은 헬스장 진형권과 같음
-      // 1스킬: 고정 타겟에게 돌진 (같은 적 marks번 맞히면 표식), turn: 돌진 중 타겟 쪽으로 꺾는 정도(라디안/초)
-      pavlov: { cd: 3.5, speed: 1500, distance: 900, damage: 14, marks: 3, turn: 4 },
-      pavlov2: { cd: 7 },   // 2스킬: 표식 찍힌 적 전원에게 pavlov.damage
+      // 1스킬: 고정 타겟에게 돌진, 맞힐 때마다 표식 +1 (최대 max). 적이 여럿이면 switchAt개 찍고 덜 찍힌 적으로. 표식 max개인 적에게 주는 피해 x full
+      // turn: 돌진 중 타겟 쪽으로 꺾는 정도(라디안/초)
+      pavlov: { cd: 5, speed: 1500, distance: 900, damage: 20, max: 5, switchAt: 3, full: 1.3, turn: 4 },
+      // 2스킬: 핸드폰 (tick초마다 표식 찍힌 적에게 pavlov.damage, life초가 최대, 적이 radius 안에 닿으면 끝)
+      pavlov2: { cd: 9, tick: 1, life: 8, radius: 46 },
     },
     ripley: {   // ??? (리플리의 모습)
       hp: 175, speed: 460, radius: 70, color: '#5a5a7a', phase2Color: '#ff2bd6',

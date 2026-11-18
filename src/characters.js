@@ -441,26 +441,65 @@ class Puddle {
   }
 }
 // ---------- 진형권(심리학자) 파블로프의 개 ----------
-// 타겟은 하나로 고정. 표식이 찍혔거나 못 노리게 되면 표식 없는 가장 가까운 적 (다 찍혔으면 가장 가까운 적)
+// 타겟은 하나로 고정. 표식(최대 max개)이 switchAt개 넘게 쌓였는데 덜 찍힌 적이 있으면 그쪽으로 (적이 혼자면 max까지)
+function psychTier(b, o) { var c = b.cfg.pavlov, m = b.data.marks[o.id] || 0; return m < c.switchAt ? 0 : m < c.max ? 1 : 2; }
 function psychTarget(bt, b) {
   var d = b.data, t = d.target;
-  if (t && t.alive && t.targetable && !d.marks[t.id] && t.team !== b.team) return t;
-  var foes = bt.enemies(b).filter(function (o) { return o.targetable; }).sort(function (p, q) { return _dist(p, b) - _dist(q, b); });
-  d.target = foes.filter(function (o) { return !d.marks[o.id]; })[0] || foes[0] || null;
+  var foes = bt.enemies(b).filter(function (o) { return o.targetable; });
+  if (!foes.length) return (d.target = null);
+  var best = Math.min.apply(null, foes.map(function (o) { return psychTier(b, o); }));
+  if (t && t.alive && t.targetable && t.team !== b.team && psychTier(b, t) === best) return t;
+  d.target = foes.filter(function (o) { return psychTier(b, o) === best; }).sort(function (p, q) { return _dist(p, b) - _dist(q, b); })[0];
   return d.target;
 }
-// 돌진으로 같은 적을 marks번 맞히면 표식 → 다음 타겟
-function psychHit(bt, b, o) {
-  var d = b.data, c = b.cfg.pavlov;
-  if (d.marks[o.id]) return;
+// 돌진에 맞을 때마다 표식 +1 (최대 max), 다 찍히면 받는 피해 증가
+function psychMark(bt, b, o, quiet) {
+  var d = b.data, c = b.cfg.pavlov, m = d.marks[o.id] || 0;
   if (o.def.noMark) { if (!(d.noMarkMsg > bt.time)) { d.noMarkMsg = bt.time + 3; FX.text(o.x, o.y - o.r - 80, '이중인격자라 안 먹힘', '#c77dff', 46, 1.1); } return; }   // 규순이 이중인격자
-  d.hits[o.id] = (d.hits[o.id] || 0) + 1;
-  if (d.hits[o.id] < c.marks) return;
-  d.marks[o.id] = true;
-  FX.text(o.x, o.y - o.r - 80, '조건 형성! 🔔', '#ffe680', 50, 1.2); FX.sfx('ding');
-  FX.ring(o.x, o.y, o.r, o.r * 2.5, 0.5, '#ffe680', 10);
-  bt.emit('pavlovMark', { who: o.def.id });
-  d.target = null; psychTarget(bt, b);
+  if (m >= c.max) return;
+  d.marks[o.id] = ++m;
+  if (!quiet) { FX.text(o.x, o.y - o.r - 80, m >= c.max ? '조건 형성 완료! 🔔x' + m : '🔔 ' + m, '#ffe680', m >= c.max ? 52 : 42, 1.1); FX.sfx('ding'); }
+  if (m >= c.max) FX.ring(o.x, o.y, o.r, o.r * 2.8, 0.6, '#ffe680', 12);
+  bt.emit('pavlovMark', { who: o.def.id, n: m });
+}
+function psychHit(bt, b, o) { psychMark(bt, b, o); psychTarget(bt, b); }
+// 2스킬: 노래 틀어 둔 핸드폰. 표식 찍힌 적은 tick초마다 1스킬 피해, 적이 핸드폰에 닿으면 노래 끝
+class PsychPhone {
+  constructor(bt, owner, c) { this.bt = bt; this.owner = owner; this.c = c; this.x = owner.x; this.y = owner.y + owner.r * 0.6; this.t = 0; this.tick = 0; this.z = -1; }
+  update(dt) {
+    var bt = this.bt, b = this.owner, c = this.c, self = this;
+    this.t += dt; this.tick += dt;
+    if (Math.random() < dt * 6) FX.text(this.x + _rnd(-30, 30), this.y - 30, Math.random() < 0.5 ? '♪' : '♫', '#1fd6c4', 38, 0.9);
+    if (!b.alive || !_is(b, 'psych') || this.t > c.life) return this.stop('노래 끝');   // 리플리가 다른 모습이 되면 정리
+    if (this.tick >= c.tick) {
+      this.tick -= c.tick;
+      FX.ring(this.x, this.y, 20, 140, 0.4, '#1fd6c4', 6);
+      bt.enemies(b).forEach(function (o) {
+        if (!o.targetable || !b.data.marks[o.id]) return;
+        bt.damage(o, b.cfg.pavlov.damage, b, { color: '#1fd6c4', kind: 'pavlov2' });
+        FX.text(o.x, o.y - o.r - 70, '🔔 딸랑!', '#ffe680', 40, 0.8);
+      });
+      bt.emit('phoneTick');
+    }
+    if (bt.enemies(b).some(function (o) { return o.targetable && !o.air && Math.hypot(o.x - self.x, o.y - self.y) < o.r + c.radius; })) this.stop('노래 꺼짐!');
+  }
+  stop(msg) {
+    this.dead = true;
+    FX.text(this.x, this.y - 40, msg, '#ffffff', 40, 0.9); FX.burst(this.x, this.y, '#1fd6c4', 14, 400, 8, 0.4, 'spark');
+    this.bt.emit('phoneEnd');
+  }
+  draw(ctx) {
+    var pulse = 1 + Math.sin(this.t * 10) * 0.06;
+    ctx.save(); ctx.translate(this.x, this.y); ctx.scale(pulse, pulse);
+    ctx.globalAlpha = 0.25 + 0.15 * Math.sin(this.t * 8); ctx.strokeStyle = '#1fd6c4'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(0, 0, this.c.radius + 10 + (this.t * 60) % 40, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.shadowColor = '#1fd6c4'; ctx.shadowBlur = 22;
+    ctx.fillStyle = '#1a1a22'; Battle.roundRect(ctx, -22, -40, 44, 80, 9); ctx.fill();
+    ctx.shadowBlur = 0; ctx.fillStyle = '#1fd6c4'; Battle.roundRect(ctx, -17, -32, 34, 62, 5); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.font = '700 26px "Segoe UI Symbol",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('♫', 0, -2);
+    ctx.restore();
+  }
+  light() { return { x: this.x, y: this.y, r: 110 }; }
 }
 
 // ---------- 삼식이 헬퍼 ----------
@@ -2637,16 +2676,16 @@ var CHARACTERS = {
     },
     portrait: function (b) { return b.phase >= 2 ? 'p2' : 'base'; },
     blurb: '이동 보통 · 표식형',
-    intro: '노래로 상대를 길들이는 심리학자. 노래를 틀어 두다가 쿨타임이 되면 한 명만 노려 돌진하고, 세 번 맞힌 상대에겐 표식(🔔)을 찍은 뒤 표식 없는 다음 상대로 넘어간다. 페이즈 2에서는 노래를 맵 전체에 울려 표식 찍힌 적 모두에게 돌진과 같은 피해를 준다.',
-    init: function (bt, b) { b.data.marks = {}; b.data.hits = {}; b.data.target = null; b.data.note = 0; },
+    intro: '노래로 상대를 길들이는 심리학자. 노래를 틀어 두다가 쿨타임이 되면 한 명만 노려 돌진하고, 맞힐 때마다 표식(🔔)을 하나씩 찍는다. 표식이 다섯 개 찍힌 적은 진형권에게 더 아프게 맞는다. 페이즈 2에서는 노래가 나오는 핸드폰을 바닥에 두어, 표식 찍힌 적들을 침 흘리며 끌어오고 1초마다 때린다.',
+    init: function (bt, b) { b.data.marks = {}; b.data.target = null; b.data.note = 0; },
     passives: [
       { name: '손님 사냥꾼', desc: function () { return '초대받지 못한 손님에게 주는 피해 x' + CONFIG.chars.psych.antiUninvited + ' (개인전에선 유재후·???에게, 보스 히어로 바통에게도)'; } },
     ],
-    dealMult: function (bt, s, t) { return bt.isUninvited(t) || t.def.batonBoss ? s.cfg.antiUninvited : 1; },
+    dealMult: function (bt, s, t) { return (bt.isUninvited(t) || t.def.batonBoss ? s.cfg.antiUninvited : 1) * ((s.data.marks[t.id] || 0) >= s.cfg.pavlov.max ? s.cfg.pavlov.full : 1); },   // 손님 사냥꾼 · 표식 다섯 개면 더 아프게
     skills: [
       {
         key: 'pavlov', name: '파블로프의 개(준비)',
-        desc: '쿨타임 동안 노래를 틀다가, 쿨타임이 되면 고정한 한 명에게 돌진해 ' + CONFIG.chars.psych.pavlov.damage + ' 피해 (부딪힌 반동으로 본인도 상대의 박치기 피해를 받음). 같은 적을 ' + CONFIG.chars.psych.pavlov.marks + '번 맞히면 표식(🔔)을 찍고, 표식 없는 적으로 타겟을 바꾼다',
+        desc: '쿨타임 동안 노래를 틀다가, 쿨타임이 되면 고정한 한 명에게 돌진해 ' + CONFIG.chars.psych.pavlov.damage + ' 피해 (부딪힌 반동으로 본인도 상대의 박치기 피해를 받음). 맞힐 때마다 표식(🔔) +1, 최대 ' + CONFIG.chars.psych.pavlov.max + '개. 적이 여럿이면 ' + CONFIG.chars.psych.pavlov.switchAt + '개 찍고 덜 찍힌 적으로 타겟을 바꾼다. 표식 ' + CONFIG.chars.psych.pavlov.max + '개인 적에게 주는 피해 x' + CONFIG.chars.psych.pavlov.full,
         cd: function (c) { return c.pavlov.cd; },
         start: function (bt, b) {
           var c = b.cfg.pavlov, t = psychTarget(bt, b);
@@ -2683,20 +2722,22 @@ var CHARACTERS = {
       },
       {
         key: 'pavlov2', name: '파블로프의 개(완성)',
-        desc: '노래를 크게 틀어 맵 전체에 울린다. 표식이 찍힌 적은 1스킬과 같은 피해, 표식이 없으면 피해 없음',
+        desc: '노래가 틀어진 핸드폰을 바닥에 둔다. 쓸 때 표식 찍힌 적의 표식 +1, 그 적들은 즉시 핸드폰 쪽으로 방향이 바뀐다. 핸드폰이 있는 동안 표식 찍힌 적은 1초마다 1스킬 피해. 적이 핸드폰에 닿으면 노래가 꺼진다',
         cd: function (c) { return c.pavlov2.cd; },
         start: function (bt, b) {
-          var c = b.cfg.pavlov, n = 0;
-          FX.banner('파블로프의 개', { color: '#1fd6c4', sub: '🎵 노래가 울려 퍼진다', size: 110, life: 1.3 });
-          FX.sfx('guitar'); FX.shake(12);
-          for (var i = 0; i < 4; i++) FX.ring(b.x, b.y, b.r, 1600, 0.7 + i * 0.15, i % 2 ? '#ffffff' : '#1fd6c4', 16 - i * 3);
+          var c = b.cfg.pavlov2;
+          bt.ents.forEach(function (e) { if (e instanceof PsychPhone && e.owner === b) e.dead = true; });   // 핸드폰은 하나만
+          var ph = bt.add(new PsychPhone(bt, b, c));
+          FX.banner('파블로프의 개', { color: '#1fd6c4', sub: '📱 노래를 틀어 둔다', size: 110, life: 1.3 });
+          FX.sfx('guitar');
           bt.enemies(b).forEach(function (o) {
             if (!o.targetable || !b.data.marks[o.id]) return;
-            bt.damage(o, c.damage, b, { color: '#1fd6c4', kind: 'pavlov2' });
-            FX.text(o.x, o.y - o.r - 70, '🔔 딸랑!', '#ffe680', 44, 0.9);
-            n++;
+            psychMark(bt, b, o, true);
+            var a = Math.atan2(ph.y - o.y, ph.x - o.x), sp = Math.max(o.speed, Math.hypot(o.vx, o.vy));
+            o.vx = Math.cos(a) * sp; o.vy = Math.sin(a) * sp;   // 침 흘리며 핸드폰 쪽으로
+            FX.text(o.x, o.y - o.r - 60, '🤤 노래다…', '#ffe680', 40, 1.0);
           });
-          bt.emit('pavlovRing', { hit: n });
+          bt.emit('pavlovPhone');
           return null;
         },
       },
@@ -2716,18 +2757,21 @@ var CHARACTERS = {
       if (t && t.alive && !t.hidden) {
         ctx.setLineDash([12, 14]); ctx.lineDashOffset = -time * 40; ctx.strokeStyle = 'rgba(31,214,196,0.35)'; ctx.lineWidth = 4;
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(t.x, t.y); ctx.stroke(); ctx.setLineDash([]);
-        var n = b.data.hits[t.id] || 0;
-        for (var i = 0; i < c.marks; i++) {
-          ctx.fillStyle = i < n ? '#1fd6c4' : 'rgba(255,255,255,0.25)';
-          ctx.beginPath(); ctx.arc(t.x + (i - (c.marks - 1) / 2) * 20, t.y + t.r + 18, 7, 0, Math.PI * 2); ctx.fill();
-        }
       }
-      ctx.font = '40px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      bt.balls.forEach(function (o) { if (b.data.marks[o.id] && o.alive && !o.hidden) ctx.fillText('🔔', o.x - o.r * 0.75, o.y - o.r * 0.75 + Math.sin(time * 6 + o.id) * 4); });
+      // 표식: 적 아래 점 max개 (찍힌 만큼 채움), 다 찍히면 머리 위 종
+      bt.balls.forEach(function (o) {
+        var n = b.data.marks[o.id] || 0;
+        if (!n || !o.alive || o.hidden) return;
+        for (var i = 0; i < c.max; i++) {
+          ctx.fillStyle = i < n ? (n >= c.max ? '#ffe680' : '#1fd6c4') : 'rgba(255,255,255,0.25)';
+          ctx.beginPath(); ctx.arc(o.x + (i - (c.max - 1) / 2) * 20, o.y + o.r + 18, 7, 0, Math.PI * 2); ctx.fill();
+        }
+        if (n >= c.max) { ctx.font = '44px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🔔', o.x - o.r * 0.75, o.y - o.r * 0.75 + Math.sin(time * 6 + o.id) * 4); }
+      });
       ctx.restore();
     },
     gauge: function (b, k) {
-      if (k === 0) { var n = Object.keys(b.data.marks).length; return { label: '파블로프 · 표식 ' + n }; }
+      if (k === 0) { var m = b.data.marks, n = Object.keys(m).reduce(function (a, id) { return a + m[id]; }, 0); return { label: '파블로프 · 표식 ' + n }; }
       return null;
     },
   },
@@ -3316,4 +3360,4 @@ function synergiesOf(id) {
 }
 
 // 테스트/디버그용
-var Ents = { WaterShot: WaterShot, Puddle: Puddle, Ripley: { transform: ripleyTransform }, Vape: Vape, Drool: Drool, Punch: Punch, Hot6: Hot6, GuitarWave: GuitarWave, Joke: Joke, WellusField: WellusField, VitaminShell: VitaminShell, VitaminBullet: VitaminBullet, VitaminSplat: VitaminSplat, Snake: Snake, Stone: Stone, Charger: Charger, Knife: Knife, Ultrasound: Ultrasound, Laser: Laser, StinkZone: StinkZone, Pickup: Pickup, Wave: Wave };
+var Ents = { PsychPhone: PsychPhone, WaterShot: WaterShot, Puddle: Puddle, Ripley: { transform: ripleyTransform }, Vape: Vape, Drool: Drool, Punch: Punch, Hot6: Hot6, GuitarWave: GuitarWave, Joke: Joke, WellusField: WellusField, VitaminShell: VitaminShell, VitaminBullet: VitaminBullet, VitaminSplat: VitaminSplat, Snake: Snake, Stone: Stone, Charger: Charger, Knife: Knife, Ultrasound: Ultrasound, Laser: Laser, StinkZone: StinkZone, Pickup: Pickup, Wave: Wave };
