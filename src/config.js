@@ -252,20 +252,26 @@ var CONFIG = {
         sniper:  { every: 2.6, damage: 18, aim: 0.6, boss: 2 },   // boss: 보스에게 주는 피해 배율
         katana:  { every: 2.2, damage: 9, dash: 380, speed: 1500 },
       },
-      furious: { cd: 12, time: 4, step: 0.55, damage: 0.5 },   // 2스킬: time초 동안 step초마다 다음 무기로, 연계 중 무기 피해 x damage
+      furious: {   // 2스킬: time초 동안 무기를 이어 씀, 연계 중 무기 피해 x damage
+        cd: 12, time: 4, damage: 0.5,
+        steps: { pistol: 0.45, mg: 0.6, shotgun: 0.9 },     // 총 단계 길이
+        fire:  { pistol: 0.13, mg: 0.04, shotgun: 0.45 },   // 그 단계 안에서 쏘는 간격 (기관총은 빠르게, 산탄은 느리고 묵직하게)
+        after: { katana: 0.4, sniper: 0.2 },                // 돌진 · 저격이 끝나고 다음 무기까지 멈칫
+      },
     },
     blind: {   // 유재운 (맹인의 모습)
       hp: 180, speed: 430, radius: 72, color: '#eaf6ff', phase2Color: '#b84dff',
       // 1스킬 무한의 술식: 확률 = base + (1 - 체력 비율) x low
       infinity: {
         cd: 2.4,
-        blue:   { speed: 950, r: 30, damage: 8, blast: 170, reach: 1.8, knock: -750, life: 1.6 },   // knock < 0: 폭발 지점으로 당김 (창)
-        red:    { speed: 1050, r: 34, damage: 24, blast: 150, reach: 1.8, knock: 950, life: 1.6 },   // knock > 0: 폭발 지점에서 밀침 (혁)
+        blue:   { speed: 950, r: 30, damage: 8, blast: 170, reach: 2.2, knock: -1150, life: 1.6 },   // knock < 0: 폭발 지점으로 당김 (창)
+        red:    { speed: 1050, r: 34, damage: 24, blast: 150, reach: 2.2, knock: 1450, life: 1.6 },   // knock > 0: 폭발 지점에서 밀침 (혁)
         purple: { speed: 1300, r: 70, damage: 44, life: 3, charge: 0.7 },
+        punch:  { damage: 15, knock: 1300, time: 0.9 },   // 연력 펀치: 푸른 구체에 끌려가는 time초 동안 유재운이나 다른 적과 부딪히면
         redChance:    { base: 0.1, low: 0.3 },
         purpleChance: { base: 0.1, low: 0.3 },   // 페이즈 2부터 (붉은 구체가 기본)
       },
-      domain: { cd: 13, time: 5, radius: 480, border: 1, lock: 3 },   // 2스킬 영역 전개: 테두리 border초 동안 안에 있던 적 정지, 펼치자마자 lock초 스킬 봉인
+      domain: { cd: 13, time: 5, radius: 480, border: 1, recover: 5 },   // 2스킬 영역 전개: 테두리 border초 동안 안에 있던 적 정지, 닫히면 술식 회복으로 recover 피해
     },
     ripley: {   // ??? (리플리의 모습)
       hp: 175, speed: 460, radius: 70, color: '#5a5a7a', phase2Color: '#ff2bd6',

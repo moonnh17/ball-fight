@@ -732,6 +732,10 @@ class BlindOrb {
       // 폭발 범위보다 멀리(reach배까지) 있어도 밀치기 · 당기기, 멀수록 약하게
       var nx = (e.x - self.x) / (d || 1), ny = (e.y - self.y) / (d || 1), k = d <= o.blast ? 1 : 1 - 0.5 * (d - o.blast) / (far - o.blast);
       e.vx = nx * o.knock * k; e.vy = ny * o.knock * k;
+      if (self.kind === 'blue') {   // 끌려가는 동안 누구와 부딪히면 연력 펀치 (blindPunchTick)
+        var pl = self.owner.data.pulled = (self.owner.data.pulled || []).filter(function (q) { return q.e !== e; });
+        pl.push({ e: e, t: self.owner.cfg.infinity.punch.time });
+      }
     });
     bt.emit('orbBoom', { kind: this.kind });
   }
@@ -758,6 +762,10 @@ class BlindDomain {
   finish() {
     var b = this.owner;
     this.dead = true; b.data.domain = null;
+    if (b.alive) {   // 영역이 닫히면 술식 회복: 반동으로 피해
+      this.bt.skillText(b, '술식 회복', '#bfe6ff');
+      this.bt.damage(b, this.c.recover, null, { color: '#ff8a8a', kind: 'blindRecover' });
+    }
     FX.ring(this.x, this.y, this.c.radius, this.c.radius * 1.2, 0.4, '#b8a8ff', 10);
     this.bt.emit('domainEnd', { caught: this.caught.size });
   }
@@ -804,6 +812,31 @@ class BlindDomain {
     ctx.restore();
   }
   light() { return { x: this.x, y: this.y, r: this.r }; }
+}
+// 연력 펀치: 푸른 구체에 끌려가던 적이 유재운이나 다른 적과 부딪히면 펀치 (다른 적이면 둘 다 맞음)
+function blindPunchTick(bt, b, dt) {
+  var pl = b.data.pulled;
+  if (!pl || !pl.length) return;
+  var c = b.cfg.infinity.punch, done = [];
+  pl.forEach(function (q) { q.t -= dt; });
+  b.data.pulled = pl.filter(function (q) {
+    var e = q.e;
+    if (q.t <= 0 || !e.alive || done.indexOf(e) >= 0) return false;   // 같이 맞은 상대도 끌려가던 중이면 한 번만
+    var o = bt.balls.find(function (x) { return x !== e && x.alive && !x.hidden && !x.air && (x === b || x.team !== b.team) && _dist(x, e) < x.r + e.r + 8; });
+    if (!o) return true;
+    var mx = (e.x + o.x) / 2, my = (e.y + o.y) / 2;
+    [e].concat(o === b ? [] : [o]).forEach(function (v) {
+      bt.damage(v, c.damage, b, { color: '#3fa9ff', kind: 'blindPunch' });
+      var d = Math.hypot(v.x - mx, v.y - my) || 1, ux = o === b ? (v.x - b.x) / (_dist(v, b) || 1) : (v.x - mx) / d, uy = o === b ? (v.y - b.y) / (_dist(v, b) || 1) : (v.y - my) / d;
+      v.vx = ux * c.knock; v.vy = uy * c.knock;
+    });
+    FX.burst(mx, my, '#111111', 18, 900, 12, 0.45, 'square'); FX.burst(mx, my, '#ff2b3b', 16, 1100, 8, 0.4, 'spark');   // 검은 불꽃 + 붉은 번개
+    FX.ring(mx, my, 20, 160, 0.3, '#ff2b3b', 12); FX.flash('#000000', 0.15, 0.15); FX.shake(20); FX.sfx('punch');
+    bt.skillText(b, '연력 펀치!', '#ff2b3b');
+    bt.emit('blindPunch', { who: e.def.id, with: o.def.id });
+    done.push(e, o);
+    return false;
+  });
 }
 function blindShoot(bt, b, kind, t) {
   var c = b.cfg.infinity[kind], p = t ? bt.aim(b, t.x, t.y) : bt.randomPoint(), a = Math.atan2(p.y - b.y, p.x - b.x);
@@ -3653,14 +3686,15 @@ var CHARACTERS = {
         desc: CONFIG.chars.kojeom.furious.time + '초 동안 지금까지 얻은 무기들을 (피해 x' + CONFIG.chars.kojeom.furious.damage + ') 이어 쓰며 연사. 권총으로 시작해서, 산탄총을 쏘기 전엔 카타나로 파고들고 저격총을 쏘기 전엔 카타나로 뒤로 빠지는 식으로 부드럽게 연계',
         cd: function (c) { return c.furious.cd; },
         start: function (bt, b) {
-          var c = b.cfg.furious, seq = kjCombo(b), i = 0, t = 0, step = null, stepT = 0, fire = 0, keep = b.data.weapon;
+          var c = b.cfg.furious, seq = kjCombo(b), i = 0, t = 0, step = null, stepT = 0, fire = 0, keep = b.data.weapon, gt = 0;
           FX.banner('furious-blackhead', { color: '#ff2bd6', sub: '원요섭 · 연계', size: 110, life: 1.2 });
           FX.sfx('ultra'); FX.shake(14);
           b.data.furious = true;
           function next() {
             var w = seq[i++ % seq.length], tgt = bt.nearest(b);
-            stepT = 0; fire = 0; step = { w: w, act: null };
-            b.data.weapon = w === 'katanaIn' || w === 'katanaOut' ? 'katana' : w;
+            stepT = 0; fire = 0.08; step = { w: w, act: null, k: w === 'katanaIn' || w === 'katanaOut' ? 'katana' : w };
+            b.data.weapon = step.k; b.data.spin = 1;   // 바꿀 때마다 무기를 한 바퀴 돌려 잡음
+            FX.ring(b.x, b.y, b.r, b.r * 1.8, 0.25, Math.random() < 0.5 ? '#ff2bd6' : '#111111', 8); FX.sfx('click');
             if (!tgt) return;
             if (w === 'katanaIn' || w === 'katanaOut') step.act = KJ_FIRE.katana(bt, b, tgt, w === 'katanaOut');
             else if (w === 'sniper') step.act = KJ_FIRE.sniper(bt, b, tgt, true);
@@ -3673,13 +3707,20 @@ var CHARACTERS = {
               if (Math.random() < dt * 40) FX.particle({ x: b.x + _rnd(-b.r, b.r), y: b.y + _rnd(-b.r, b.r), vx: _rnd(-80, 80), vy: _rnd(-200, -80), life: _rnd(0.4, 0.8), size: _rnd(8, 16), color: Math.random() < 0.8 ? '#0a0a0a' : '#ff2bd6', shape: 'square' });   // 검은 파티클 (블랙헤드)
               if (Math.random() < dt * 12) FX.particle({ x: b.x + _rnd(-b.r, b.r) * 0.6, y: b.y + _rnd(-b.r, b.r) * 0.6, vx: _rnd(-40, 40), vy: -60, life: 0.9, size: _rnd(30, 50), color: 'rgba(0,0,0,0.55)', shape: 'smoke' });
               var tgt = bt.nearest(b);
-              if (step.act) { if (step.act.update(dt)) { if (step.act.end) step.act.end(); step.act = null; stepT = c.step; } }
-              else if (tgt && fire <= 0) {   // 총은 한 단계 동안 몇 번 쏨
-                var w = step.w; fire = w === 'mg' ? 0.07 : w === 'pistol' ? 0.14 : w === 'shotgun' ? 0.3 : 0.2;
-                if (KJ_FIRE[w] && w !== 'sniper' && w !== 'katana') KJ_FIRE[w](bt, b, tgt);   // 카타나 · 저격은 단계 시작 때 action으로
+              if (b.data.spin > 0) b.data.spin -= dt * 4;
+              gt += dt; if (gt > 0.06) { gt = 0; _ghost(b); }   // 잔상
+              if (step.act) {
+                if (step.act.update(dt)) {   // 카타나 · 저격이 끝나면 잠깐 자세 잡고 (칼은 휙 털기) 다음으로
+                  if (step.act.end) step.act.end(); step.act = null; stepT = 0; step.done = true;
+                  if (step.k === 'katana') { FX.ring(b.x, b.y, b.r, b.r * 2.4, 0.3, '#ffffff', 6); FX.sfx('slash'); }
+                }
+              }
+              else if (!step.done && tgt && fire <= 0 && c.fire[step.w]) {   // 총은 한 단계 동안 여러 번 쏨
+                fire = c.fire[step.w];
+                KJ_FIRE[step.w](bt, b, tgt);
               }
               if (t >= c.time) return true;
-              if (!step.act && stepT >= c.step) next();
+              if (!step.act && stepT >= (step.done ? c.after[step.k] || 0 : c.steps[step.k] || 0.3)) next();
               return false;
             },
             end: function () { if (step && step.act && step.act.end) step.act.end(); b.data.furious = false; b.data.weapon = keep; b.data.wcd = 0.5; },
@@ -3697,7 +3738,7 @@ var CHARACTERS = {
       }
       if (!w) return;
       if (d.slot) w = null;   // 슬롯 도는 동안은 손이 빔
-      if (w) { ctx.save(); ctx.translate(x + Math.cos(a) * r * 0.8, y + Math.sin(a) * r * 0.8); ctx.rotate(a);
+      if (w) { ctx.save(); ctx.translate(x + Math.cos(a) * r * 0.8, y + Math.sin(a) * r * 0.8); ctx.rotate(a + (d.spin > 0 ? (1 - d.spin) * Math.PI * 2 : 0));
       if (Math.cos(a) < 0) ctx.scale(1, -1);
       if (w === 'katana' && d.slash != null) {   // 베는 궤적
         ctx.save(); ctx.globalAlpha = 0.7; ctx.strokeStyle = '#ffffff'; ctx.shadowColor = '#d8e4ff'; ctx.shadowBlur = 20; ctx.lineWidth = 10;
@@ -3739,7 +3780,7 @@ var CHARACTERS = {
     init: function (bt, b) { b.data.domain = null; },
     skills: [
       {
-        key: 'infinity', name: '무한의 술식', holds: function (b) { return b.data.burn > 0; },
+        key: 'infinity', name: '무한의 술식',
         desc: (function () { var c = CONFIG.chars.blind.infinity; return '터지면서 폭발 지점으로 적을 끌어당기는 푸른 구체(' + c.blue.damage + '). 일정 확률로 더 세게 터지며 밀쳐 내는 붉은 구체(' + c.red.damage + '), 체력이 적을수록 확률 증가 (' + Math.round(c.redChance.base * 100) + '% → 최대 ' + Math.round((c.redChance.base + c.redChance.low) * 100) + '%). 페이즈 2부터는 붉은 구체가 기본이고, 일정 확률로 둘을 합친 보라색 구체(' + c.purple.damage + ', 맵 끝까지 관통)를 쏨 (' + Math.round(c.purpleChance.base * 100) + '% → 최대 ' + Math.round((c.purpleChance.base + c.purpleChance.low) * 100) + '%)'; })(),
         cd: function (c) { return c.infinity.cd; },
         start: function (bt, b) {
@@ -3753,25 +3794,21 @@ var CHARACTERS = {
         },
       },
       {
-        key: 'domain', name: '영역 전개', holds: function (b) { return b.data.burn > 0; },
-        desc: (function () { var c = CONFIG.chars.blind; return '우주 같은 영역을 펼침. 테두리가 보이는 ' + c.domain.border + '초 동안 안에 있던 적만 붙잡혀 영역이 끝날 때까지(최대 ' + c.domain.time + '초) 멈춤, 아무도 못 잡으면 영역이 바로 사라짐. 펼친 뒤 잡든 못 잡든 ' + c.domain.lock + '초 동안 스킬 못 씀'; })(),
+        key: 'domain', name: '영역 전개',
+        desc: (function () { var c = CONFIG.chars.blind; return '우주 같은 영역을 펼침. 테두리가 보이는 ' + c.domain.border + '초 동안 안에 있던 적만 붙잡혀 영역이 끝날 때까지(최대 ' + c.domain.time + '초) 멈춤, 아무도 못 잡으면 영역이 바로 사라짐. 영역이 닫히면 술식 회복으로 피해 ' + c.domain.recover; })(),
         cd: function (c) { return c.domain.cd; },
         start: function (bt, b) {
           var c = b.cfg.domain, tt = 0;
           b.data.domain = bt.add(new BlindDomain(bt, b, c));
           FX.banner('영역 전개', { color: '#ffffff', sub: '무량공처', size: 130, life: 1.4 });
           FX.flash('#ffffff', 0.4, 0.4); FX.shake(18); FX.sfx('awaken');
-          b.data.burn = c.lock;   // 펼치자마자 잡든 못 잡든 술식 봉인
           bt.emit('domain');
           b.vx = b.vy = 0;
           return { moves: false, update: function (dt) { tt += dt; return tt >= 0.5; }, end: function () { _restoreSpeed(b, Math.random() - 0.5, 1); } };
         },
       },
     ],
-    // 영역 전개 뒤 스킬 봉인 시간
-    update: function (bt, b, dt) {
-      if (b.data.burn > 0) b.data.burn -= dt;   // 영역 전개 뒤 스킬 봉인
-    },
+    update: function (bt, b, dt) { blindPunchTick(bt, b, dt); },
     // 보라색 합치는 중: 양옆에서 파랑 · 빨강이 모여듦
     drawExtra: function (ctx, b, bt, x, y, r, time) {
       var m = b.data.merge;
@@ -3784,7 +3821,6 @@ var CHARACTERS = {
       });
     },
     gauge: function (b, k) {
-      if (k === 0 && b.data.burn > 0) return { label: '술식 봉인 ' + b.data.burn.toFixed(1) + 's' };
       if (k === 0) { var c = b.cfg.infinity; return { label: '무한 · ' + (b.phase >= 2 ? '보라 ' + Math.round(_blindChance(b, c.purpleChance) * 100) : '빨강 ' + Math.round(_blindChance(b, c.redChance) * 100)) + '%' }; }
       return null;
     },
