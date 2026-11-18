@@ -241,7 +241,7 @@ var CONFIG = {
       pavlov2: { cd: 9, tick: 1, life: 8, radius: 46, offAngle: 0.6, restun: 0.3 },   // 경로가 offAngle(라디안) 넘게 틀어지면 restun초 멈칫 후 다시 핸드폰으로
     },
     kojeom: {   // 원요섭 (코점남의 모습)
-      hp: 175, speed: 450, radius: 70, color: '#ff2bd6', phase2Color: '#ffd400',
+      hp: 160, speed: 450, radius: 70, color: '#ff2bd6', phase2Color: '#ffd400',
       drawEvery: 10,   // 1스킬 코점남의 모험: 이 간격으로 무기 뽑기
       slot: 1.1,       // 뽑을 때 슬롯머신 도는 시간 (그동안 안 쏨)
       // 무기별 every: 평소 공격 간격, 기관총은 mag발 쏘고 reload초 장전
@@ -249,8 +249,8 @@ var CONFIG = {
         pistol:  { every: 0.7, damage: 3, speed: 1400 },
         mg:      { every: 0.13, damage: 1.8, speed: 1300, spread: 0.12, mag: 14, reload: 1.2 },
         shotgun: { every: 1.5, recoil: 650, damage: 3, pellets: 7, spread: 0.35, speed: 1100, life: 0.45 },
-        sniper:  { every: 2.6, damage: 18, aim: 0.6, boss: 2 },   // boss: 보스에게 주는 피해 배율
-        katana:  { every: 2.2, damage: 9, dash: 380, speed: 1500 },
+        sniper:  { every: 3.2, damage: 15, aim: 0.6, boss: 2 },   // boss: 보스에게 주는 피해 배율
+        katana:  { every: 2.2, damage: 8, dash: 380, speed: 1500 },
       },
       furious: {   // 2스킬: time초 동안 무기를 이어 씀, 연계 중 무기 피해 x damage
         cd: 12, time: 4, damage: 0.5,
@@ -265,12 +265,12 @@ var CONFIG = {
       hp: 180, speed: 430, radius: 72, color: '#eaf6ff', phase2Color: '#b84dff',
       // 1스킬 무한의 술식: 확률 = base + (1 - 체력 비율) x low
       infinity: {
-        cd: 2.4,
+        cd: 2.7,
         blue:   { speed: 950, r: 30, damage: 8, blast: 170, reach: 1.8, knock: -750, life: 1.6 },   // knock < 0: 폭발 지점으로 당김 (창)
-        red:    { speed: 1050, r: 34, damage: 24, blast: 150, reach: 1.8, knock: 950, life: 1.6 },   // knock > 0: 폭발 지점에서 밀침 (혁)
+        red:    { speed: 1050, r: 34, damage: 19, blast: 150, reach: 1.8, knock: 950, life: 1.6 },   // knock > 0: 폭발 지점에서 밀침 (혁)
         purple: { speed: 1300, r: 95, damage: 40, life: 3, charge: 1.1 },
         murasaki: { chance: 0.07, charge: 1.8, radius: 560, damage: 50, self: 0.5, knock: 1200 },   // 허식 「자」 쓸 때 chance 확률로 자폭: 제자리 광범위 폭발, 자신은 damage x self
-        punch:  { damage: 15, knock: 1300, time: 0.6, keep: 0.6 },   // 인력 펀치: 푸른 구체에 끌려 날아가는 중(끌린 방향 속도가 keep배 이상)에 유재운이나 다른 적과 부딪히면
+        punch:  { damage: 11, knock: 1300, time: 0.6, keep: 0.6 },   // 인력 펀치: 푸른 구체에 끌려 날아가는 중(끌린 방향 속도가 keep배 이상)에 유재운이나 다른 적과 부딪히면
         redChance:    { base: 0.1, low: 0.3 },
         purpleChance: { base: 0.06, low: 0.2 },   // 페이즈 2부터 (붉은 구체가 기본)
       },
