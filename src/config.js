@@ -240,6 +240,32 @@ var CONFIG = {
       // 2스킬: 핸드폰 (tick초마다 표식 찍힌 적에게 pavlov.damage, life초가 최대, 적이 radius 안에 닿으면 끝)
       pavlov2: { cd: 9, tick: 1, life: 8, radius: 46 },
     },
+    kojeom: {   // 원요섭 (코점남의 모습)
+      hp: 175, speed: 450, radius: 70, color: '#ff2bd6', phase2Color: '#ffd400',
+      drawEvery: 10,   // 1스킬 코점남의 모험: 이 간격으로 무기 뽑기
+      // 무기별 every: 평소 공격 간격, 기관총은 mag발 쏘고 reload초 장전
+      weapons: {
+        pistol:  { every: 0.7, damage: 7, speed: 1400 },
+        mg:      { every: 0.13, damage: 2.5, speed: 1300, spread: 0.12, mag: 14, reload: 1.2 },
+        shotgun: { every: 1.5, damage: 4, pellets: 7, spread: 0.35, speed: 1100, life: 0.45 },
+        sniper:  { every: 2.6, damage: 26, aim: 0.6 },
+        katana:  { every: 2.2, damage: 14, dash: 380, speed: 1500 },
+      },
+      furious: { cd: 12, time: 5, step: 0.55 },   // 2스킬: time초 동안 step초마다 다음 무기로
+    },
+    blind: {   // 유재운 (맹인의 모습)
+      hp: 180, speed: 430, radius: 72, color: '#eaf6ff', phase2Color: '#b84dff',
+      // 1스킬 무한의 술식: 확률 = base + (1 - 체력 비율) x low
+      infinity: {
+        cd: 2.4,
+        blue:   { speed: 950, r: 30, damage: 8, blast: 130, knock: 900, life: 1.6 },
+        red:    { speed: 1050, r: 34, damage: 18, blast: 150, knock: 700, life: 1.6 },
+        purple: { speed: 1300, r: 70, damage: 34, life: 3, charge: 0.7 },
+        redChance:    { base: 0.15, low: 0.5 },
+        purpleChance: { base: 0.2, low: 0.5 },   // 영역 전개 중에만
+      },
+      domain: { cd: 13, time: 5, radius: 380, cdBoost: 2 },   // 2스킬 영역 전개: 안의 적 정지, 1스킬 쿨타임 cdBoost배 빨리
+    },
     ripley: {   // ??? (리플리의 모습)
       hp: 175, speed: 460, radius: 70, color: '#5a5a7a', phase2Color: '#ff2bd6',
       firstChange: 1.5,   // 시작 후 첫 변신까지(초)

@@ -1668,5 +1668,55 @@ test('규순이 하드: 디바 자세 — 의자가 가운데서 터지며 파�
   assert(count(bt, 'damage', e => e.kind === 'divaShard' || e.kind === 'divaBlast') >= 1, '파편 피해');
 });
 
+test('원요섭(코점남): 시작부터 무기, 10초마다 다른 무기, 무기마다 공격', () => {
+  const C = CONFIG.chars.kojeom, bt = new Battle(['kojeom', 'gym']); const k = bt.balls[0];
+  bt.balls.forEach(b => { b.maxHp = b.hp = 1e5; });
+  assert(k.data.weapon && k.data.owned[k.data.weapon], '시작 무기');
+  run(bt, C.drawEvery * 2.2);
+  assert(count(bt, 'kjDraw') >= 2 && bt.log.filter(e => e.type === 'kjDraw').every((e, i, a) => !i || e.weapon !== a[i - 1].weapon), '바뀜');
+  const kinds = { pistol: 'kjPistol', mg: 'kjMg', shotgun: 'kjShotgun', sniper: 'kjSniper', katana: 'kjKatana' };
+  for (const w in kinds) {
+    const b2 = new Battle(['kojeom', 'gym']), kk = b2.balls[0], g = b2.balls[1];
+    b2.balls.forEach(b => { b.maxHp = b.hp = 1e5; }); g.speed = 0; g.vx = g.vy = 0;
+    kk.x = g.x - 350; kk.y = g.y; kk.data.weapon = w; kk.skills[0].cd = 99;
+    run(b2, 4);
+    assert(count(b2, 'damage', e => e.kind === kinds[w]) >= 1, w);
+  }
+});
+test('원요섭 2스킬 furious-blackhead: 권총으로 시작, 얻은 무기를 이어 쓰고 5초 뒤 끝', () => {
+  const bt = new Battle(['kojeom', 'gym']); const k = bt.balls[0];
+  bt.balls.forEach(b => { b.maxHp = b.hp = 1e5; });
+  ['pistol', 'shotgun', 'katana', 'sniper'].forEach(w => { k.data.owned[w] = true; });
+  const seq = vm.runInContext('kjCombo', ctx)(k);
+  assert(seq[0] === 'pistol' && seq[seq.indexOf('shotgun') - 1] === 'katanaIn' && seq[seq.indexOf('sniper') - 1] === 'katanaOut', seq.join(','));
+  k.action = k.def.skills[1].start(bt, k); k.skills[0].cd = 99;
+  let t = 0; while (k.action && t < 8) { bt.update(DT); t += DT; }
+  assert(!k.action && t > 4.5 && t < 6.5 && !k.data.furious, '5초 ' + t.toFixed(2));
+  const dmg = new Set(bt.log.filter(e => e.type === 'damage' && e.src === 'kojeom').map(e => e.kind));
+  assert(dmg.size >= 2, '여러 무기로 피해 ' + [...dmg].join(','));
+});
+test('유재운(맹인): 체력이 적을수록 붉은 구체 확률↑, 푸른 폭발은 밀어냄, 영역 전개는 멈추고 붉은·보라만', () => {
+  const ch = vm.runInContext('_blindChance', ctx), C = CONFIG.chars.blind.infinity;
+  const bt = new Battle(['blind', 'gym', 'ibi']); const b = bt.balls[0], [, g, i] = bt.balls;
+  bt.balls.forEach(o => { o.maxHp = o.hp = 1000; });
+  const hi = ch(b, C.redChance); b.hp = 100; assert(ch(b, C.redChance) > hi + 0.3, '체력 적으면 확률 증가'); b.hp = 1000;
+  g.speed = 0; g.vx = g.vy = 0; g.x = b.x + 300; g.y = b.y; i.x = b.x - 400; i.y = b.y + 400;
+  bt.add(new Ents.BlindOrb(bt, b, 'blue', g.x - 60, g.y, 0, C.blue)); bt.update(DT);
+  assert(count(bt, 'orbBoom', e => e.kind === 'blue') === 1 && g.vx > 500, '푸른 폭발 밀어냄');
+  b.x = CONFIG.arena.x + CONFIG.arena.w / 2; b.y = CONFIG.arena.y + CONFIG.arena.h / 2; g.x = b.x + 150; g.y = b.y; g.speed = 300;
+  b.def.skills[1].start(bt, b); run(bt, 0.6);
+  assert(g.status.stun > 0 && count(bt, 'domainStop') >= 1, '영역 안 적 멈춤');
+  for (let n = 0; n < 40; n++) { b.data.domain && b.def.skills[0].start(bt, b); }
+  const kinds = bt.log.filter(e => e.type === 'blindOrb').map(e => e.kind);
+  assert(kinds.length > 0 && kinds.every(k => k === 'red'), '영역 중엔 붉은 구체만 ' + kinds.join(','));
+});
+test('유재운 보라색 구체: 직선으로 경로의 모든 적 관통', () => {
+  const C = CONFIG.chars.blind.infinity.purple, bt = new Battle(['blind', 'gym', 'ibi', 'seori']); const [b, ...ps] = bt.balls;
+  bt.balls.forEach(o => { o.maxHp = o.hp = 1e5; o.speed = 0; o.vx = o.vy = 0; });
+  b.x = CONFIG.arena.x + 100; b.y = CONFIG.arena.y + 600; ps.forEach((o, k) => { o.x = b.x + 250 + k * 220; o.y = b.y; });
+  bt.add(new Ents.BlindOrb(bt, b, 'purple', b.x, b.y, 0, C)); run(bt, 1.5);
+  assert(count(bt, 'purpleHit') === 3, '셋 다 ' + count(bt, 'purpleHit'));
+});
+
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);
