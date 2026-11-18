@@ -1185,12 +1185,23 @@ var BOSSES = {
     id: 'gyusuni', name: '규순이', sub: '보스',
     noMark: true,   // 패시브 이중인격자: 심리학자 진형권 표식 안 받음
     female: function () { return true; },   // 여성으로 인식
-    images: {
-      base: { src: 'assets/ibi_gyusuni.jpg', fx: 0.64, fy: 0.5, s: 0.5 },
-      p2:   { src: 'assets/ibi_lucha.jpg', fx: 0.62, fy: 0.4, s: 0.8 },
-      p3:   { src: 'assets/ibi_gyusuni.jpg', fx: 0.55, fy: 0.55, s: 0.8 },
+    images: {   // 페이즈 사진 + 스킬 쓰는 동안 그 스킬 사진
+      base:    { src: 'assets/gyu_p1.jpg', fx: 0.5, fy: 0.43, s: 0.6 },
+      p2:      { src: 'assets/gyu_p2.jpg', fx: 0.5, fy: 0.42, s: 0.7 },
+      p3:      { src: 'assets/gyu_p3.jpg', fx: 0.45, fy: 0.42, s: 0.75 },
+      wings:   { src: 'assets/gyu_wings.jpg', fx: 0.5, fy: 0.42, s: 0.6 },
+      toka:    { src: 'assets/gyu_toka.jpg', fx: 0.45, fy: 0.4, s: 0.9 },
+      catch:   { src: 'assets/gyu_catch.jpg', fx: 0.45, fy: 0.3, s: 0.75 },
+      arrest:  { src: 'assets/gyu_arrest.jpg', fx: 0.4, fy: 0.25, s: 0.8 },
+      lucha:   { src: 'assets/ibi_lucha.jpg', fx: 0.62, fy: 0.4, s: 0.8 },
+      burp:    { src: 'assets/gyu_burp.jpg', fx: 0.42, fy: 0.55, s: 0.75 },
+      seizure: { src: 'assets/gyu_seizure.jpg', fx: 0.45, fy: 0.35, s: 0.7 },
+      diva:    { src: 'assets/gyu_diva.jpg', fx: 0.5, fy: 0.42, s: 0.7 },
     },
-    portrait: function (b) { return b.data.lucha || (b.phase === 2) ? 'p2' : b.phase >= 3 ? 'p3' : 'base'; },
+    portrait: function (b) {
+      var d = b.data, k = d.cur === 'dance' ? d.danced : d.lucha ? 'lucha' : d.cur;
+      return this.images[k] && k !== 'base' ? k : b.phase >= 3 ? 'p3' : b.phase >= 2 ? 'p2' : 'base';
+    },
     blurb: '보스',
     title: '안녕 난 규순이야',
     intro: '한규성 안에 사는 또 다른 자아, 규순이. 이비의 각성기를 더 크게 쓰고, 페이즈가 바뀔 때마다 발작을 일으킨다. 같은 말을 누누이 반복하는 버릇이 있고, 마지막엔 남의 스킬까지 쌔벼 간다.',
