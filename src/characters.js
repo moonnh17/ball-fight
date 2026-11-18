@@ -465,12 +465,30 @@ function psychMark(bt, b, o, quiet) {
 function psychHit(bt, b, o) { psychMark(bt, b, o); psychTarget(bt, b); }
 // 2스킬: 노래 틀어 둔 핸드폰. 표식 찍힌 적은 tick초마다 1스킬 피해, 적이 핸드폰에 닿으면 노래 끝
 class PsychPhone {
-  constructor(bt, owner, c) { this.bt = bt; this.owner = owner; this.c = c; this.x = owner.x; this.y = owner.y + owner.r * 0.6; this.t = 0; this.tick = 0; this.z = -1; }
+  constructor(bt, owner, c) { this.bt = bt; this.owner = owner; this.c = c; this.x = owner.x; this.y = owner.y + owner.r * 0.6; this.t = 0; this.tick = 0; this.z = -1; this.lured = []; }
+  // 끌려오던 적의 경로가 (공격 · 벽 등으로) 틀어지면 잠깐 멈칫했다가 다시 핸드폰 쪽으로
+  lure(o) { var a = Math.atan2(this.y - o.y, this.x - o.x), sp = Math.max(o.speed, Math.hypot(o.vx, o.vy)); o.vx = Math.cos(a) * sp; o.vy = Math.sin(a) * sp; }
+  steer(dt) {
+    var self = this, c = this.c;
+    this.lured = this.lured.filter(function (q) {
+      var o = q.o; if (!o.alive) return false;
+      if (q.wait > 0) { q.wait -= dt; if (q.wait <= 0) { self.lure(o); FX.text(o.x, o.y - o.r - 60, '🤤', '#ffe680', 40, 0.6); } return true; }
+      var dx = self.x - o.x, dy = self.y - o.y, d = Math.hypot(dx, dy) || 1, v = Math.hypot(o.vx, o.vy);
+      if (!o.targetable || o.air || v < 1) return true;
+      if ((o.vx * dx + o.vy * dy) / (v * d) < Math.cos(c.offAngle)) {   // 경로가 틀어짐
+        q.wait = c.restun; o.status.stun = Math.max(o.status.stun || 0, c.restun);
+        FX.text(o.x, o.y - o.r - 60, '…?', '#ffe680', 36, 0.4);
+        self.bt.emit('phoneRelure', { who: o.def.id });
+      }
+      return true;
+    });
+  }
   update(dt) {
     var bt = this.bt, b = this.owner, c = this.c, self = this;
     this.t += dt; this.tick += dt;
     if (Math.random() < dt * 6) FX.text(this.x + _rnd(-30, 30), this.y - 30, Math.random() < 0.5 ? '♪' : '♫', '#1fd6c4', 38, 0.9);
     if (!b.alive || !_is(b, 'psych') || this.t > c.life) return this.stop('노래 끝');   // 리플리가 다른 모습이 되면 정리
+    this.steer(dt);
     if (this.tick >= c.tick) {
       this.tick -= c.tick;
       FX.ring(this.x, this.y, 20, 140, 0.4, '#1fd6c4', 6);
@@ -611,12 +629,13 @@ var KJ_FIRE = {
   // 카타나: 앞(또는 뒤)으로 돌진하며 경로의 적을 벰
   katana: function (bt, b, t, back) {
     var c = b.cfg.weapons.katana, a = _kjAngle(bt, b, t) + (back ? Math.PI : 0), d = back ? c.dash * 0.6 : c.dash, gone = 0, hit = new Set(), gt = 0;
+    var fu = b.data.furious, spd = c.speed * (fu ? b.cfg.furious.dash : 1), sx = b.x, sy = b.y;   // 연계 중엔 더 빠르게 + 베인 자리에 선
     b.data.aim = back ? a - Math.PI : a; b.data.slash = 0; b.phasing = true;
     FX.sfx('slash'); bt.skillText(b, back ? '빠지기!' : '베기!', '#d8e4ff');
     return {
       moves: false,
       update: function (dt) {
-        var step = c.speed * dt;
+        var step = spd * dt;
         b.x += Math.cos(a) * step; b.y += Math.sin(a) * step; gone += step; b.data.slash += dt;
         if (bt.walls(b)) gone = d;
         gt += dt; if (gt > 0.03) { gt = 0; _ghost(b); }
@@ -629,7 +648,16 @@ var KJ_FIRE = {
         });
         return gone >= d;
       },
-      end: function () { b.phasing = false; b.data.slash = null; _restoreSpeed(b, Math.cos(a), Math.sin(a)); },
+      end: function () {
+        b.phasing = false; b.data.slash = null; _restoreSpeed(b, Math.cos(a), Math.sin(a));
+        if (!fu) return;
+        var ex = b.x, ey = b.y;
+        FX.particle({ x: sx, y: sy, vx: 0, vy: 0, life: 0.35, size: 1, color: '#ffffff', shape: 'custom', draw: function (ctx2, px, py, k) {
+          ctx2.save(); ctx2.globalAlpha = k; ctx2.strokeStyle = '#ffffff'; ctx2.shadowColor = '#ff2bd6'; ctx2.shadowBlur = 24; ctx2.lineWidth = 3 + 10 * k; ctx2.lineCap = 'round';
+          ctx2.beginPath(); ctx2.moveTo(px, py); ctx2.lineTo(ex, ey); ctx2.stroke();
+          ctx2.strokeStyle = '#111111'; ctx2.lineWidth = 2 + 3 * k; ctx2.beginPath(); ctx2.moveTo(px, py); ctx2.lineTo(ex, ey); ctx2.stroke(); ctx2.restore();
+        } });
+      },
     };
   },
 };
@@ -676,11 +704,12 @@ function kjTick(bt, b, dt) {
 function kjCombo(b) {
   var own = Object.keys(b.data.owned), seq = [], list = own.slice().sort(function () { return Math.random() - 0.5; }), hasK = !!b.data.owned.katana;
   if (own.indexOf('pistol') >= 0) { list.splice(list.indexOf('pistol'), 1); list.unshift('pistol'); }   // 권총으로 시작
+  // 총 사이사이에 카타나를 끼워 빠르게 (저격 전엔 빠지고, 나머지는 파고듦), 산탄총이 있으면 파고든 뒤 자주 쏨
   list.forEach(function (w) {
     if (w === 'katana') return;
-    if (hasK && w === 'shotgun') seq.push('katanaIn');
-    if (hasK && w === 'sniper') seq.push('katanaOut');
+    if (hasK && seq.length) seq.push(w === 'sniper' ? 'katanaOut' : 'katanaIn');
     seq.push(w);
+    if (w !== 'shotgun' && w !== 'sniper' && b.data.owned.shotgun) { if (hasK) seq.push('katanaIn'); seq.push('shotgun'); }
   });
   if (hasK && seq.indexOf('katanaIn') < 0) seq.splice(1, 0, 'katanaIn');
   return seq.length ? seq : ['pistol'];
@@ -732,7 +761,7 @@ class BlindOrb {
       // 폭발 범위보다 멀리(reach배까지) 있어도 밀치기 · 당기기, 멀수록 약하게
       var nx = (e.x - self.x) / (d || 1), ny = (e.y - self.y) / (d || 1), k = d <= o.blast ? 1 : 1 - 0.5 * (d - o.blast) / (far - o.blast);
       e.vx = nx * o.knock * k; e.vy = ny * o.knock * k;
-      if (self.kind === 'blue') {   // 끌려가는 동안 누구와 부딪히면 연력 펀치 (blindPunchTick)
+      if (self.kind === 'blue' && self.owner.cfg.infinity && self.owner.cfg.infinity.punch) {   // 끌려가는 동안 누구와 부딪히면 연력 펀치 (blindPunchTick)
         var pl = self.owner.data.pulled = (self.owner.data.pulled || []).filter(function (q) { return q.e !== e; });
         pl.push({ e: e, t: self.owner.cfg.infinity.punch.time });
       }
@@ -3088,7 +3117,7 @@ var CHARACTERS = {
       },
       {
         key: 'pavlov2', name: '파블로프의 개(완성)',
-        desc: '노래가 틀어진 핸드폰을 바닥에 둔다. 쓸 때 표식 찍힌 적의 표식 +1, 그 적들은 즉시 핸드폰 쪽으로 방향이 바뀐다. 핸드폰이 있는 동안 표식 찍힌 적은 1초마다 1스킬 피해. 적이 핸드폰에 닿으면 노래가 꺼진다',
+        desc: '노래가 틀어진 핸드폰을 바닥에 둔다. 쓸 때 표식 찍힌 적의 표식 +1, 그 적들은 즉시 핸드폰 쪽으로 방향이 바뀌고, 공격 등으로 경로가 틀어져도 잠깐 멈칫한 뒤 다시 핸드폰 쪽으로 간다. 핸드폰이 있는 동안 표식 찍힌 적은 1초마다 1스킬 피해. 적이 핸드폰에 닿으면 노래가 꺼진다',
         cd: function (c) { return c.pavlov2.cd; },
         start: function (bt, b) {
           var c = b.cfg.pavlov2;
@@ -3099,8 +3128,7 @@ var CHARACTERS = {
           bt.enemies(b).forEach(function (o) {
             if (!o.targetable || !b.data.marks[o.id]) return;
             psychMark(bt, b, o, true);
-            var a = Math.atan2(ph.y - o.y, ph.x - o.x), sp = Math.max(o.speed, Math.hypot(o.vx, o.vy));
-            o.vx = Math.cos(a) * sp; o.vy = Math.sin(a) * sp;   // 침 흘리며 핸드폰 쪽으로
+            ph.lure(o); ph.lured.push({ o: o, wait: 0 });   // 침 흘리며 핸드폰 쪽으로
             FX.text(o.x, o.y - o.r - 60, '🤤 노래다…', '#ffe680', 40, 1.0);
           });
           bt.emit('pavlovPhone');

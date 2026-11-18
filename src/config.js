@@ -238,7 +238,7 @@ var CONFIG = {
       // turn: 돌진 중 타겟 쪽으로 꺾는 정도(라디안/초)
       pavlov: { cd: 5, speed: 1500, distance: 900, damage: 20, max: 5, switchAt: 3, full: 1.3, turn: 4 },
       // 2스킬: 핸드폰 (tick초마다 표식 찍힌 적에게 pavlov.damage, life초가 최대, 적이 radius 안에 닿으면 끝)
-      pavlov2: { cd: 9, tick: 1, life: 8, radius: 46 },
+      pavlov2: { cd: 9, tick: 1, life: 8, radius: 46, offAngle: 0.6, restun: 0.3 },   // 경로가 offAngle(라디안) 넘게 틀어지면 restun초 멈칫 후 다시 핸드폰으로
     },
     kojeom: {   // 원요섭 (코점남의 모습)
       hp: 175, speed: 450, radius: 70, color: '#ff2bd6', phase2Color: '#ffd400',
@@ -254,9 +254,10 @@ var CONFIG = {
       },
       furious: {   // 2스킬: time초 동안 무기를 이어 씀, 연계 중 무기 피해 x damage
         cd: 12, time: 4, damage: 0.5,
-        steps: { pistol: 0.45, mg: 0.6, shotgun: 0.9 },     // 총 단계 길이
-        fire:  { pistol: 0.13, mg: 0.04, shotgun: 0.45 },   // 그 단계 안에서 쏘는 간격 (기관총은 빠르게, 산탄은 느리고 묵직하게)
-        after: { katana: 0.4, sniper: 0.2 },                // 돌진 · 저격이 끝나고 다음 무기까지 멈칫
+        steps: { pistol: 0.3, mg: 0.4, shotgun: 0.32 },     // 총 단계 길이 (짧을수록 무기가 빨리 바뀜)
+        fire:  { pistol: 0.1, mg: 0.04, shotgun: 0.15 },    // 그 단계 안에서 쏘는 간격 (산탄은 단계마다 두 방)
+        after: { katana: 0.05, sniper: 0.1 },               // 돌진 · 저격이 끝나고 다음 무기까지
+        dash: 1.6,                                          // 연계 중 카타나 돌진 속도 배율
       },
     },
     blind: {   // 유재운 (맹인의 모습)

@@ -1540,6 +1540,17 @@ test('진형권(심리학자): 돌진마다 표식 +1, 적이 여럿이면 3개 
   assert(hits.length >= 3 && count(b2, 'pavlovMark') >= 3, '돌진 ' + hits.length);
   assert(hits.every(h => b2.log.some(e => e.type === 'damage' && e.who === 'psych' && e.src === 'gym' && e.kind === 'contact' && e.t === h.t)), '돌진 반동');
 });
+test('진형권 핸드폰: 끌려오던 적이 맞아서 경로가 틀어지면 0.3초 멈칫 후 다시 핸드폰으로', () => {
+  const c = CONFIG.chars.psych.pavlov2, bt = new Battle(['psych', 'hau']); const [p, h] = bt.balls;
+  bt.balls.forEach(b => { b.maxHp = b.hp = 1e5; });
+  const A = CONFIG.arena; p.x = A.x + A.w / 2; p.y = A.y + 300; h.x = p.x; h.y = A.y + A.h - 200; p.speed = 0; p.vx = p.vy = 0;
+  p.data.marks[h.id] = 1; p.def.skills[1].start(bt, p);
+  const ph = bt.ents.find(e => e instanceof Ents.PsychPhone);
+  h.vx = h.speed; h.vy = 0; bt.update(DT);   // 옆으로 튕겨 나감
+  assert(count(bt, 'phoneRelure') === 1 && h.status.stun > 0.2, '멈칫');
+  run(bt, c.restun + 0.05);
+  assert((ph.x - h.x) * h.vx + (ph.y - h.y) * h.vy > 0.8 * Math.hypot(ph.x - h.x, ph.y - h.y) * Math.hypot(h.vx, h.vy), '다시 핸드폰 쪽으로');
+});
 test('진형권(심리학자) 2스킬: 핸드폰 — 표식 +1, 표식 찍힌 적은 핸드폰 쪽으로, 1초마다 피해, 닿으면 노래 끝', () => {
   const c = CONFIG.chars.psych, bt = new Battle(['psych', 'hau', 'ibi']);
   const [p, h, i] = bt.balls;
