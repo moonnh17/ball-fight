@@ -761,9 +761,9 @@ class BlindOrb {
       // 폭발 범위보다 멀리(reach배까지) 있어도 밀치기 · 당기기, 멀수록 약하게
       var nx = (e.x - self.x) / (d || 1), ny = (e.y - self.y) / (d || 1), k = d <= o.blast ? 1 : 1 - 0.5 * (d - o.blast) / (far - o.blast);
       e.vx = nx * o.knock * k; e.vy = ny * o.knock * k;
-      if (self.kind === 'blue' && self.owner.cfg.infinity && self.owner.cfg.infinity.punch) {   // 끌려가는 동안 누구와 부딪히면 연력 펀치 (blindPunchTick)
+      if (self.kind === 'blue' && self.owner.cfg.infinity && self.owner.cfg.infinity.punch) {   // 끌려가는 동안 누구와 부딪히면 인력 펀치 (blindPunchTick)
         var pl = self.owner.data.pulled = (self.owner.data.pulled || []).filter(function (q) { return q.e !== e; });
-        pl.push({ e: e, t: self.owner.cfg.infinity.punch.time });
+        pl.push({ e: e, t: self.owner.cfg.infinity.punch.time, ux: -nx, uy: -ny, v: Math.abs(o.knock * k) });   // 끌려가는 방향 · 속도
       }
     });
     bt.emit('orbBoom', { kind: this.kind });
@@ -842,7 +842,7 @@ class BlindDomain {
   }
   light() { return { x: this.x, y: this.y, r: this.r }; }
 }
-// 연력 펀치: 푸른 구체에 끌려가던 적이 유재운이나 다른 적과 부딪히면 펀치 (다른 적이면 둘 다 맞음)
+// 인력 펀치: 푸른 구체에 끌려가던 적이 유재운이나 다른 적과 부딪히면 펀치 (다른 적이면 둘 다 맞음)
 function blindPunchTick(bt, b, dt) {
   var pl = b.data.pulled;
   if (!pl || !pl.length) return;
@@ -851,6 +851,7 @@ function blindPunchTick(bt, b, dt) {
   b.data.pulled = pl.filter(function (q) {
     var e = q.e;
     if (q.t <= 0 || !e.alive || done.indexOf(e) >= 0) return false;   // 같이 맞은 상대도 끌려가던 중이면 한 번만
+    if (e.vx * q.ux + e.vy * q.uy < q.v * c.keep) return false;   // 인력으로 날아가는 중이 아니면 (멈췄다 · 꺾였다 · 제 발로 다가옴) 펀치 없음
     var o = bt.balls.find(function (x) { return x !== e && x.alive && !x.hidden && !x.air && (x === b || x.team !== b.team) && _dist(x, e) < x.r + e.r + 8; });
     if (!o) return true;
     var mx = (e.x + o.x) / 2, my = (e.y + o.y) / 2;
@@ -861,7 +862,7 @@ function blindPunchTick(bt, b, dt) {
     });
     FX.burst(mx, my, '#111111', 18, 900, 12, 0.45, 'square'); FX.burst(mx, my, '#ff2b3b', 16, 1100, 8, 0.4, 'spark');   // 검은 불꽃 + 붉은 번개
     FX.ring(mx, my, 20, 160, 0.3, '#ff2b3b', 12); FX.flash('#000000', 0.15, 0.15); FX.shake(20); FX.sfx('punch');
-    bt.skillText(b, '연력 펀치!', '#ff2b3b');
+    bt.skillText(b, '인력 펀치!', '#ff2b3b');
     bt.emit('blindPunch', { who: e.def.id, with: o.def.id });
     done.push(e, o);
     return false;
@@ -3721,7 +3722,7 @@ var CHARACTERS = {
           function next() {
             var w = seq[i++ % seq.length], tgt = bt.nearest(b);
             stepT = 0; fire = 0.08; step = { w: w, act: null, k: w === 'katanaIn' || w === 'katanaOut' ? 'katana' : w };
-            b.data.weapon = step.k; b.data.spin = 1;   // 바꿀 때마다 무기를 한 바퀴 돌려 잡음
+            b.data.weapon = step.k; b.data.spin = step.k === 'pistol' || step.k === 'shotgun' ? 1 : 0;   // 권총 · 산탄총은 한 바퀴 돌려 잡음
             FX.ring(b.x, b.y, b.r, b.r * 1.8, 0.25, Math.random() < 0.5 ? '#ff2bd6' : '#111111', 8); FX.sfx('click');
             if (!tgt) return;
             if (w === 'katanaIn' || w === 'katanaOut') step.act = KJ_FIRE.katana(bt, b, tgt, w === 'katanaOut');

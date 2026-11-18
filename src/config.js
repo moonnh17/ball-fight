@@ -254,9 +254,9 @@ var CONFIG = {
       },
       furious: {   // 2스킬: time초 동안 무기를 이어 씀, 연계 중 무기 피해 x damage
         cd: 12, time: 4, damage: 0.5,
-        steps: { pistol: 0.3, mg: 0.4, shotgun: 0.32 },     // 총 단계 길이 (짧을수록 무기가 빨리 바뀜)
-        fire:  { pistol: 0.1, mg: 0.04, shotgun: 0.15 },    // 그 단계 안에서 쏘는 간격 (산탄은 단계마다 두 방)
-        after: { katana: 0.05, sniper: 0.1 },               // 돌진 · 저격이 끝나고 다음 무기까지
+        steps: { pistol: 0.55, mg: 0.55, shotgun: 0.55 },   // 총 하나를 쓰는 시간
+        fire:  { pistol: 0.14, mg: 0.04, shotgun: 0.25 },   // 그 시간 안에서 쏘는 간격
+        after: { katana: 0, sniper: 0 },                    // 돌진 · 저격이 끝나고 다음 무기까지
         dash: 1.6,                                          // 연계 중 카타나 돌진 속도 배율
       },
     },
@@ -265,10 +265,10 @@ var CONFIG = {
       // 1스킬 무한의 술식: 확률 = base + (1 - 체력 비율) x low
       infinity: {
         cd: 2.4,
-        blue:   { speed: 950, r: 30, damage: 8, blast: 170, reach: 2.2, knock: -1150, life: 1.6 },   // knock < 0: 폭발 지점으로 당김 (창)
-        red:    { speed: 1050, r: 34, damage: 24, blast: 150, reach: 2.2, knock: 1450, life: 1.6 },   // knock > 0: 폭발 지점에서 밀침 (혁)
+        blue:   { speed: 950, r: 30, damage: 8, blast: 170, reach: 1.8, knock: -750, life: 1.6 },   // knock < 0: 폭발 지점으로 당김 (창)
+        red:    { speed: 1050, r: 34, damage: 24, blast: 150, reach: 1.8, knock: 950, life: 1.6 },   // knock > 0: 폭발 지점에서 밀침 (혁)
         purple: { speed: 1300, r: 70, damage: 44, life: 3, charge: 0.7 },
-        punch:  { damage: 15, knock: 1300, time: 0.9 },   // 연력 펀치: 푸른 구체에 끌려가는 time초 동안 유재운이나 다른 적과 부딪히면
+        punch:  { damage: 15, knock: 1300, time: 0.6, keep: 0.6 },   // 인력 펀치: 푸른 구체에 끌려 날아가는 중(끌린 방향 속도가 keep배 이상)에 유재운이나 다른 적과 부딪히면
         redChance:    { base: 0.1, low: 0.3 },
         purpleChance: { base: 0.1, low: 0.3 },   // 페이즈 2부터 (붉은 구체가 기본)
       },

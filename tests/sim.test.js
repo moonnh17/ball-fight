@@ -1726,7 +1726,7 @@ test('유재운(맹인): 체력이 적을수록 붉은 구체 확률↑, 푸른�
   const kinds = bt.log.filter(e => e.type === 'blindOrb').map(e => e.kind);
   assert(kinds.length > 0 && kinds.every(k => k === 'red'), '페이즈 2는 붉은 구체만 (보라 제외) ' + kinds.join(','));
 });
-test('유재운 영역 전개: 테두리 동안 들어온 적만 멈춤, 아무도 없으면 바로 사라짐, 닫히면 술식 회복 피해 / 연력 펀치', () => {
+test('유재운 영역 전개: 테두리 동안 들어온 적만 멈춤, 아무도 없으면 바로 사라짐, 닫히면 술식 회복 피해 / 인력 펀치', () => {
   const D = CONFIG.chars.blind.domain;
   let bt = new Battle(['blind', 'gym', 'ibi']); let [b, g, i] = bt.balls;
   bt.balls.forEach(o => { o.maxHp = o.hp = 1e5; });
@@ -1739,13 +1739,20 @@ test('유재운 영역 전개: 테두리 동안 들어온 적만 멈춤, 아무�
   b.x = CONFIG.arena.x + 100; b.y = CONFIG.arena.y + 100; g.x = CONFIG.arena.x + CONFIG.arena.w - 100; g.y = CONFIG.arena.y + CONFIG.arena.h - 100; g.speed = 0;
   b.def.skills[1].start(bt, b); run(bt, D.border + 0.2);
   assert(!b.data.domain && count(bt, 'domainEnd') === 1, '아무도 없으면 바로 사라짐');
-  // 연력 펀치: 푸른 구체에 끌려간 적이 다른 적과 부딪힘
+  // 인력 펀치: 푸른 구체에 끌려간 적이 다른 적과 부딪힘
   bt = new Battle(['blind', 'gym', 'ibi']); [b, g, i] = bt.balls; const P = CONFIG.chars.blind.infinity;
   bt.balls.forEach(o => { o.maxHp = o.hp = 1e5; o.speed = 0; o.vx = o.vy = 0; });
   b.x = CONFIG.arena.x + 100; b.y = CONFIG.arena.y + 100; g.x = 500; g.y = 1100; i.x = 800; i.y = 1100;
   new Ents.BlindOrb(bt, b, 'blue', 650, 1100, 0, P.blue).boom();
   assert(g.vx > 0 && i.vx < 0, '양쪽에서 끌려옴'); run(bt, 0.5);
-  assert(count(bt, 'blindPunch') === 1 && bt.log.filter(e => e.type === 'damage' && e.kind === 'blindPunch').length === 2, '부딪히면 둘 다 연력 펀치');
+  assert(count(bt, 'blindPunch') === 1 && bt.log.filter(e => e.type === 'damage' && e.kind === 'blindPunch').length === 2, '부딪히면 둘 다 인력 펀치');
+  // 끌려온 뒤 제 발로 다가와 부딪히는 건 펀치 없음
+  bt = new Battle(['blind', 'gym']); [b, g] = bt.balls;
+  bt.balls.forEach(o => { o.maxHp = o.hp = 1e5; o.speed = 0; o.vx = o.vy = 0; });
+  b.x = 400; b.y = 1100; g.x = 700; g.y = 1100;
+  new Ents.BlindOrb(bt, b, 'blue', 600, 1100, 0, P.blue).boom(); run(bt, 0.3);
+  g.vx = -400; g.vy = 0; g.x = b.x + b.r + g.r + 30; run(bt, 0.3);
+  assert(count(bt, 'blindPunch') === 0, '인력 때문이 아니면 펀치 없음');
 });
 test('원요섭 슬롯머신: 돌다가 뽑힌 무기에 멈추고, 도는 동안은 안 쏨 / 유재운 폭발 범위 밖도 밀침', () => {
   let bt = new Battle(['kojeom', 'gym']); const [k] = bt.balls;
