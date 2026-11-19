@@ -323,14 +323,14 @@
       hit(x - r, y - r, r * 2, r * 2, function () { FX.sfx('click'); G.roster.splice(idx, 1); });
     }
     if (G.mode === 'tour') {
-      // 1라운드 대진: 순서대로 두 명씩. 직접 배치에선 두 명을 눌러 자리 교체
-      var pairs = Math.max(1, Math.ceil(G.roster.length / 2)), cols = 3, pcw = (W - 100) / cols;
+      // 1라운드 대진: 순서대로 채우되 부전승은 대진표에 고르게. 직접 배치에선 두 명을 눌러 자리 교체
+      var slots = tourSlots(G.roster.length), pairs = Math.max(1, slots.length / 2), cols = pairs > 12 ? 4 : 3, pcw = (W - 100) / cols;
       var prow = Math.ceil(pairs / cols), prh = Math.min(84, 220 / prow), pr = Math.min(30, prh * 0.38);
       for (var q = 0; q < pairs && G.roster.length; q++) {
         var pcx = 50 + pcw * (q % cols) + pcw / 2, pcy = py + 104 + Math.floor(q / cols) * prh;
         outlined(ctx, String(q + 1), pcx - pcw / 2 + 22, pcy, 22, '#888888');
         [0, 1].forEach(function (side) {
-          var idx = q * 2 + side, x = pcx + (side ? 52 : -52), e = G.roster[idx];
+          var idx = slots[q * 2 + side], x = pcx + (side ? 52 : -52), e = G.roster[idx];
           if (!e) { outlined(ctx, '부전승', x, pcy, 20, '#777777'); return; }
           var c = CONFIG.chars[e.id];
           Assets.drawBall(ctx, CHARACTERS[e.id], 'base', x, pcy, pr, 0, c.color);
@@ -514,6 +514,16 @@
   // ---------- 토너먼트 (싱글 엘리미네이션 1:1) ----------
   // rounds[0] = 1라운드 자리(빈 자리는 null = 부전승), rounds[r+1][i] = rounds[r]의 (2i, 2i+1) 경기 승자 (undefined = 아직)
   function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  // 1라운드 자리 → 참가자 번호 (-1 = 부전승). 부전승은 한 경기에 하나씩, 진짜 경기는 대진표에 고르게 흩뿌림
+  function tourSlots(n) {
+    var size = 2; while (size < n) size *= 2;
+    var P = size / 2, real = n - P, out = [], k = 0;
+    for (var i = 0; i < P; i++) {
+      out.push(n ? k++ : -1);
+      out.push(Math.floor((i + 1) * real / P) > Math.floor(i * real / P) ? k++ : -1);
+    }
+    return out;
+  }
   function startTournament() {
     if (G.roster.length < 2) return;
     var counts = {}, seen = {};
@@ -524,10 +534,7 @@
       return { id: e.id, name: name };
     });
     if (G.tourSeed === 'random') shuffle(entries);
-    var size = 2;
-    while (size < entries.length) size *= 2;
-    while (entries.length < size) entries.push(null);
-    G.tour = { rounds: [entries], cur: null, champion: null };
+    G.tour = { rounds: [tourSlots(entries.length).map(function (k) { return k < 0 ? null : entries[k]; })], cur: null, champion: null };
     tourResolve();
     FX.reset(); G.scene = 'bracket'; G.pt = 0;
   }
