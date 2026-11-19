@@ -159,7 +159,7 @@ var CONFIG = {
 
   chars: {
     baton: {
-      hp: 180, speed: 430, radius: 74, color: '#ffd400', phase2Color: '#ff6a00',
+      hp: 205, speed: 430, radius: 74, color: '#ffd400', phase2Color: '#ff6a00',
       roll: { cd: 4, distance: 600, speed: 1600, damage: 15, shake: 14 },
       scream: { cd: 9, damage: 20, doubleChance: 0.3, doubleDelay: 0.6, shake: 34, missRadius: 520 },
     },
@@ -196,7 +196,7 @@ var CONFIG = {
               growLength: 25, growSpin: 0.7, maxLength: 230, maxSpin: 9, snakeCooldown: 1.2 },
     },
     hxpwm: {
-      hp: 165, speed: 450, radius: 70, color: '#4d7cff', phase2Color: '#ffe14d',
+      hp: 180, speed: 450, radius: 70, color: '#4d7cff', phase2Color: '#ffe14d',
       antiYoo: 1.5,        // 캐릭터 패시브: 유재후(모든 모습)에게 주는 피해 배율
       // 1스킬 주뱃(패시브): interval초마다 충전기 생성(최대 maxChargers개)
       // 적이 먹으면 초음파 확정 피해, 본인이 먹으면 happyTime초간 이동속도 x happySpeed, 받는 피해 x happyTaken
@@ -214,7 +214,7 @@ var CONFIG = {
       cheat: { cd: 9, charge: 0.6, fire: 0.35, width: 70, damage: 5, perPatch: 0.15, shake: 26 },
     },
     rock: {  // 유재운
-      hp: 175, speed: 440, radius: 70, color: '#ff8c42', phase2Color: '#9acd32',
+      hp: 183, speed: 440, radius: 70, color: '#ff8c42', phase2Color: '#9acd32',
       // 1스킬 들린다고: 음파 반경/속도/데미지, 맞은 적 1명당 쿨타임 refund초 감소
       bass: { cd: 3, radius: 520, speed: 900, damage: 17, refund: 1.0, refundMax: 1, shake: 12 },   // refundMax: 한 번 연주에 쿨감 적용 횟수
       // 2스킬 연습 후 발냄새(패시브): 반경 안의 적에게 가장자리 minDps ~ 중심 maxDps
@@ -253,8 +253,8 @@ var CONFIG = {
         katana:  { every: 2.2, damage: 8, dash: 380, speed: 1500 },
       },
       furious: {   // 2스킬: time초 동안 무기를 이어 씀, 연계 중 무기 피해 x damage
-        cd: 12, time: 4, damage: 0.5,
-        steps: { pistol: 0.55, mg: 0.55, shotgun: 0.55 },   // 총 하나를 쓰는 시간
+        cd: 12, time: 3, damage: 0.75,
+        steps: { pistol: 0.83, mg: 0.83, shotgun: 0.83 },   // 총 하나를 쓰는 시간
         fire:  { pistol: 0.14, mg: 0.04, shotgun: 0.25 },   // 그 시간 안에서 쏘는 간격
         after: { katana: 0, sniper: 0 },                    // 돌진 · 저격이 끝나고 다음 무기까지
         dash: 1.6,                                          // 연계 중 카타나 돌진 속도 배율
@@ -277,14 +277,14 @@ var CONFIG = {
       domain: { cd: 13, time: 5, radius: 480, border: 1, recover: 10 },   // 2스킬 영역 전개: 테두리 border초 동안 안에 있던 적 정지, 닫히면 술식 회복으로 recover 피해
     },
     ripley: {   // ??? (리플리의 모습)
-      hp: 175, speed: 460, radius: 70, color: '#5a5a7a', phase2Color: '#ff2bd6',
+      hp: 190, speed: 460, radius: 70, color: '#5a5a7a', phase2Color: '#ff2bd6',
       firstChange: 1.5,   // 시작 후 첫 변신까지(초)
       interval: 7,        // 변신 주기(초)
       firstCast: 1.0,     // 변신 직후 1스킬 첫 발동까지(초)
       glitchTime: 0.6,    // 변신 글리치 연출 시간(초)
     },
     chino: {  // 이윤빈 (치노의 모습)
-      hp: 200, speed: 480, radius: 68, color: '#ff9ecf', phase2Color: '#b6ff00',
+      hp: 210, speed: 480, radius: 68, color: '#ff9ecf', phase2Color: '#b6ff00',
       contactDamage: 11,   // 공격 스킬이 없어서 박치기가 셈
       // 1스킬 내 전담 어딨어(패시브): 전담이 맵에 하나 생김. 못 찾는 동안 growEvery초마다 모든 스탯 x(1+growRate) (최대 maxGrow배)
       //   찾으면(닿으면) 스탯 초기화, respawn초 뒤 새 전담
@@ -294,7 +294,7 @@ var CONFIG = {
       forget: { hitCd: 4, vapeCd: 12 },
     },
     seori: {  // 서리 (애완견의 모습)
-      hp: 200, speed: 500, radius: 62, color: '#e8b46a', phase2Color: '#ff7ab6',
+      hp: 215, speed: 500, radius: 62, color: '#e8b46a', phase2Color: '#ff7ab6',
       contactDamage: 8,
       batonDeal: 0.5,      // 캐릭터 패시브: 유재후에게 주는 피해 배율
       // 1스킬 침흘리기(패시브): every초마다 지나간 자리에 침 웅덩이(반경 r, life초). 밟은 적: 초당 dps 피해 + 이동속도 x slowMul
@@ -325,12 +325,12 @@ var CONFIG = {
       plunge: { cd: 7, crashMul: 1.6 },
     },
     nogwang: {  // 유재후 (노광석의 모습)
-      hp: 175, speed: 440, radius: 72, color: '#9b5cff', phase2Color: '#ff2b6a',
+      hp: 200, speed: 440, radius: 72, color: '#9b5cff', phase2Color: '#ff2b6a',
       // 1스킬 핫식스 쟁여놓기(패시브): interval초마다 핫식스 포도맛 생성(최대 max개)
       //   적이 먹으면 공격력 영구 x enemyAtk / 같은 팀·본인이 먹으면 공격력 x allyAtk, 이동속도 x allySpeed (영구)
       hot6: { interval: 5.5, max: 3, enemyAtk: 0.88, allyAtk: 1.12, allySpeed: 1.06, maxStacks: 6 },   // maxStacks: 한 사람당 효과 최대 횟수
       // 2스킬 포코의 불협화음: 진행 방향 부채꼴(반경 radius, 반각 angle도) 기타 파동. IZK 멤버에겐 x izkMul
-      poco: { cd: 4.5, radius: 680, angle: 55, damage: 16, knock: 2300, allyHeal: 10, allyKnock: 900,   // allyHeal/allyKnock: 같은 팀에게
+      poco: { cd: 4.5, radius: 680, angle: 55, damage: 18, knock: 2300, allyHeal: 10, allyKnock: 900,   // allyHeal/allyKnock: 같은 팀에게
               izkMul: 1.5, shake: 18 },
     },
     sy: {     // 김선율 (김선율의 모습) — 기본 체력 적음
@@ -340,7 +340,7 @@ var CONFIG = {
       shy: { cd: 4, vanish: 1.0, damage: 1 },
       // 2스킬 방구석 여포: 체력 0이 되면 구석으로 가서 키보드(cutscene초) → 체력 reviveHp로 부활, 구석 고정
       //   every초마다 드립을 무작위 방향으로 난사: 폭발 반경 radius, damage (드립에 이름이 나오는 상대는 x relatedMul)
-      yeopo: { cutscene: 1.4, reviveHp: 20, every: 0.12, speed: 720, radius: 105, damage: 11, relatedMul: 1.5, shake: 9 },
+      yeopo: { cutscene: 1.4, reviveHp: 33, every: 0.12, speed: 720, radius: 105, damage: 11, relatedMul: 1.5, shake: 9 },
     },
     chief: {  // 문남휘 (이장님의 모습) — 팀전 버프형
       hp: 150, speed: 350, radius: 70, color: '#f0e6a0', phase2Color: '#8b5a2b',
