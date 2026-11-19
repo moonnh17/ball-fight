@@ -63,7 +63,7 @@ var CONFIG = {
     hall: {
       trashEvery: 14, trashMax: 18, trashR: 34, trashSlow: 0.75, trashSlowTime: 0.8, cleanEvery: 0.7,   // 쓰레기: 밟으면 잠시 이동속도 x0.75
       wellusHeal: 1.3,                                                        // 이장님 웰우스 개방 회복량
-      pcZone: 95, pcTime: 3, yooMul: 2, pcCd: 6, chiefCd: 4, codeBuff: 1.05, stockDown: 0.7, stockSmash: 0.1, seoriSmash: 0.3, brokenTime: 20,
+      pcZone: 95, pcWide: 1.4, pcTime: 3, yooMul: 2, pcCd: 6, chiefCd: 4, codeBuff: 1.05, stockDown: 0.7, stockSmash: 0.1, seoriSmash: 0.3, brokenTime: 20,
       game: { win: 0.5, heal: 20, loseTime: 6, loseTaken: 1.3, loseDeal: 1.3 },   // 오버워치·로블록스: 이기면 heal 회복, 지면 loseTime초 동안 받는·주는 피해 x1.3
       ow: ['한규성', '유재후', '진형권', '차승민', '이윤빈'], roblox: ['유재운', '김선율', '조하람', '조우연'], lol: ['원요섭'],
       yuk: { every: 9, max: 2, heal: 10, soup: 20, tick: 0.25, spill: 0.05 }, angerTime: 6, angerMul: 1.3,   // 육개장 국물 쏟으면 문남휘 공격력 x1.3
@@ -78,7 +78,7 @@ var CONFIG = {
       guest: { speed: 150, r: 34, damage: 5, knock: 520 },     // 손님에게 닿으면 밀쳐짐 + 피해
       uncle: { delay: 3, speed: 280, r: 40, damage: 8, burnTime: 3, burnDps: 4, knock: 420 },   // 손님 들어가고 delay초 뒤 삼촌이 숯 들고 옴: 닿으면 화상 + 피해
       granny: { speed: 75, r: 50, knock: 750 },                // 휠체어 할머니: 계속 돌아다님, 닿으면 밀쳐짐
-      grill: { every: 20, time: 6 },                           // 숯 들어가면 바로, 그 뒤 20초마다 한 명을 6초 동안 납치 (한규성은 짤려서 제외)
+      grill: { every: 30, time: 3 },                           // 숯 들어가면 바로, 그 뒤 30초마다 한 명을 3초 동안 납치 (한규성은 짤려서 제외)
       snack: { every: 10, max: 2, heal: 15, yukhoe: 0.12, yukHeal: 35 },   // 산도할매의 간식 / 낮은 확률로 서비스 육회
     },
   },

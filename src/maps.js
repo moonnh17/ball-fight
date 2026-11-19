@@ -41,7 +41,7 @@ var MAPS = {
       '한옥 고깃집: 위쪽 출입구, 가운데 우물(배경, 지나다닐 수 있음), 벽에 붙은 방 7개, 왼쪽 아래 고기 가판대',
       '손님: 1초마다 6% 확률로 손님 1~3명이 들어와 빈 방으로 감 (방 수만큼) · 닿으면 밀쳐지고 5 피해 · 40초 먹고 나감',
       '삼촌: 손님이 들어가고 3초 뒤 가판대에서 숯을 들고 방으로 감 · 닿으면 8 피해 + 화상',
-      '납치: 숯이 들어가면 바로, 그 뒤 20초마다 한 명이 고기 구우러 6초 동안 끌려감 (한규성은 한우촌에서 짤려서 안 끌려감)',
+      '납치: 숯이 들어가면 바로, 그 뒤 30초마다 한 명이 고기 구우러 3초 동안 끌려감 (한규성은 한우촌에서 짤려서 안 끌려감)',
       '휠체어 할머니: 손님이 올 때 10% 확률로 같이 옴, 맵을 계속 돌아다님 · 닿으면 크게 밀쳐짐',
       '아이템: 산도할매의 간식(체력 +15) · 12% 확률로 서비스 육회(체력 +35)',
     ],
@@ -118,7 +118,7 @@ class MapRun {
         if (Math.hypot(p.x - A.x - A.w, p.y - A.y - A.h) < c.window * k + 90) return true;
       }
       if (self.sub === 'hanu' && hanuBad(hanuGeo(A), p)) return true;
-      if (self.sub === 'hall') { var T = self.table(), S = self.pcSpot(); if (p.x > T.x - 70 && p.x < T.x + T.w + 70 && p.y > T.y - 70 && p.y < T.y + T.h + 100) return true; if (Math.hypot(p.x - S.x, p.y - S.y) < S.r + 60) return true; }
+      if (self.sub === 'hall') { var T = self.table(), S = self.pcSpot(); if (p.x > T.x - 70 && p.x < T.x + T.w + 70 && p.y > T.y - 70 && p.y < T.y + T.h + 100) return true; if (Math.hypot((p.x - S.x) / (S.rx + 60), (p.y - S.y) / (S.r + 60)) < 1) return true; }
       return !loose && bt.balls.some(function (o) { return o.alive && Math.hypot(o.x - p.x, o.y - p.y) < o.r + 90; });
     }
     for (var i = 0; i < 15; i++) { p = { x: _rnd(A.x + m, A.x + A.w - m), y: _rnd(y0, y1) }; if (!bad(p)) break; }
@@ -311,8 +311,8 @@ class MapRun {
 
   // ---------- 마을회관 ----------
   table() { var A = this.bt.arena; return { x: A.x + A.w * 0.12, y: A.y + A.h * 0.1, w: A.w * 0.3, h: A.w * 0.13 }; }   // 왼쪽 위(구석 아님) 테이블 + 컴퓨터
-  pcSpot() { var T = this.table(); return { x: T.x + T.w * 0.51, y: T.y + T.h, r: CONFIG.maps.hall.pcZone * this.bt.arena.w / 1000 }; }   // 모니터 앞 자리 (테이블 아래쪽 반원)
-  atPc(b) { var S = this.pcSpot(); return b.y > S.y && Math.hypot(b.x - S.x, b.y - S.y) < S.r + b.r * 0.4; }
+  pcSpot() { var T = this.table(); return { x: T.x + T.w * 0.51, y: T.y + T.h, r: CONFIG.maps.hall.pcZone * this.bt.arena.w / 1000, rx: CONFIG.maps.hall.pcZone * CONFIG.maps.hall.pcWide * this.bt.arena.w / 1000 }; }   // 모니터 앞 자리 (테이블 아래쪽 반타원, 옆으로 넓음)
+  atPc(b) { var S = this.pcSpot(), m = b.r * 0.4; return b.y > S.y && Math.hypot((b.x - S.x) / (S.rx + m), (b.y - S.y) / (S.r + m)) < 1; }
   updHall(dt) {
     var c = CONFIG.maps.hall, bt = this.bt, self = this, T = this.table(), pc = this.pc;
     // 쓰레기: 시간이 지날수록 쌓임 (싸방 멤버는 면역)
@@ -1184,10 +1184,10 @@ function pcMode(b) {
 function drawPcSpot(ctx, S, pc, time) {
   var on = !(pc.broken > 0);
   ctx.save(); ctx.globalAlpha = on ? 1 : 0.35;
-  ctx.beginPath(); ctx.moveTo(S.x - S.r, S.y); ctx.arc(S.x, S.y, S.r, 0, Math.PI); ctx.closePath();
+  ctx.beginPath(); ctx.moveTo(S.x - S.rx, S.y); ctx.ellipse(S.x, S.y, S.rx, S.r, 0, 0, Math.PI); ctx.closePath();
   ctx.fillStyle = 'rgba(40,140,230,' + (0.22 + Math.sin(time * 2) * 0.05) + ')'; ctx.fill();   // 노란 장판 위에서도 보이게 진하게
   ctx.setLineDash([14, 10]); ctx.strokeStyle = 'rgba(20,90,170,0.85)'; ctx.lineWidth = 5;
-  ctx.beginPath(); ctx.arc(S.x, S.y, S.r, 0, Math.PI); ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); ctx.ellipse(S.x, S.y, S.rx, S.r, 0, 0, Math.PI); ctx.stroke(); ctx.setLineDash([]);
   ctx.restore();
 }
 function drawTrash(ctx, tr) {

@@ -1389,7 +1389,7 @@ test('맵: 담요 깨우면 x2 · 끝까지 자면 회복 / 담배 다 피면 �
   G.win = 0; h.map.pcDone(a, 'rb'); G.win = w; h.hitstop = 0;
   hp = a.hp; h.damage(a, 10, null, {}); assert(Math.abs(hp - a.hp - 10 * G.loseTaken) < 1e-6, '지면 받는 피해↑');
   hp = c.hp; h.damage(c, 10, a, { noMult: true }); assert(Math.abs(hp - c.hp - 10 * G.loseDeal) < 1e-6, '지면 주는 피해↑');
-  a.data.pcCd = 0; a.x = T.x + 30; a.y = T.y + T.h + a.r + 2; c.x = T.x + 900; h.map.update(DT); assert(!a.data.pc, '테이블 구석은 안 됨');
+  a.data.pcCd = 0; a.x = T.x + 5; a.y = T.y + T.h + a.r + 2; c.x = T.x + 900; h.map.update(DT); assert(!a.data.pc, '테이블 구석은 안 됨');
   a.x = h.map.pcSpot().x; h.map.update(DT); assert(a.data.pc, '모니터 앞자리');
 });
 test('맵: 한우촌 — 방 수만큼 손님 · 방 · 우물은 배경 · 숯 화상 · 납치(한규성 제외) · 할머니 · 간식 / 원요섭은 롤', () => {
