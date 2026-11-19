@@ -34,7 +34,7 @@ var CONFIG = {
     hitSparks: true,
   },
 
-  sound: { volume: 0.45, bgm: { lobby: 0.5, boss: 0.6, bossFight: 0.6, mind: 1.5, hall: 1.0, work: 1.9, field: 0.9, winner: 0.6 } },   // bgm: 곡별 볼륨 (전투 곡은 효과음에 묻히지 않게 크게)
+  sound: { volume: 0.3, bgm: { lobby: 0.8, boss: 0.72, bossFight: 0.48, mind: 0.76, hall: 0.75, work: 0.92, field: 0.38, winner: 0.27 } },   // volume: 효과음 / bgm: 곡별 볼륨 — 파일 음량(LUFS)을 재서 메뉴 곡은 -24, 전투 곡은 -22 LUFS로 맞춤 (곡 바꾸면 다시 재기)
 
   speeds: [0.5, 1, 1.5, 2, 3],   // 전투 배속 (전투 화면 버튼 / 숫자키 1~5)
 
