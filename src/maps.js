@@ -38,11 +38,11 @@ var MAPS = {
   hanu: {
     id: 'hanu', no: '04', name: '안성마춤 한우촌', color: '#e0704a',
     lines: [
-      '한옥 고깃집: 위쪽 출입구, 가운데 우물(벽), 마당을 둘러싼 방 7개, 왼쪽 아래 고기 가판대',
+      '한옥 고깃집: 위쪽 출입구, 가운데 우물(배경, 지나다닐 수 있음), 벽에 붙은 방 7개, 왼쪽 아래 고기 가판대',
       '손님: 1초마다 12% 확률로 손님 1~3명이 들어와 빈 방으로 감 (방 수만큼) · 닿으면 밀쳐지고 5 피해 · 40초 먹고 나감',
       '삼촌: 손님이 들어가고 3초 뒤 가판대에서 숯을 들고 방으로 감 · 닿으면 8 피해 + 화상',
       '납치: 숯이 들어가면 바로, 그 뒤 20초마다 한 명이 고기 구우러 6초 동안 끌려감 (한규성은 한우촌에서 짤려서 안 끌려감)',
-      '휠체어 할머니: 손님이 올 때 25% 확률로 같이 옴, 맵을 계속 돌아다님 · 닿으면 크게 밀쳐짐',
+      '휠체어 할머니: 손님이 올 때 10% 확률로 같이 옴, 맵을 계속 돌아다님 · 닿으면 크게 밀쳐짐',
       '아이템: 산도할매의 간식(체력 +15) · 12% 확률로 서비스 육회(체력 +35)',
     ],
   },
@@ -783,13 +783,13 @@ function drawChair(ctx, s, black) {   // black: 디바 자세의 검은 의자
 // ---------- 안성마춤 한우촌 ----------
 // 배치: 위쪽 가운데 출입구 · 가운데 우물 · 왼쪽 2 / 오른쪽 3 / 아래 2 방 (문은 마당 쪽) · 왼쪽 아래 고기 가판대
 function hanuGeo(A) {
-  var k = A.w / 1000, d = 120 * k, W = A.w, H = A.h, rooms = [];
-  function room(x, y, w, h, nx, ny) { rooms.push({ x: x, y: y, w: w, h: h, nx: nx, ny: ny, door: { x: x + w / 2 + nx * (w / 2 + 45 * k), y: y + h / 2 + ny * (h / 2 + 45 * k) } }); }
-  [[0.13, 0.33], [0.35, 0.55]].forEach(function (q) { room(A.x, A.y + H * q[0], d, H * (q[1] - q[0]), 1, 0); });
-  [[0.13, 0.33], [0.35, 0.55], [0.57, 0.77]].forEach(function (q) { room(A.x + W - d, A.y + H * q[0], d, H * (q[1] - q[0]), -1, 0); });
-  [[0.30, 0.53], [0.55, 0.78]].forEach(function (q) { room(A.x + W * q[0], A.y + H - d, W * (q[1] - q[0]), d, 0, -1); });
-  var stand = { x: A.x, y: A.y + H * 0.79, w: W * 0.24, h: H * 0.21 };
-  return { k: k, d: d, A: A, rooms: rooms, stand: stand, standDoor: { x: stand.x + stand.w + 45 * k, y: stand.y + stand.h * 0.45 },
+  var k = A.w / 1000, d = 70 * k, W = A.w, H = A.h, rooms = [];   // 방은 벽에 붙은 얇은 칸 (진로 방해 안 되게)
+  function room(x, y, w, h, nx, ny) { rooms.push({ x: x, y: y, w: w, h: h, nx: nx, ny: ny, door: { x: x + w / 2 + nx * (w / 2 + 35 * k), y: y + h / 2 + ny * (h / 2 + 35 * k) } }); }
+  [[0.14, 0.30], [0.36, 0.52]].forEach(function (q) { room(A.x, A.y + H * q[0], d, H * (q[1] - q[0]), 1, 0); });
+  [[0.14, 0.30], [0.36, 0.52], [0.58, 0.74]].forEach(function (q) { room(A.x + W - d, A.y + H * q[0], d, H * (q[1] - q[0]), -1, 0); });
+  [[0.32, 0.52], [0.58, 0.78]].forEach(function (q) { room(A.x + W * q[0], A.y + H - d, W * (q[1] - q[0]), d, 0, -1); });
+  var stand = { x: A.x, y: A.y + H * 0.86, w: W * 0.17, h: H * 0.14 };
+  return { k: k, d: d, A: A, rooms: rooms, stand: stand, standDoor: { x: stand.x + stand.w + 35 * k, y: stand.y + stand.h * 0.45 },
     well: { x: A.x + W / 2, y: A.y + H * 0.47, r: 80 * k }, gate: { x: A.x + W / 2, y: A.y + 50 * k }, gateW: 240 * k };
 }
 function _inRect(p, R, m) { return p.x > R.x - m && p.x < R.x + R.w + m && p.y > R.y - m && p.y < R.y + R.h + m; }
@@ -807,30 +807,14 @@ function _pushRoom(b, R, nx, ny) {
   }
   return _pushRect(b, R);
 }
-function _pushCircle(b, C) {
-  var dx = b.x - C.x, dy = b.y - C.y, d = Math.hypot(dx, dy), m = C.r + b.r;
-  if (d >= m) return false;
-  if (d < 0.001) { dx = 0; dy = 1; d = 1; }
-  var nx = dx / d, ny = dy / d, vn = b.vx * nx + b.vy * ny;
-  b.x = C.x + nx * m; b.y = C.y + ny * m;
-  if (vn < 0) { b.vx -= 2 * vn * nx; b.vy -= 2 * vn * ny; }
-  return true;
-}
 function hanuWalls(G, b) {
   var hit = false;
   G.rooms.forEach(function (R) { if (_pushRoom(b, R, R.nx, R.ny)) hit = true; });
   if (_pushRoom(b, G.stand, 1, 0)) hit = true;
-  if (_pushCircle(b, G.well)) hit = true;
   return hit;
 }
-// 사람들이 걷는 길: 우물에 걸리면 옆으로 돌아감
-function hanuRoute(G, p, q) {
-  var W = G.well, dx = q.x - p.x, dy = q.y - p.y, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
-  var t = _mapClamp((W.x - p.x) * ux + (W.y - p.y) * uy, 0, L);
-  if (Math.hypot(W.x - p.x - ux * t, W.y - p.y - uy * t) > W.r + 70 * G.k) return [{ x: q.x, y: q.y }];
-  var px = -uy, py = ux, sd = (W.x - p.x) * px + (W.y - p.y) * py >= 0 ? -1 : 1, R = W.r + 120 * G.k;
-  return [{ x: W.x + px * sd * R, y: W.y + py * sd * R }, { x: q.x, y: q.y }];
-}
+// 사람들이 걷는 길: 우물은 배경이라 그냥 곧장
+function hanuRoute(G, p, q) { return [{ x: q.x, y: q.y }]; }
 // 할머니가 갈 마당 안 아무 곳 (방 · 우물 피해서)
 function hanuInner(G) {
   var A = G.A, k = G.k, p;
@@ -966,7 +950,7 @@ MAP_FLOORS.hanu = function (ctx, A, t) {
   });
   // 우물: 돌 테두리 + 물 + 도르래 나무
   var W = G.well;
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(W.x + 8 * k, W.y + 10 * k, W.r, 0, Math.PI * 2); ctx.fill();
+  ctx.save(); ctx.globalAlpha = 0.7;   // 배경: 그림자 없이 바닥에 깔린 느낌
   ctx.fillStyle = '#8c8a84'; ctx.beginPath(); ctx.arc(W.x, W.y, W.r, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = '#5a5852'; ctx.lineWidth = 3 * k;
   for (var a = 0; a < 12; a++) { var aa = a / 12 * Math.PI * 2; ctx.beginPath(); ctx.moveTo(W.x + Math.cos(aa) * W.r * 0.68, W.y + Math.sin(aa) * W.r * 0.68); ctx.lineTo(W.x + Math.cos(aa) * W.r, W.y + Math.sin(aa) * W.r); ctx.stroke(); }
@@ -977,6 +961,7 @@ MAP_FLOORS.hanu = function (ctx, A, t) {
   ctx.fillStyle = '#5a3418'; ctx.fillRect(W.x - W.r * 1.15, W.y - 7 * k, W.r * 2.3, 14 * k);   // 도르래 막대
   ctx.fillRect(W.x - W.r * 1.2, W.y - 14 * k, 14 * k, 28 * k); ctx.fillRect(W.x + W.r * 1.2 - 14 * k, W.y - 14 * k, 14 * k, 28 * k);
   ctx.fillStyle = '#8a5a30'; ctx.beginPath(); ctx.arc(W.x + W.r * 0.25, W.y + W.r * 0.3, 13 * k, 0, Math.PI * 2); ctx.fill();   // 두레박
+  ctx.restore();
   // 출입구 (위쪽 가운데): 기와 지붕 + 열린 대문 + 현판
   var gw = G.gateW, gx = G.gate.x - gw / 2;
   ctx.fillStyle = '#2c2f36'; ctx.fillRect(gx - 20 * k, A.y, gw + 40 * k, 34 * k);
@@ -991,17 +976,17 @@ MAP_FLOORS.hanu = function (ctx, A, t) {
   ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(S.x + 8 * k, S.y - 8 * k, S.w, S.h);
   ctx.fillStyle = '#5a3a22'; ctx.fillRect(S.x, S.y, S.w, S.h);
   ctx.strokeStyle = '#2a160a'; ctx.lineWidth = 6 * k; ctx.strokeRect(S.x, S.y, S.w, S.h);
-  var cx0 = S.x + 16 * k, cy0 = S.y + 50 * k, cw = S.w - 32 * k, chh = S.h * 0.45;
+  var cx0 = S.x + 10 * k, cy0 = S.y + 44 * k, cw = S.w - 20 * k, chh = S.h * 0.4;
   ctx.fillStyle = '#e8f4f6'; ctx.fillRect(cx0, cy0, cw, chh);   // 냉장 진열대
-  for (var m = 0; m < 6; m++) {
-    var mx = cx0 + 22 * k + (m % 3) * (cw - 30 * k) / 3, my = cy0 + 20 * k + Math.floor(m / 3) * chh * 0.48;
-    ctx.fillStyle = '#c4122e'; ctx.beginPath(); ctx.ellipse(mx + 14 * k, my + 10 * k, 22 * k, 13 * k, 0.2, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,240,240,0.8)'; ctx.lineWidth = 2 * k; ctx.beginPath(); ctx.moveTo(mx, my + 6 * k); ctx.quadraticCurveTo(mx + 14 * k, my + 16 * k, mx + 28 * k, my + 4 * k); ctx.stroke();   // 마블링
+  for (var m = 0; m < 4; m++) {
+    var mx = cx0 + cw * (0.27 + (m % 2) * 0.46), my = cy0 + chh * (0.3 + Math.floor(m / 2) * 0.42);
+    ctx.fillStyle = '#c4122e'; ctx.beginPath(); ctx.ellipse(mx, my, 20 * k, 11 * k, 0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,240,240,0.8)'; ctx.lineWidth = 2 * k; ctx.beginPath(); ctx.moveTo(mx - 13 * k, my - 3 * k); ctx.quadraticCurveTo(mx, my + 7 * k, mx + 13 * k, my - 5 * k); ctx.stroke();   // 마블링
   }
   ctx.fillStyle = 'rgba(200,240,255,0.25)'; ctx.fillRect(cx0, cy0, cw, chh * 0.3);
   ctx.fillStyle = '#b8122a'; Battle.roundRect(ctx, S.x + S.w * 0.18, S.y + 8 * k, S.w * 0.64, 34 * k, 6 * k); ctx.fill();
   ctx.fillStyle = '#ffffff'; ctx.font = '700 ' + Math.round(24 * k) + 'px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.fillText('한우 정육', S.x + S.w / 2, S.y + 26 * k);
-  ctx.fillStyle = '#ffd98a'; ctx.font = '700 ' + Math.round(18 * k) + 'px "Malgun Gothic",sans-serif'; ctx.fillText('1++ 등심', S.x + S.w / 2, cy0 + chh + 26 * k);
+  ctx.fillStyle = '#ffd98a'; ctx.font = '700 ' + Math.round(18 * k) + 'px "Malgun Gothic",sans-serif'; ctx.fillText('1++ 등심', S.x + S.w / 2, cy0 + chh + 22 * k);
   ctx.restore();
 };
 

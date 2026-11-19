@@ -1392,7 +1392,7 @@ test('맵: 담요 깨우면 x2 · 끝까지 자면 회복 / 담배 다 피면 �
   a.data.pcCd = 0; a.x = T.x + 30; a.y = T.y + T.h + a.r + 2; c.x = T.x + 900; h.map.update(DT); assert(!a.data.pc, '테이블 구석은 안 됨');
   a.x = h.map.pcSpot().x; h.map.update(DT); assert(a.data.pc, '모니터 앞자리');
 });
-test('맵: 한우촌 — 방 수만큼 손님 · 방 · 우물 벽 · 숯 화상 · 납치(한규성 제외) · 할머니 · 간식 / 원요섭은 롤', () => {
+test('맵: 한우촌 — 방 수만큼 손님 · 방 · 우물은 배경 · 숯 화상 · 납치(한규성 제외) · 할머니 · 간식 / 원요섭은 롤', () => {
   const H = M.hanu, HanuPerson = vm.runInContext('HanuPerson', ctx);
   const bt = new Battle(['gym', 'ibi'], 'ffa', { map: 'hanu' }), m = bt.map, G = ctx.hanuGeo(bt.arena), [g, ibi] = bt.balls;
   bt.balls.forEach(b => { b.maxHp = b.hp = 100000; }); bt.hitstop = 0;
@@ -1405,7 +1405,7 @@ test('맵: 한우촌 — 방 수만큼 손님 · 방 · 우물 벽 · 숯 화상
   assert(guests <= 7 * H.party, '손님은 방 수만큼');
   // 벽: 방 안 · 우물 안에 박히면 마당 쪽으로
   const R = G.rooms[0]; g.x = R.x + R.w / 2; g.y = R.y + R.h / 2; m.walls(g); assert(g.x >= R.x + R.w, '방 밖으로');
-  g.x = G.well.x + 1; g.y = G.well.y; m.walls(g); assert(Math.hypot(g.x - G.well.x, g.y - G.well.y) >= G.well.r + g.r - 1e-6, '우물 밖으로');
+  g.x = G.well.x + 1; g.y = G.well.y; assert(!m.walls(g) && g.x === G.well.x + 1, '우물은 배경 (지나다님)');
   // 납치: 한규성은 안 끌려감
   m.rooms.forEach(r => { r.fire = false; }); m.rooms[2].fire = true;
   g.hidden = ibi.hidden = false; g.data.grill = ibi.data.grill = null;
