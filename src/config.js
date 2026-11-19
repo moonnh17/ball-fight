@@ -251,16 +251,16 @@ var CONFIG = {
       pavlov2: { cd: 9, tick: 1, life: 8, radius: 46, offAngle: 0.6, restun: 0.3 },   // 경로가 offAngle(라디안) 넘게 틀어지면 restun초 멈칫 후 다시 핸드폰으로
     },
     kojeom: {   // 원요섭 (코점남의 모습)
-      hp: 145, speed: 450, radius: 70, color: '#ff2bd6', phase2Color: '#ffd400',
+      hp: 160, speed: 450, radius: 70, color: '#ff2bd6', phase2Color: '#ffd400',
       drawEvery: 10,   // 1스킬 코점남의 모험: 이 간격으로 무기 뽑기
       slot: 1.1,       // 뽑을 때 슬롯머신 도는 시간 (그동안 안 쏨)
       // 무기별 every: 평소 공격 간격, 기관총은 mag발 쏘고 reload초 장전
       weapons: {
-        pistol:  { every: 0.7, damage: 3, speed: 1400 },
-        mg:      { every: 0.13, damage: 1.8, speed: 1300, spread: 0.12, mag: 14, reload: 1.2 },
-        shotgun: { every: 1.5, recoil: 650, damage: 3, pellets: 7, spread: 0.35, speed: 1100, life: 0.45 },
-        sniper:  { every: 3.2, damage: 15, aim: 0.6, boss: 2 },   // boss: 보스에게 주는 피해 배율
-        katana:  { every: 2.2, damage: 8, dash: 380, speed: 1500 },
+        pistol:  { every: 0.7, damage: 2.7, speed: 1400 },
+        mg:      { every: 0.13, damage: 1.6, speed: 1300, spread: 0.12, mag: 14, reload: 1.2 },
+        shotgun: { every: 1.5, recoil: 650, damage: 2.7, pellets: 7, spread: 0.35, speed: 1100, life: 0.45 },
+        sniper:  { every: 3.2, damage: 14, aim: 0.6, boss: 2 },   // boss: 보스에게 주는 피해 배율
+        katana:  { every: 2.2, damage: 7, dash: 380, speed: 1500 },
       },
       furious: {   // 2스킬: time초 동안 무기를 이어 씀, 연계 중 무기 피해 x damage
         cd: 12, time: 4, damage: 0.6,

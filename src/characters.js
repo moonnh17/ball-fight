@@ -3416,7 +3416,7 @@ var CHARACTERS = {
     intro: '급등주 타다가 100만원 잃은 사랑하우. 알바비로 계좌가 차오르지만, 돈이 많으면 느긋해져서 약해지고 돈이 없으면 독해져서 강해진다. 주식이 떨어질 때마다 주변을 때린다.',
     passives: [
       { name: '계좌', desc: function () { var a = CONFIG.chars.hau.account; return a.pay + '초마다 알바비 +' + a.payAmt + '만원. 잔고가 많을수록 주는 피해·이동속도 감소(최대 x' + a.richMul + '), 적을수록 증가(최대 x' + a.poorMul + ')'; } },
-      { name: '사고', desc: function () { return '잔고가 꽉 차면 ' + CONFIG.chars.hau.account.crashDelay + '초 뒤 사고가 나서 절반이 날아감. 이때 급락 구간처럼 넓고 센 범위 공격'; } },
+      { name: '사고', desc: function () { return '잔고가 꽉 차면 ' + CONFIG.chars.hau.account.crashDelay + '초 뒤 사고(주식 폭락 · 컴퓨터 박살 · 뮤비 촬영 실패 · 벼락 직격)가 나서 절반이 날아감. 이때 급락 구간처럼 넓고 센 범위 공격'; } },
       { name: '파산 박치기', desc: function () { var a = CONFIG.chars.hau.account; return '잔고 0이 된 뒤 적과 부딪히면 ' + a.bankrupt + ' 피해 (본인도 ' + a.selfDamage + '), 잔고 절반으로 복구'; } },
     ],
     init: function (bt, b) {
@@ -3438,8 +3438,11 @@ var CHARACTERS = {
         d.crashT -= dt;
         if (d.crashT < 0) {
           hauSet(bt, b, d.bal / 2);
-          d.chart.push(Math.max(5, d.chart[d.chart.length - 1] / 2)); if (d.chart.length > 24) d.chart.shift(); d.lastUp = false;
-          FX.banner('사고 발생!', { color: '#ff3b3b', sub: b.name + ' 잔고 반토막 · 급락 공격', size: 110, life: 1.2 });
+          // 사고 종류: 주식만 그래프를 건드리고, 나머지는 글씨만
+          var ev = [['사고 발생!', '주식 폭락으로 잔고 반토막'], ['컴퓨터 박살!', '컴퓨터가 고장나서 잔고 반토막'],
+                    ['뮤비 촬영 실패!', '뮤비 촬영했는데 실패해서 잔고 반토막'], ['벼락 직격!', '벼락 맞아서 병원비로 잔고 반토막']][Math.floor(Math.random() * 4)];
+          if (ev[0] === '사고 발생!') { d.chart.push(Math.max(5, d.chart[d.chart.length - 1] / 2)); if (d.chart.length > 24) d.chart.shift(); d.lastUp = false; }
+          FX.banner(ev[0], { color: '#ff3b3b', sub: b.name + ' ' + ev[1], size: 110, life: 1.2 });
           FX.sfx('crash'); FX.shake(24);
           hauHit(bt, b, 2);
           bt.emit('hauCrash');
