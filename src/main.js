@@ -299,9 +299,9 @@
       chip(810, ty, 230, 70, '하드', G.bossDiff === 'hard', '#ff2b3b', function () { G.bossDiff = 'hard'; });
     } else if (G.mode === 'tour') {
       outlined(ctx, '대진', 110, ty + 36, 32, '#ffffff');
-      chip(190, ty, 280, 70, '직접 배치', G.tourSeed === 'manual', '#ffd400', function () { G.tourSeed = 'manual'; });
-      chip(490, ty, 280, 70, '랜덤 배치', G.tourSeed === 'random', '#ff8c42', function () { G.tourSeed = 'random'; G.swapSel = null; });
-      outlined(ctx, G.tourSeed === 'manual' ? '두 명 눌러 자리 바꾸기' : '시작할 때 섞음', 910, ty + 36, 22, '#bbbbbb');
+      chip(190, ty, 240, 70, '직접 배치', G.tourSeed === 'manual', '#ffd400', function () { G.tourSeed = 'manual'; });
+      chip(445, ty, 240, 70, '랜덤 배치', G.tourSeed === 'random', '#ff8c42', function () { G.tourSeed = 'random'; G.swapSel = null; });
+      chip(700, ty, 340, 70, '모든 캐릭터 넣기', false, '#39c46a', function () { G.roster = IDS.map(function (id) { return { id: id, team: 0 }; }); G.swapSel = null; });
     } else {
       outlined(ctx, '카드를 누를 때마다 참가자 추가 (같은 캐릭터 중복 가능, 인원 무제한)', W / 2, ty + 36, 27, '#bbbbbb');
     }
@@ -313,7 +313,7 @@
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     ctx.font = '700 28px "Malgun Gothic",sans-serif'; ctx.fillStyle = '#ffffff';
     var modeTxt = G.mode === 'team' ? '팀전 · ' + teamsInRoster().length + '팀' : G.mode === 'tour' ? '토너먼트 1:1' : G.mode === 'boss' ? '보스전 도전자 (최대 ' + CONFIG.boss.maxPlayers + '명)' + (G.fullMsg && G.time - G.fullMsg < 1.5 ? ' · 가득 찼어요!' : '') : '개인전';
-    var helpTxt = G.mode === 'tour' && G.tourSeed === 'manual' ? '(같은 사람 두 번 누르면 제외)' : '(누르면 제외)';
+    var helpTxt = G.mode === 'tour' && G.tourSeed === 'manual' ? '(두 명 눌러 자리 바꿈 · 같은 사람 두 번 = 제외)' : G.mode === 'tour' ? '(누르면 제외 · 시작할 때 섞음)' : '(누르면 제외)';
     ctx.fillText('참가자 ' + G.roster.length + '명 · ' + modeTxt + '   ' + helpTxt, 60, py + 44);
     function portrait(e, idx, x, y, r) {
       var c = CONFIG.chars[e.id];
