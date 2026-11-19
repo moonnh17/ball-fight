@@ -1507,10 +1507,11 @@ test('마인드 편의점 라면: 바로 10 + 국물 1씩 20, 마시다 맞으�
   assert(!g.data.ramen && count(bt, 'ramenSpill') > 0, '맞으면 쏟음');
 });
 
-test('한규성 70% 페이즈 2 · 규순이 워터밤 (이장님 멘헤라, 얼음 삼식이 무효, 불 삼식이 2배)', () => {
+test('한규성 50% 페이즈 2 (기본 캐릭터와 같음) · 규순이 워터밤 (이장님 멘헤라, 얼음 삼식이 무효, 불 삼식이 2배)', () => {
   for (const id of ['ibi', 'predator']) {
     const bt = new Battle([id, 'gym']); const h = bt.balls[0];
-    h.hp = h.maxHp * 0.71; bt.damage(h, h.maxHp * 0.02, null, {}); assert(h.phase === 2, id + ' 70%');
+    h.hp = h.maxHp * 0.71; bt.damage(h, h.maxHp * 0.02, null, {}); assert(h.phase === 1, id + ' 69%는 아직 페이즈 1');
+    h.hp = h.maxHp * 0.51; bt.damage(h, h.maxHp * 0.02, null, {}); assert(h.phase === 2, id + ' 50%');
   }
   const bt = new Battle([{ id: 'ibi', team: 0 }, { id: 'chief', team: 1 }, { id: 'samsik', team: 1 }, { id: 'samsik', team: 1 }], 'team');
   const [ibi, chief, ice, fire] = bt.balls;

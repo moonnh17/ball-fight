@@ -2553,7 +2553,7 @@ var CHARACTERS = {
     portrait: function (b) { return b.data.lucha ? 'lucha' : b.data.gyusuni ? 'gyusuni' : 'base'; },
     blurb: '이동 약간 빠름',
     intro: '멀리서 돌을 던져 견제하는 원거리형. 페이즈 2에서는 규순이로 각성해 경기장을 어둡게 만들고 새·점프 공격·충격파 중 하나를 랜덤으로 쓴다. (규순이일 땐 여성 취급)',
-    passives: [{ name: '규순이', desc: '규순이로 각성한 동안은 여성 취급 (조우연의 뱀 피해 2배)' }, { name: '빠른 각성', desc: '체력 70%에서 페이즈 2' }],
+    passives: [{ name: '규순이', desc: '규순이로 각성한 동안은 여성 취급 (조우연의 뱀 피해 2배)' }],
     female: function (b) { return !!b.data.gyusuni; },
     // 디마디영디: 규순이를 페이즈 1부터, 대신 쿨타임 x gyusuniCd
     earlySkill2: function (bt, b) { return _dmdyd(bt, b); },
@@ -3638,7 +3638,6 @@ var CHARACTERS = {
     blurb: '이동 약간 빠름',
     intro: '작업실 비타민의 주인, 포식자 한규성. 부딪히는 곳마다 비타민 껍질을 심어 하얀 탄막으로 터뜨린다. 페이즈 2에서는 포식이 준비될 때마다 덮쳐 물어뜯고 피를 빨아 회복한다. 여성에게는 더 빨리 다가가지만 물지는 않는다.',
     passives: [
-      { name: '빠른 각성', desc: '체력 70%에서 페이즈 2' },
       { name: '기본 공격 8.8', desc: function () { return '몸통 박치기는 항상 ' + CONFIG.chars.predator.baseHit + ' (공격력 증가·감소 영향 없음)'; } },
       { name: '직진', desc: function () { return '여성 캐릭터에게 다가갈 때 이동속도 +' + Math.round((CONFIG.chars.predator.femaleChase - 1) * 100) + '% (분홍 속도선·하트)'; } },
     ],

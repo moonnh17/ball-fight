@@ -174,7 +174,7 @@ var CONFIG = {
       scream: { cd: 9, damage: 20, doubleChance: 0.3, doubleDelay: 0.6, shake: 34, missRadius: 520 },
     },
     ibi: {
-      hp: 170, speed: 480, radius: 70, color: '#b04dff', phase2Color: '#00f0ff', phase2Ratio: 0.7,   // 한규성: 체력 70%에서 페이즈 2
+      hp: 170, speed: 480, radius: 70, color: '#b04dff', phase2Color: '#00f0ff',
       stone: { cd: 3, damage: 16, speed: 1400, shake: 9 },
       awaken: { cd: 12, introTime: 0.9, darkness: 0.8, fadeOut: 1.2, weights: { birds: 1, lucha: 1, toka: 1, waterbomb: 1 } },
       waterbomb: { time: 3, shots: 18, spin: 9, minDist: 150, maxDist: 520, damage: 8, puddleR: 70, puddleLife: 2.5, slip: 1.5, slipTime: 1, menhera: { time: 4, slow: 0.6, dps: 4 } },
@@ -361,7 +361,7 @@ var CONFIG = {
       clean: { dps: 2 },
     },
     predator: {  // 한규성 (포식자의 모습)
-      hp: 180, speed: 470, radius: 70, color: '#ff5a36', phase2Color: '#ffffff', phase2Ratio: 0.7,
+      hp: 180, speed: 470, radius: 70, color: '#ff5a36', phase2Color: '#ffffff',
       contactDamage: 8.8,  // 도감 표시용. 실제로는 baseHit 고정
       baseHit: 8.8,        // 캐릭터 패시브: 몸통 박치기 고정 피해 (공격력 증감 무시)
       femaleChase: 1.3,    // 캐릭터 패시브: 여성 캐릭터에게 다가갈 때 이동속도 배율
