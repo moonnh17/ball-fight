@@ -253,7 +253,7 @@ var CONFIG = {
         katana:  { every: 2.2, damage: 8, dash: 380, speed: 1500 },
       },
       furious: {   // 2스킬: time초 동안 무기를 이어 씀, 연계 중 무기 피해 x damage
-        cd: 12, time: 3, damage: 0.75,
+        cd: 12, time: 4, damage: 0.6,
         steps: { pistol: 0.83, mg: 0.83, shotgun: 0.83 },   // 총 하나를 쓰는 시간
         fire:  { pistol: 0.14, mg: 0.04, shotgun: 0.25 },   // 그 시간 안에서 쏘는 간격
         after: { katana: 0, sniper: 0 },                    // 돌진 · 저격이 끝나고 다음 무기까지
@@ -304,7 +304,7 @@ var CONFIG = {
       bite: { cd: 3, dashSpeed: 1500, dashTime: 0.45, damage: 15, hold: 1.0, tick: 0.25, tickDamage: 5, bigR: 95, holdSlow: 0.25 },
     },
     seyu: {   // 차승민 (세유의 모습)
-      hp: 180, speed: 430, radius: 70, color: '#ffcc00', phase2Color: '#ff3030',
+      hp: 175, speed: 430, radius: 70, color: '#ffcc00', phase2Color: '#ff3030',
       contactDamage: 8,
       chase: 1.9,          // 캐릭터 패시브: 상대에게 다가갈 때 이동속도 배율
       // 1스킬 정신나간 세트(패시브): 닿으면 delay초 뒤 한 번 더 때림 (박치기 데미지 x mult)
