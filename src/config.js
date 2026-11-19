@@ -74,7 +74,7 @@ var CONFIG = {
       ramen: { every: 9, max: 2, heal: 10, soup: 20, tick: 0.25, spill: 0.05 },   // 편의점 라면: 바로 10 + 국물 0.5초마다 1씩 총 20 (5% 쏟음, 마시다 맞으면 쏟음)
     },
     hanu: {   // 안성마춤 한우촌
-      arrive: 0.12, party: 3, stay: 40, grannyChance: 0.1,          // 1초마다 arrive 확률로 손님 1~party명 (빈 방이 있을 때) · 방에서 stay초 먹고 나감 · 손님 올 때 grannyChance 확률로 휠체어 할머니
+      arrive: 0.06, party: 3, stay: 40, grannyChance: 0.1,          // 1초마다 arrive 확률로 손님 1~party명 (빈 방이 있을 때) · 방에서 stay초 먹고 나감 · 손님 올 때 grannyChance 확률로 휠체어 할머니
       guest: { speed: 150, r: 34, damage: 5, knock: 520 },     // 손님에게 닿으면 밀쳐짐 + 피해
       uncle: { delay: 3, speed: 280, r: 40, damage: 8, burnTime: 3, burnDps: 4, knock: 420 },   // 손님 들어가고 delay초 뒤 삼촌이 숯 들고 옴: 닿으면 화상 + 피해
       granny: { speed: 75, r: 50, knock: 750 },                // 휠체어 할머니: 계속 돌아다님, 닿으면 밀쳐짐
