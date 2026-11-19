@@ -6,9 +6,9 @@ var MAPS = {
     id: 'workroom', no: '01', name: '작업실', color: '#ffb347',
     lines: [
       '시작할 때 산내 / 정발산 중 하나, 그 뒤 30초마다 다시 뽑음 (같은 곳이 또 나올 수 있음)',
-      '산내: 정사각형 · 금연구역 창문(흡연자는 담배 피우느라 행동불능, 받는 피해 2배)',
+      '산내: 정사각형 · 금연구역 창문(흡연자는 담배 피우느라 행동불능, 받는 피해 2배, 다 피우면 5초 동안 받는 피해 x0.7)',
       '산내: 조하람 펑크(긴급소집 30% 취소) · 월세머신(10초마다 모두에게서 체력 5 흡수)',
-      '산내 아이템: 담요(함정, 수면) · 피자 오브 레전드(체력 +20)',
+      '산내 아이템: 담요(함정, 최대 9초 수면 · 맞아서 깨면 그 공격 2배 · 끝까지 자면 체력 +25) · 피자 오브 레전드(체력 +20)',
       '정발산: 하얀 담배 연기 독 지대(10초마다 환기) · 비흡연자는 독 피해 2배',
       '정발산: 아래쪽 1/3 다락방(2층)이 가로 벽으로 10초마다 분리/통합',
       '정발산 아이템: 의자(1층, 투척 20 · 김선율 30) · 핫식스 더 킹(다락방, 회복 / 10% 소주, 개방되면 사라짐)',
@@ -18,9 +18,9 @@ var MAPS = {
     id: 'mind', no: '02', name: '마인드', color: '#9cff57',
     lines: [
       '5초마다 언데드 마인드 부원 등장 (한 번에 1명) · 주변을 도는 촬영팀 2명에 닿으면 3 피해',
-      '리허설: 15초마다 1~3명(1대1이면 1명)이 사라졌다가 5초 뒤 독 · 둔화 상태로 복귀',
+      '리허설: 18초마다 1~3명(1대1이면 1명)이 사라졌다가 5초 뒤 독 · 둔화 상태로 복귀',
       '한규성(이비)은 리허설에서 돌아오면 규순이로 등장',
-      '아이템: 주현지 누나 — 먹으면 리허설 독에 안 걸림, 20초 뒤 다른 곳에 다시 생김 (김선율의 모습은 낯가려서 못 받음)',
+      '아이템: 주현지 누나 — 먹으면 리허설 독에 안 걸림, 30초 뒤 다른 곳에 다시 생김 (김선율의 모습은 낯가려서 못 받음)',
       '아이템: 편의점 라면 — 바로 10 회복 + 국물로 1씩 총 20 회복 (5% 확률로 쏟거나, 마시다 맞으면 쏟음)',
     ],
   },
@@ -28,10 +28,10 @@ var MAPS = {
     id: 'hall', no: '03', name: '마을회관', color: '#ffd27a',
     lines: [
       '시간이 지날수록 옷 · 음료수 병 · 라면 용기 같은 쓰레기가 쌓임, 밟으면 잠시 이동속도 감소 (싸방 멤버는 면역)',
-      '왼쪽 위 컴퓨터: 한규성 · 유재후 · 진형권 · 차승민 · 이윤빈은 오버워치, 유재운 · 김선율 · 조하람 · 조우연은 로블록스 (담배타임처럼 행동불능 + 받는 피해 2배, 유재후는 2배 오래)',
+      '왼쪽 위 컴퓨터 (모니터 앞 점선 자리에 들어가면 사용): 한규성 · 유재후 · 진형권 · 차승민 · 이윤빈은 오버워치, 유재운 · 김선율 · 조하람 · 조우연은 로블록스 (담배타임처럼 행동불능 + 받는 피해 2배, 유재후는 2배 오래) · 게임은 50%로 승패: 이기면 체력 +20, 지면 6초 동안 받는·주는 피해 x1.3',
       '컴퓨터: 개발자 문남휘는 코딩해서 자기 스탯 +5% · 최휘는 주식 (끝나면 한 번 더 등락, 70% 하락, 하락하면 10% 컴퓨터 박살) · 서리는 30% 박살',
       '한규성(이비) 규순이 각성에 특수 패턴 워터밤이 추가됨 (마을회관에서만)',
-      '이장님 문남휘: 컴퓨터에 닿으면 꺼버림 (다른 사람이 닿으면 켜지지만 그 사람은 그때 게임 못 함) · 웰우스 개방 회복량 +30% · 대청소 중엔 쓰레기가 점점 사라짐',
+      '이장님 문남휘: 컴퓨터 앞자리에 오면 꺼버림 (다른 사람이 닿으면 켜지지만 그 사람은 그때 게임 못 함) · 웰우스 개방 회복량 +30% · 대청소 중엔 쓰레기가 점점 사라짐',
       '아이템: 육개장 컵라면 — 편의점 라면과 같음, 국물을 쏟으면 문남휘가 개빡쳐서 공격력 증가',
     ],
   },
@@ -104,7 +104,7 @@ class MapRun {
         if (p.x > A.x + A.w * (1 - c.notchW) - 60 && p.y < A.y + A.w * c.notchH + 60) return true;
         if (Math.hypot(p.x - A.x - A.w, p.y - A.y - A.h) < c.window * k + 90) return true;
       }
-      if (self.sub === 'hall') { var T = self.table(); if (p.x > T.x - 70 && p.x < T.x + T.w + 70 && p.y > T.y - 70 && p.y < T.y + T.h + 100) return true; }
+      if (self.sub === 'hall') { var T = self.table(), S = self.pcSpot(); if (p.x > T.x - 70 && p.x < T.x + T.w + 70 && p.y > T.y - 70 && p.y < T.y + T.h + 100) return true; if (Math.hypot(p.x - S.x, p.y - S.y) < S.r + 60) return true; }
       return !loose && bt.balls.some(function (o) { return o.alive && Math.hypot(o.x - p.x, o.y - p.y) < o.r + 90; });
     }
     for (var i = 0; i < 15; i++) { p = { x: _rnd(A.x + m, A.x + A.w - m), y: _rnd(y0, y1) }; if (!bad(p)) break; }
@@ -136,6 +136,10 @@ class MapRun {
     this.players().forEach(function (b) {
       if (b.data.soju > 0) b.data.soju -= dt;
       if (b.data.ramen) ramenTick(bt, b, dt);
+      if (b.data.blanket && !(b.status.sleep > 0)) {   // 담요에서 끝까지 잤으면 회복
+        b.data.blanket = false; bt.heal(b, M.sannae.blanket.heal);
+        FX.text(b.x, b.y - b.r - 60, '푹 잤다! 개운 ✨', '#bfe3ff', 44, 1.1); FX.sfx('powerup');
+      }
       if (!b.hidden) bt.walls(b);   // 줄어든 경기장 · 벽 밖으로 밀려난 공 정리
     });
     if (this.sub === 'sannae') this.updSannae(dt);
@@ -158,7 +162,8 @@ class MapRun {
         if (d.smoking <= 0) {   // 다 피우고 창문에서 떨어짐
           d.smokeCd = bt.time + c.smokeCd;
           var a = Math.atan2(A.y + A.h / 2 - b.y, A.x + A.w / 2 - b.x); b.vx = Math.cos(a) * b.speed; b.vy = Math.sin(a) * b.speed;
-          FX.text(b.x, b.y - b.r - 50, '후~ 다 피웠다', '#dddddd', 38, 0.8);
+          d.smokeGuard = bt.time + c.smokeGuard.time;   // 다 피우면 잠시 받는 피해 감소
+          FX.text(b.x, b.y - b.r - 50, '후~ 다 피웠다 (받는 피해↓)', '#dddddd', 38, 0.9);
         }
         return;
       }
@@ -291,6 +296,8 @@ class MapRun {
 
   // ---------- 마을회관 ----------
   table() { var A = this.bt.arena; return { x: A.x + A.w * 0.12, y: A.y + A.h * 0.1, w: A.w * 0.3, h: A.w * 0.13 }; }   // 왼쪽 위(구석 아님) 테이블 + 컴퓨터
+  pcSpot() { var T = this.table(); return { x: T.x + T.w * 0.51, y: T.y + T.h, r: CONFIG.maps.hall.pcZone * this.bt.arena.w / 1000 }; }   // 모니터 앞 자리 (테이블 아래쪽 반원)
+  atPc(b) { var S = this.pcSpot(); return b.y > S.y && Math.hypot(b.x - S.x, b.y - S.y) < S.r + b.r * 0.4; }
   updHall(dt) {
     var c = CONFIG.maps.hall, bt = this.bt, self = this, T = this.table(), pc = this.pc;
     // 쓰레기: 시간이 지날수록 쌓임 (싸방 멤버는 면역)
@@ -324,7 +331,7 @@ class MapRun {
         if (u.t <= 0) self.pcDone(b, u.mode);
         return;
       }
-      if (pc.broken > 0 || b.hidden || b.air || b.disabled || (b.data.pcCd || 0) > bt.time || !_touchRect(b, T, 10)) return;
+      if (pc.broken > 0 || b.hidden || b.air || b.disabled || (b.data.pcCd || 0) > bt.time || !self.atPc(b)) return;
       if (b.def.id === 'chief') {   // 이장님: 컴퓨터를 끔 (하던 사람도 쫓겨남)
         if (pc.off) return;
         b.data.pcCd = bt.time + c.chiefCd; pc.off = true;
@@ -367,7 +374,13 @@ class MapRun {
       var up = Math.random() >= c.stockDown;
       if (typeof hauStock === 'function' && b.data.chart) hauStock(bt, b, up);
       if (!up && Math.random() < c.stockSmash) this.smashPc('떡락에 빡쳐서 컴퓨터 박살!');
-    } else FX.text(b.x, b.y - b.r - 50, mode === 'ow' ? 'GG… 한 판만 더' : '로블록스 종료', '#dddddd', 38, 0.9);
+    } else if (Math.random() < c.game.win) {   // 오버워치 · 로블록스: 이기면 회복
+      bt.heal(b, c.game.heal);
+      FX.text(b.x, b.y - b.r - 50, mode === 'ow' ? '이겼다! 승리 🏆' : '로블록스 1등! 🏆', '#9cff57', 40, 1.0); FX.sfx('powerup');
+    } else {   // 지면 잠시 받는 피해 · 주는 피해 증가
+      b.data.pcLose = bt.time + c.game.loseTime;
+      FX.text(b.x, b.y - b.r - 50, mode === 'ow' ? '졌다… 빡침 😡' : '로블록스 패배 😡', '#ff6b6b', 40, 1.0); FX.sfx('glitch');
+    }
     var a = Math.atan2(A.y + A.h / 2 - b.y, A.x + A.w / 2 - b.x); b.vx = Math.cos(a) * b.speed; b.vy = Math.sin(a) * b.speed;
     bt.emit('pcDone', { who: b.def.id, mode: mode });
   }
@@ -385,6 +398,11 @@ class MapRun {
     var M = CONFIG.maps, m = 1;
     if (src && src !== t && this.splitK > 0.5 && this.split && this.floorOf(src) !== this.floorOf(t)) return 0;   // 분리된 층끼리는 공격 안 닿음
     if (t.data.ramen) ramenSpill(this.bt, t);   // 국물 마시다 맞으면 쏟음
+    var now = this.bt.time;
+    if (t.data.blanket && t.status.sleep > 0 && src && src !== t) { m *= M.sannae.blanket.wakeMul; t.data.blanket = false; }   // 담요에서 자다 맞으면 x2 (그리고 깸)
+    if (t.data.smokeGuard > now) m *= M.sannae.smokeGuard.taken;
+    if (t.data.pcLose > now) m *= M.hall.game.loseTaken;
+    if (src && src.data.pcLose > now) m *= M.hall.game.loseDeal;
     if (t.data.smoking > 0 || t.data.pc) m *= M.sannae.smokeTaken;   // 담배 · 컴퓨터 하는 중 받는 피해 2배
     if (t.data.soju > 0) m *= M.jbs.king.sojuTaken;
     if (o.kind === 'poison' && this.sub === 'jbs' && !_smoker(t)) m *= M.jbs.nonSmokerPoison;
@@ -424,7 +442,7 @@ class MapRun {
       drawWindow(ctx, A.x + A.w, A.y + A.h, c.window * k, time);
     }
     if (this.sub === 'jbs') drawDivider(ctx, A, this.divY(), this.splitK, time);
-    if (this.sub === 'hall') { this.trash.forEach(function (tr) { drawTrash(ctx, tr); }); drawTable(ctx, this.table(), this.pc, time); }
+    if (this.sub === 'hall') { this.trash.forEach(function (tr) { drawTrash(ctx, tr); }); drawPcSpot(ctx, this.pcSpot(), this.pc, time); drawTable(ctx, this.table(), this.pc, time); }
     if (this.flash > 0) { ctx.save(); ctx.globalAlpha = Math.min(1, this.flash) * 0.35; ctx.fillStyle = SUB_MAPS[this.sub].color; ctx.fillRect(A.x, A.y, A.w, A.h); ctx.restore(); }
   }
   drawTop(ctx, time) {
@@ -453,6 +471,8 @@ class MapRun {
       if (b.data.soju > 0) ctx.fillText('🍶', x - r * 0.85, y + r * 0.2);
       if (b.data.ramen) ctx.fillText('🍜', x - r * 0.85, y - r * 0.2);
       if (b.data.pc) ctx.fillText(PC_MODES[b.data.pc.mode].icon, x + r * 0.75, y - r * 0.55);
+      if (b.data.pcLose > bt.time) ctx.fillText('😡', x - r * 0.8, y - r * 0.6);
+      if (b.data.smokeGuard > bt.time) ctx.fillText('🛡', x + r * 0.8, y + r * 0.55);
       if (b.data.joo) { ctx.font = '36px "Segoe UI Emoji",sans-serif'; ctx.fillText('🎀', x + r * 0.72, y + r * 0.72); }
     });
     // 맵 이름 · 다음 이벤트 시간
@@ -722,7 +742,7 @@ var ITEM_DRAW = {
 };
 var ITEM_EAT = {
   blanket: function (bt, b) {
-    b.status.sleep = CONFIG.maps.sannae.blanket.sleepMax;
+    b.status.sleep = CONFIG.maps.sannae.blanket.sleepMax; b.data.blanket = true;
     if (b.action && !b.action.uninterruptible) { if (b.action.end) b.action.end(); b.action = null; }
     FX.text(b.x, b.y - b.r - 60, '포근… 잠들었다 💤', '#bfe3ff', 46, 1.2); FX.sfx('vanish');
   },
@@ -817,9 +837,15 @@ function pcMode(b) {
   if (c.roblox.indexOf(n) >= 0) return 'rb';
   return null;
 }
-function _touchRect(b, R, pad) {
-  var cx = _mapClamp(b.x, R.x, R.x + R.w), cy = _mapClamp(b.y, R.y, R.y + R.h);
-  return Math.hypot(b.x - cx, b.y - cy) < b.r + pad;
+// 컴퓨터 앞 자리: 담배 창문처럼 점선 반원, 가운데 의자는 drawTable이 그림 (고장 나면 흐리게)
+function drawPcSpot(ctx, S, pc, time) {
+  var on = !(pc.broken > 0);
+  ctx.save(); ctx.globalAlpha = on ? 1 : 0.35;
+  ctx.beginPath(); ctx.moveTo(S.x - S.r, S.y); ctx.arc(S.x, S.y, S.r, 0, Math.PI); ctx.closePath();
+  ctx.fillStyle = 'rgba(40,140,230,' + (0.22 + Math.sin(time * 2) * 0.05) + ')'; ctx.fill();   // 노란 장판 위에서도 보이게 진하게
+  ctx.setLineDash([14, 10]); ctx.strokeStyle = 'rgba(20,90,170,0.85)'; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.arc(S.x, S.y, S.r, 0, Math.PI); ctx.stroke(); ctx.setLineDash([]);
+  ctx.restore();
 }
 function drawTrash(ctx, tr) {
   var s = Math.min(1, tr.t / 0.3);

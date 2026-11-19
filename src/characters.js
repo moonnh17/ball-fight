@@ -3570,8 +3570,9 @@ var CHARACTERS = {
     images: {
       base: { src: 'assets/chief.jpg', fx: 0.56, fy: 0.28, s: 0.32 },
       ko:   { src: 'assets/chief_ko.jpg', fx: 0.54, fy: 0.4, s: 0.6 },
+      p2:   { src: 'assets/chief_p2.jpg', fx: 0.47, fy: 0.47, s: 0.62 },
     },
-    portrait: function (b) { return b.data.ddak ? 'ko' : 'base'; },
+    portrait: function (b) { return b.data.ddak ? 'ko' : b.phase >= 2 ? 'p2' : 'base'; },
     blurb: '이동 보통 · 팀전 버프형',
     intro: '마을을 돌보는 이장님 문남휘. 팀전에서는 웰우스를 열어 같은 팀을 계속 회복시키고, 페이즈 2에서는 대청소로 적들에게 지속 피해를 준다. 혼자 싸우는 건 서툴고, 개인전에선 한규성의 공격 한 방에 쓰러진다.',
     passives: [

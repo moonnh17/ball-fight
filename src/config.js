@@ -49,8 +49,9 @@ var CONFIG = {
     sannae: {
       notchW: 0.24, notchH: 0.15,             // 오른쪽 위 파인 곳 (경기장 가로 대비)
       window: 170, smokeTime: 3, smokeCd: 6, smokeTaken: 2,   // 금연구역 창문: 닿으면 흡연(행동불능), 그동안 받는 피해 2배
+      smokeGuard: { time: 5, taken: 0.7 },                    // 다 피우면 time초 동안 받는 피해 x taken
       punk: 0.3, rentEvery: 10, rent: 5, rentCap: 20,         // 조하람 전용: 긴급소집 펑크 확률 / 월세 흡수
-      blanket: { every: 9, max: 2, sleepMax: 12 },            // 함정: 수면 (다른 플레이어에게 맞으면 깸, 최대 12초)
+      blanket: { every: 9, max: 2, sleepMax: 9, wakeMul: 2, heal: 25 },   // 함정: 수면 (다른 플레이어에게 맞으면 깸 · 깨운 공격 x2, 끝까지 자면 heal 회복)
       pizza: { every: 12, max: 3, heal: 20 },
     },
     jbs: {
@@ -62,13 +63,14 @@ var CONFIG = {
     hall: {
       trashEvery: 14, trashMax: 18, trashR: 34, trashSlow: 0.75, trashSlowTime: 0.8, cleanEvery: 0.7,   // 쓰레기: 밟으면 잠시 이동속도 x0.75
       wellusHeal: 1.3,                                                        // 이장님 웰우스 개방 회복량
-      pcTime: 3, yooMul: 2, pcCd: 6, chiefCd: 4, codeBuff: 1.05, stockDown: 0.7, stockSmash: 0.1, seoriSmash: 0.3, brokenTime: 20,
+      pcZone: 95, pcTime: 3, yooMul: 2, pcCd: 6, chiefCd: 4, codeBuff: 1.05, stockDown: 0.7, stockSmash: 0.1, seoriSmash: 0.3, brokenTime: 20,
+      game: { win: 0.5, heal: 20, loseTime: 6, loseTaken: 1.3, loseDeal: 1.3 },   // 오버워치·로블록스: 이기면 heal 회복, 지면 loseTime초 동안 받는·주는 피해 x1.3
       ow: ['한규성', '유재후', '진형권', '차승민', '이윤빈'], roblox: ['유재운', '김선율', '조하람', '조우연'],
       yuk: { every: 9, max: 2, heal: 10, soup: 20, tick: 0.25, spill: 0.05 }, angerTime: 6, angerMul: 1.3,   // 육개장 국물 쏟으면 문남휘 공격력 x1.3
     },
     mind: {
       spawn: 5, maxUndead: 1, undeadLife: 16, undeadSpeed: 80, orbit: 120, orbitSpeed: 2.4, touch: 3,
-      rehearsal: 15, away: 5, poisonDps: 6, poisonTime: 3, slow: 0.6, slowTime: 3, jooRespawn: 20,
+      rehearsal: 18, away: 5, poisonDps: 6, poisonTime: 3, slow: 0.6, slowTime: 3, jooRespawn: 30,
       ramen: { every: 9, max: 2, heal: 10, soup: 20, tick: 0.25, spill: 0.05 },   // 편의점 라면: 바로 10 + 국물 0.5초마다 1씩 총 20 (5% 쏟음, 마시다 맞으면 쏟음)
     },
   },

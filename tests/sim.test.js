@@ -1373,6 +1373,25 @@ test('맵: 담요 수면은 다른 플레이어에게 맞아야 깸', () => {
   bt.damage(b, 1, bt.balls[1], {}); assert(b.status.sleep === 0, '맞으면 깸');
 });
 function Ctx_eat(kind, bt, b) { vm.runInContext('ITEM_EAT', ctx)[kind](bt, b); }
+test('맵: 담요 깨우면 x2 · 끝까지 자면 회복 / 담배 다 피면 받는 피해↓ / 컴퓨터 게임 승패 · 앞자리에서만', () => {
+  const bt = new Battle(['gym', 'baton'], 'ffa', { map: 'workroom' }); bt.map.setSub('sannae');
+  const [g, o] = bt.balls; g.maxHp = g.hp = 1000; bt.hitstop = 0;
+  Ctx_eat('blanket', bt, g); let hp = g.hp; bt.damage(g, 5, o, {});
+  assert(Math.abs(hp - g.hp - 10) < 1e-6 && g.status.sleep === 0, '깨우는 공격 x2');
+  hp = g.hp; bt.damage(g, 5, o, {}); assert(Math.abs(hp - g.hp - 5) < 1e-6, '두 번째부턴 보통');
+  bt.map.update(DT); assert(g.hp === hp - 5, '맞아서 깨면 회복 없음');
+  Ctx_eat('blanket', bt, g); g.hp = 500; g.status.sleep = 0; bt.map.update(DT);
+  assert(Math.abs(g.hp - 500 - M.sannae.blanket.heal) < 1e-6, '끝까지 자면 회복');
+  g.data.smoking = 0.001; bt.map.update(DT); hp = g.hp; bt.damage(g, 10, null, {});
+  assert(Math.abs(hp - g.hp - 10 * M.sannae.smokeGuard.taken) < 1e-6, '다 피우면 받는 피해 감소');
+  const h = new Battle(['gym', 'chino'], 'ffa', { map: 'hall' }), [a, c] = h.balls, T = h.map.table(), G = M.hall.game, w = G.win;
+  a.maxHp = 1000; a.hp = 500; G.win = 1; h.map.pcDone(a, 'ow'); assert(Math.abs(a.hp - 500 - G.heal) < 1e-6, '이기면 회복');
+  G.win = 0; h.map.pcDone(a, 'rb'); G.win = w; h.hitstop = 0;
+  hp = a.hp; h.damage(a, 10, null, {}); assert(Math.abs(hp - a.hp - 10 * G.loseTaken) < 1e-6, '지면 받는 피해↑');
+  hp = c.hp; h.damage(c, 10, a, { noMult: true }); assert(Math.abs(hp - c.hp - 10 * G.loseDeal) < 1e-6, '지면 주는 피해↑');
+  a.data.pcCd = 0; a.x = T.x + 30; a.y = T.y + T.h + a.r + 2; c.x = T.x + 900; h.map.update(DT); assert(!a.data.pc, '테이블 구석은 안 됨');
+  a.x = h.map.pcSpot().x; h.map.update(DT); assert(a.data.pc, '모니터 앞자리');
+});
 test('맵: 정발산 비흡연자 독 2배 · 2층 분리 중엔 층이 다르면 공격 안 닿음 · 소주', () => {
   const bt = new Battle(['gym', 'hau'], 'ffa', { map: 'workroom' });
   bt.map.setSub('jbs');
