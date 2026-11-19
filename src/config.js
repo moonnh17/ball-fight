@@ -251,7 +251,7 @@ var CONFIG = {
       pavlov2: { cd: 9, tick: 1, life: 8, radius: 46, offAngle: 0.6, restun: 0.3 },   // 경로가 offAngle(라디안) 넘게 틀어지면 restun초 멈칫 후 다시 핸드폰으로
     },
     kojeom: {   // 원요섭 (코점남의 모습)
-      hp: 150, speed: 450, radius: 70, color: '#ff2bd6', phase2Color: '#ffd400',
+      hp: 145, speed: 450, radius: 70, color: '#ff2bd6', phase2Color: '#ffd400',
       drawEvery: 10,   // 1스킬 코점남의 모험: 이 간격으로 무기 뽑기
       slot: 1.1,       // 뽑을 때 슬롯머신 도는 시간 (그동안 안 쏨)
       // 무기별 every: 평소 공격 간격, 기관총은 mag발 쏘고 reload초 장전
