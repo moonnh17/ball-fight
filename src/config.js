@@ -65,13 +65,21 @@ var CONFIG = {
       wellusHeal: 1.3,                                                        // 이장님 웰우스 개방 회복량
       pcZone: 95, pcTime: 3, yooMul: 2, pcCd: 6, chiefCd: 4, codeBuff: 1.05, stockDown: 0.7, stockSmash: 0.1, seoriSmash: 0.3, brokenTime: 20,
       game: { win: 0.5, heal: 20, loseTime: 6, loseTaken: 1.3, loseDeal: 1.3 },   // 오버워치·로블록스: 이기면 heal 회복, 지면 loseTime초 동안 받는·주는 피해 x1.3
-      ow: ['한규성', '유재후', '진형권', '차승민', '이윤빈'], roblox: ['유재운', '김선율', '조하람', '조우연'],
+      ow: ['한규성', '유재후', '진형권', '차승민', '이윤빈'], roblox: ['유재운', '김선율', '조하람', '조우연'], lol: ['원요섭'],
       yuk: { every: 9, max: 2, heal: 10, soup: 20, tick: 0.25, spill: 0.05 }, angerTime: 6, angerMul: 1.3,   // 육개장 국물 쏟으면 문남휘 공격력 x1.3
     },
     mind: {
       spawn: 5, maxUndead: 1, undeadLife: 16, undeadSpeed: 80, orbit: 120, orbitSpeed: 2.4, touch: 3,
       rehearsal: 18, away: 5, poisonDps: 6, poisonTime: 3, slow: 0.6, slowTime: 3, jooRespawn: 30,
       ramen: { every: 9, max: 2, heal: 10, soup: 20, tick: 0.25, spill: 0.05 },   // 편의점 라면: 바로 10 + 국물 0.5초마다 1씩 총 20 (5% 쏟음, 마시다 맞으면 쏟음)
+    },
+    hanu: {   // 안성마춤 한우촌
+      arrive: 0.12, party: 3, stay: 40, grannyChance: 0.25,         // 1초마다 arrive 확률로 손님 1~party명 (빈 방이 있을 때) · 방에서 stay초 먹고 나감 · 손님 올 때 grannyChance 확률로 휠체어 할머니
+      guest: { speed: 150, r: 34, damage: 5, knock: 520 },     // 손님에게 닿으면 밀쳐짐 + 피해
+      uncle: { delay: 3, speed: 190, r: 40, damage: 8, burnTime: 3, burnDps: 4, knock: 420 },   // 손님 들어가고 delay초 뒤 삼촌이 숯 들고 옴: 닿으면 화상 + 피해
+      granny: { speed: 75, r: 50, knock: 750 },                // 휠체어 할머니: 계속 돌아다님, 닿으면 밀쳐짐
+      grill: { every: 20, time: 6 },                           // 숯 들어가면 바로, 그 뒤 20초마다 한 명을 6초 동안 납치 (한규성은 짤려서 제외)
+      snack: { every: 10, max: 2, heal: 15, yukhoe: 0.12, yukHeal: 35 },   // 산도할매의 간식 / 낮은 확률로 서비스 육회
     },
   },
   // 보스 수치: 기본값 위에 easy / hard 값을 덮어씀. 체력 = hpPerPlayer x 도전자 수^hpExp (인원 많으면 광역기가 나눠 맞아서)

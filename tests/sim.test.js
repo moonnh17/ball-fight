@@ -1392,6 +1392,43 @@ test('맵: 담요 깨우면 x2 · 끝까지 자면 회복 / 담배 다 피면 �
   a.data.pcCd = 0; a.x = T.x + 30; a.y = T.y + T.h + a.r + 2; c.x = T.x + 900; h.map.update(DT); assert(!a.data.pc, '테이블 구석은 안 됨');
   a.x = h.map.pcSpot().x; h.map.update(DT); assert(a.data.pc, '모니터 앞자리');
 });
+test('맵: 한우촌 — 방 수만큼 손님 · 방 · 우물 벽 · 숯 화상 · 납치(한규성 제외) · 할머니 · 간식 / 원요섭은 롤', () => {
+  const H = M.hanu, HanuPerson = vm.runInContext('HanuPerson', ctx);
+  const bt = new Battle(['gym', 'ibi'], 'ffa', { map: 'hanu' }), m = bt.map, G = ctx.hanuGeo(bt.arena), [g, ibi] = bt.balls;
+  bt.balls.forEach(b => { b.maxHp = b.hp = 100000; }); bt.hitstop = 0;
+  assert(m.rooms.length === 7 && G.rooms.length === 7, '방 7개');
+  const ar = H.arrive; H.arrive = 1;
+  for (let f = 0; f < 60 * 12; f++) bt.update(DT);
+  H.arrive = ar;
+  assert(m.rooms.every(r => r.state), '빈 방마다 손님');
+  const guests = bt.ents.filter(e => e instanceof HanuPerson && e.kind === 'guest' && !e.dead).length;
+  assert(guests <= 7 * H.party, '손님은 방 수만큼');
+  // 벽: 방 안 · 우물 안에 박히면 마당 쪽으로
+  const R = G.rooms[0]; g.x = R.x + R.w / 2; g.y = R.y + R.h / 2; m.walls(g); assert(g.x >= R.x + R.w, '방 밖으로');
+  g.x = G.well.x + 1; g.y = G.well.y; m.walls(g); assert(Math.hypot(g.x - G.well.x, g.y - G.well.y) >= G.well.r + g.r - 1e-6, '우물 밖으로');
+  // 납치: 한규성은 안 끌려감
+  m.rooms.forEach(r => { r.fire = false; }); m.rooms[2].fire = true;
+  g.hidden = ibi.hidden = false; g.data.grill = ibi.data.grill = null;
+  m.kidnap(G); assert(g.hidden && g.data.grill && !ibi.hidden, '한규성 말고 납치');
+  g.data.grill.t = 0.001; m.updHanu(DT); assert(!g.hidden && !g.data.grill, '고기 다 굽고 복귀');
+  // 숯 든 삼촌: 피해 + 화상 / 할머니: 밀치기만
+  g.x = bt.arena.x + 500; g.y = bt.arena.y + 300; g.status.burn = 0; let hp = g.hp;
+  const u = new HanuPerson(bt, 'uncle', { x: g.x + 10, y: g.y }, [], { carry: true }); u.update(DT);
+  assert(g.hp < hp && g.status.burn > 0, '숯: 피해 + 화상');
+  hp = g.hp; const vx = g.vx; const gr = new HanuPerson(bt, 'granny', { x: g.x + 10, y: g.y }, [], {}); gr.update(DT);
+  assert(g.hp === hp && g.vx !== vx, '할머니는 밀치기만');
+  const gc = H.grannyChance; H.grannyChance = 1; m.granny = null; m.rooms[6].state = null; m.guestsIn(6, G); H.grannyChance = gc;
+  for (let f = 0; f < 60 * 30; f++) bt.update(DT);
+  assert(m.granny && isFinite(m.granny.x) && bt.balls.every(b => isFinite(b.x)), '할머니가 돌아다님');
+  hp = g.hp = 500; Ctx_eat('sando', bt, g); assert(Math.abs(g.hp - 500 - H.snack.heal) < 1e-6, '산도할매 간식');
+  g.hp = 500; Ctx_eat('yukhoe', bt, g); assert(Math.abs(g.hp - 500 - H.snack.yukHeal) < 1e-6, '서비스 육회');
+  // 원요섭 컴퓨터: 롤 (모션 흔들림, 끝나면 원래대로)
+  const h = new Battle(['kojeom', 'chino'], 'ffa', { map: 'hall' }), k = h.balls[0];
+  assert(ctx.pcMode(k) === 'lol', '원요섭은 롤');
+  k.data.pc = { t: 0.5, mode: 'lol' }; h.map.pc.user = k; h.map.updHall(DT);
+  assert(k.data.lolJ, '롤 모션');
+  k.data.pc.t = 0.001; h.map.updHall(DT); h.map.updHall(DT); assert(!k.data.pc && k.jx === 0 && !k.data.lolJ, '끝나면 모션 멈춤');
+});
 test('맵: 정발산 비흡연자 독 2배 · 2층 분리 중엔 층이 다르면 공격 안 닿음 · 소주', () => {
   const bt = new Battle(['gym', 'hau'], 'ffa', { map: 'workroom' });
   bt.map.setSub('jbs');

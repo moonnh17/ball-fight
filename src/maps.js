@@ -1,6 +1,6 @@
 // 맵: 바닥 그림 · 맵 벽 · 주기 이벤트 · 맵 아이템. Battle이 this.map(MapRun)으로 부름 (보스전은 맵 없음)
 // 수치는 CONFIG.maps
-var MAP_IDS = ['workroom', 'mind', 'hall'];
+var MAP_IDS = ['workroom', 'mind', 'hall', 'hanu'];
 var MAPS = {
   workroom: {
     id: 'workroom', no: '01', name: '작업실', color: '#ffb347',
@@ -28,11 +28,22 @@ var MAPS = {
     id: 'hall', no: '03', name: '마을회관', color: '#ffd27a',
     lines: [
       '시간이 지날수록 옷 · 음료수 병 · 라면 용기 같은 쓰레기가 쌓임, 밟으면 잠시 이동속도 감소 (싸방 멤버는 면역)',
-      '왼쪽 위 컴퓨터 (모니터 앞 점선 자리에 들어가면 사용): 한규성 · 유재후 · 진형권 · 차승민 · 이윤빈은 오버워치, 유재운 · 김선율 · 조하람 · 조우연은 로블록스 (담배타임처럼 행동불능 + 받는 피해 2배, 유재후는 2배 오래) · 게임은 50%로 승패: 이기면 체력 +20, 지면 6초 동안 받는·주는 피해 x1.3',
+      '왼쪽 위 컴퓨터 (모니터 앞 점선 자리에 들어가면 사용): 한규성 · 유재후 · 진형권 · 차승민 · 이윤빈은 오버워치, 유재운 · 김선율 · 조하람 · 조우연은 로블록스, 원요섭은 롤 (담배타임처럼 행동불능 + 받는 피해 2배, 유재후는 2배 오래) · 게임은 50%로 승패: 이기면 체력 +20, 지면 6초 동안 받는·주는 피해 x1.3',
       '컴퓨터: 개발자 문남휘는 코딩해서 자기 스탯 +5% · 최휘는 주식 (끝나면 한 번 더 등락, 70% 하락, 하락하면 10% 컴퓨터 박살) · 서리는 30% 박살',
       '한규성(이비) 규순이 각성에 특수 패턴 워터밤이 추가됨 (마을회관에서만)',
       '이장님 문남휘: 컴퓨터 앞자리에 오면 꺼버림 (다른 사람이 닿으면 켜지지만 그 사람은 그때 게임 못 함) · 웰우스 개방 회복량 +30% · 대청소 중엔 쓰레기가 점점 사라짐',
       '아이템: 육개장 컵라면 — 편의점 라면과 같음, 국물을 쏟으면 문남휘가 개빡쳐서 공격력 증가',
+    ],
+  },
+  hanu: {
+    id: 'hanu', no: '04', name: '안성마춤 한우촌', color: '#e0704a',
+    lines: [
+      '한옥 고깃집: 위쪽 출입구, 가운데 우물(벽), 마당을 둘러싼 방 7개, 왼쪽 아래 고기 가판대',
+      '손님: 1초마다 12% 확률로 손님 1~3명이 들어와 빈 방으로 감 (방 수만큼) · 닿으면 밀쳐지고 5 피해 · 40초 먹고 나감',
+      '삼촌: 손님이 들어가고 3초 뒤 가판대에서 숯을 들고 방으로 감 · 닿으면 8 피해 + 화상',
+      '납치: 숯이 들어가면 바로, 그 뒤 20초마다 한 명이 고기 구우러 6초 동안 끌려감 (한규성은 한우촌에서 짤려서 안 끌려감)',
+      '휠체어 할머니: 손님이 올 때 25% 확률로 같이 옴, 맵을 계속 돌아다님 · 닿으면 크게 밀쳐짐',
+      '아이템: 산도할매의 간식(체력 +15) · 12% 확률로 서비스 육회(체력 +35)',
     ],
   },
 };
@@ -41,6 +52,7 @@ var SUB_MAPS = {
   jbs:    { name: '정발산', color: '#e8e8ff' },
   mind:   { name: '마인드', color: '#9cff57' },
   hall:   { name: '마을회관', color: '#ffd27a' },
+  hanu:   { name: '한우촌', color: '#e0704a' },
 };
 // 맵에 나오는 사람 공 (사진은 assets/joohyunji.* 를 넣으면 자동으로 씀, 없으면 글자 원)
 var MAP_BALLS = {
@@ -70,6 +82,7 @@ class MapRun {
     this.split = this.sub === 'jbs';
     this.clk = {}; this.smokes = []; this.trash = []; this.pc = { user: null, broken: 0 }; this.split = false; this.splitK = 0; this.splitT = 0; this.vent = 0; this.flash = 0;
     this.swapIn = CONFIG.maps.workroom.swap;
+    this.rooms = id === 'hanu' ? hanuGeo(bt.arena).rooms.map(function () { return { state: null, fire: false }; }) : []; this.grillT = 0; this.granny = null;
     var T = this.target(); bt.arena.y = T.y; bt.arena.h = T.h;   // 산내로 시작하면 처음부터 정사각형 (배치 전에)
   }
   get subName() { return SUB_MAPS[this.sub].name; }
@@ -104,6 +117,7 @@ class MapRun {
         if (p.x > A.x + A.w * (1 - c.notchW) - 60 && p.y < A.y + A.w * c.notchH + 60) return true;
         if (Math.hypot(p.x - A.x - A.w, p.y - A.y - A.h) < c.window * k + 90) return true;
       }
+      if (self.sub === 'hanu' && hanuBad(hanuGeo(A), p)) return true;
       if (self.sub === 'hall') { var T = self.table(), S = self.pcSpot(); if (p.x > T.x - 70 && p.x < T.x + T.w + 70 && p.y > T.y - 70 && p.y < T.y + T.h + 100) return true; if (Math.hypot(p.x - S.x, p.y - S.y) < S.r + 60) return true; }
       return !loose && bt.balls.some(function (o) { return o.alive && Math.hypot(o.x - p.x, o.y - p.y) < o.r + 90; });
     }
@@ -146,6 +160,7 @@ class MapRun {
     else if (this.sub === 'jbs') this.updJbs(dt);
     else if (this.sub === 'mind') this.updMind(dt);
     else if (this.sub === 'hall') this.updHall(dt);
+    else if (this.sub === 'hanu') this.updHanu(dt);
     var tk = this.splitK + ((this.split ? 1 : 0) - this.splitK) * Math.min(1, dt * 6);
     this.splitK = Math.abs(tk - (this.split ? 1 : 0)) < 0.01 ? (this.split ? 1 : 0) : tk;
   }
@@ -325,9 +340,11 @@ class MapRun {
     if (pc.broken > 0) { pc.broken -= dt; if (pc.broken <= 0) FX.text(T.x + T.w / 2, T.y - 20, '컴퓨터 수리 완료', '#9cff57', 38, 1.0); }
     this.players().forEach(function (b) {
       var u = b.data.pc;
+      if (!u && b.data.lolJ) { b.data.lolJ = false; b.jx = b.jy = 0; }
       if (u) {
         if (b.hidden) { b.data.pc = null; b.status.hold = 0; pc.user = null; return; }
         u.t -= dt; b.vx *= 0.85; b.vy *= 0.85;
+        if (u.mode === 'lol') lolMotion(bt, b, dt);
         if (u.t <= 0) self.pcDone(b, u.mode);
         return;
       }
@@ -376,10 +393,10 @@ class MapRun {
       if (!up && Math.random() < c.stockSmash) this.smashPc('떡락에 빡쳐서 컴퓨터 박살!');
     } else if (Math.random() < c.game.win) {   // 오버워치 · 로블록스: 이기면 회복
       bt.heal(b, c.game.heal);
-      FX.text(b.x, b.y - b.r - 50, mode === 'ow' ? '이겼다! 승리 🏆' : '로블록스 1등! 🏆', '#9cff57', 40, 1.0); FX.sfx('powerup');
+      FX.text(b.x, b.y - b.r - 50, mode === 'ow' ? '이겼다! 승리 🏆' : mode === 'lol' ? '넥서스 파괴! 승리 🏆' : '로블록스 1등! 🏆', '#9cff57', 40, 1.0); FX.sfx('powerup');
     } else {   // 지면 잠시 받는 피해 · 주는 피해 증가
       b.data.pcLose = bt.time + c.game.loseTime;
-      FX.text(b.x, b.y - b.r - 50, mode === 'ow' ? '졌다… 빡침 😡' : '로블록스 패배 😡', '#ff6b6b', 40, 1.0); FX.sfx('glitch');
+      FX.text(b.x, b.y - b.r - 50, mode === 'ow' ? '졌다… 빡침 😡' : mode === 'lol' ? '패배… 정글 차이 😡' : '로블록스 패배 😡', '#ff6b6b', 40, 1.0); FX.sfx('glitch');
     }
     var a = Math.atan2(A.y + A.h / 2 - b.y, A.x + A.w / 2 - b.x); b.vx = Math.cos(a) * b.speed; b.vy = Math.sin(a) * b.speed;
     bt.emit('pcDone', { who: b.def.id, mode: mode });
@@ -391,6 +408,80 @@ class MapRun {
     FX.text(T.x + T.w / 2, T.y - 20, msg, '#ff6b6b', 44, 1.4); FX.sfx('shatter'); FX.shake(14);
     FX.burst(T.x + T.w * 0.55, T.y + T.h * 0.4, '#9fd8ff', 24, 700, 8, 0.6, 'spark');
     bt.emit('pcSmash');
+  }
+
+  // ---------- 안성마춤 한우촌 ----------
+  updHanu(dt) {
+    var c = CONFIG.maps.hanu, bt = this.bt, self = this, G = hanuGeo(bt.arena);
+    if (this.every('guest', 1, dt) && Math.random() < c.arrive) {   // 손님: 빈 방이 있을 때만
+      var free = []; this.rooms.forEach(function (r, i) { if (!r.state) free.push(i); });
+      if (free.length) this.guestsIn(free[Math.floor(Math.random() * free.length)], G);
+    }
+    this.rooms.forEach(function (r, i) {
+      var R = G.rooms[i];
+      if (r.uncleIn > 0 && (r.uncleIn -= dt) <= 0) {   // 삼촌이 가판대에서 숯 들고 출발
+        bt.add(new HanuPerson(bt, 'uncle', G.standDoor, hanuRoute(G, G.standDoor, R.door), { carry: true, onArrive: function (u) {
+          r.fire = true; u.carry = false; self.grillT = 0;   // 숯 들어가면 바로 납치
+          FX.burst(R.door.x, R.door.y, '#ff7a2a', 18, 500, 8, 0.5, 'spark'); FX.text(R.door.x, R.door.y - 50, '숯 들어갑니다~ 🔥', '#ffb070', 40, 1.0);
+          u.path = hanuRoute(G, R.door, G.standDoor); u.onArrive = function (u2) { u2.dead = true; };
+          bt.emit('charcoal', { room: i });
+        } }));
+        FX.text(G.standDoor.x, G.standDoor.y - 60, '숯 나갑니다! 🔥', '#ffb070', 40, 1.0); FX.sfx('arm');
+      }
+      if (r.state === 'eating' && r.fire && (r.eatT -= dt) <= 0) self.guestsOut(i, G);
+    });
+    if (this.rooms.some(function (r) { return r.fire; }) && (this.grillT -= dt) <= 0) { this.grillT = c.grill.every; this.kidnap(G); }
+    this.players().forEach(function (b) {   // 고기 다 구우면 그 방 앞으로 돌아옴
+      var g = b.data.grill;
+      if (!g) return;
+      b.hidden = true;
+      if ((g.t -= dt) > 0) return;
+      var R = G.rooms[g.room];
+      b.data.grill = null; b.hidden = false; b.x = R.door.x; b.y = R.door.y; b.vx = R.nx * b.speed; b.vy = (R.ny || _rnd(-0.5, 0.5)) * b.speed;
+      FX.ring(b.x, b.y, b.r, b.r * 2.5, 0.5, '#e0704a', 12); FX.text(b.x, b.y - b.r - 50, '고기 다 구웠다 🥩', '#ffcf9a', 40, 1.1);
+      bt.emit('grillBack', { who: b.def.id });
+    });
+    if (this.every('snack', c.snack.every, dt) && this.items('sando').length + this.items('yukhoe').length < c.snack.max) this.addItem(Math.random() < c.snack.yukhoe ? 'yukhoe' : 'sando', 'all');
+  }
+  guestsIn(i, G) {
+    var c = CONFIG.maps.hanu, bt = this.bt, r = this.rooms[i], R = G.rooms[i], n = 1 + Math.floor(Math.random() * c.party);
+    r.state = 'coming'; r.size = n; r.arrived = 0; r.fire = false; r.eatT = c.stay; r.uncleIn = 0;
+    for (var j = 0; j < n; j++) bt.add(new HanuPerson(bt, 'guest', G.gate, hanuRoute(G, G.gate, R.door), { wait: j * 0.55, onArrive: function (g) {
+      g.dead = true; FX.burst(g.x, g.y, '#f3e6c4', 10, 300, 8, 0.4, 'smoke');
+      if (++r.arrived >= r.size) { r.state = 'eating'; r.uncleIn = c.uncle.delay; }
+    } }));
+    FX.text(G.gate.x, G.gate.y + 70, '어서오세요~ ' + n + '명이요!', '#ffe2b0', 40, 1.1); FX.sfx('ding');
+    if (!this.granny && Math.random() < c.grannyChance) {   // 휠체어 할머니: 한 번 오면 계속 돌아다님
+      var self = this;
+      this.granny = new HanuPerson(bt, 'granny', G.gate, [hanuInner(G)], { wait: n * 0.55 + 0.4, onArrive: function wander(g) { g.path = hanuRoute(hanuGeo(bt.arena), g, hanuInner(hanuGeo(bt.arena))); } });
+      bt.add(this.granny);
+      FX.text(G.gate.x, G.gate.y + 115, '할머니도 오셨네 🦽', '#ffe2b0', 36, 1.2);
+    }
+    bt.emit('guests', { n: n, room: i });
+  }
+  guestsOut(i, G) {
+    var bt = this.bt, r = this.rooms[i], R = G.rooms[i], left = r.size;
+    r.state = 'leaving'; r.fire = false;
+    for (var j = 0; j < r.size; j++) bt.add(new HanuPerson(bt, 'guest', R.door, hanuRoute(G, R.door, G.gate), { wait: j * 0.55, onArrive: function (g) {
+      g.dead = true;
+      if (--left <= 0) r.state = null;
+    } }));
+    FX.text(R.door.x, R.door.y - 50, '잘 먹었습니다~', '#ffe2b0', 38, 1.0);
+    bt.emit('guestsOut', { room: i });
+  }
+  kidnap(G) {   // 고기 구우러 한 명 납치 (한규성은 짤려서 제외, 한 명은 꼭 남김)
+    var c = CONFIG.maps.hanu.grill, bt = this.bt, vis = this.players().filter(function (b) { return b.targetable; });
+    var pool = vis.filter(function (b) { return b.def.name !== '한규성'; }), fires = [];
+    this.rooms.forEach(function (r, i) { if (r.fire) fires.push(i); });
+    vis.forEach(function (b) { if (b.def.name === '한규성') FX.text(b.x, b.y - b.r - 60, '짤려서 안 끌려감 ✂️', '#d8d8d8', 38, 1.1); });
+    if (vis.length < 2 || !pool.length || !fires.length) return;
+    var b = pool[Math.floor(Math.random() * pool.length)], ri = fires[Math.floor(Math.random() * fires.length)], R = G.rooms[ri];
+    if (b.action) { if (b.action.end) b.action.end(); b.action = null; }
+    for (var i = 0; i < 6; i++) FX.particle({ x: b.x, y: b.y, vx: (R.door.x - b.x) * _rnd(1.5, 2.2), vy: (R.door.y - b.y) * _rnd(1.5, 2.2), life: 0.5, size: _rnd(10, 16), color: '#ffcf9a', shape: 'square' });
+    FX.ring(b.x, b.y, b.r, b.r * 2.5, 0.5, '#e0704a', 12);
+    b.data.grill = { t: c.time, room: ri }; b.hidden = true; b.vx = b.vy = 0;
+    FX.banner('고기 구우러 납치! 🥩', { color: '#e0704a', sub: b.name, size: 100, life: 1.3 }); FX.sfx('vanish');
+    bt.emit('kidnap', { who: b.def.id, room: ri });
   }
 
   // ---------- Battle 훅 ----------
@@ -418,6 +509,7 @@ class MapRun {
     var hit = false;
     if (this.sub === 'sannae') hit = _pushRect(b, this.notch());
     if (this.sub === 'hall') hit = _pushRect(b, this.table());
+    if (this.sub === 'hanu') hit = hanuWalls(hanuGeo(this.bt.arena), b);
     if (this.sub === 'jbs' && this.split) {
       var dy = this.divY(), h = 14;
       if (b.y < dy) { if (b.y + b.r > dy - h) { b.y = dy - h - b.r; b.vy = -Math.abs(b.vy); hit = true; } }
@@ -443,6 +535,7 @@ class MapRun {
     }
     if (this.sub === 'jbs') drawDivider(ctx, A, this.divY(), this.splitK, time);
     if (this.sub === 'hall') { this.trash.forEach(function (tr) { drawTrash(ctx, tr); }); drawPcSpot(ctx, this.pcSpot(), this.pc, time); drawTable(ctx, this.table(), this.pc, time); }
+    if (this.sub === 'hanu') drawHanuRooms(ctx, hanuGeo(A), this.rooms, time);
     if (this.flash > 0) { ctx.save(); ctx.globalAlpha = Math.min(1, this.flash) * 0.35; ctx.fillStyle = SUB_MAPS[this.sub].color; ctx.fillRect(A.x, A.y, A.w, A.h); ctx.restore(); }
   }
   drawTop(ctx, time) {
@@ -480,6 +573,7 @@ class MapRun {
     if (this.id === 'workroom') parts.push('변경 ' + Math.ceil(this.swapIn));
     if (this.sub === 'jbs') { parts.push('환기 ' + this.left('vent', c.jbs.vent)); parts.push((this.split ? '개방 ' : '분리 ') + this.left('split', c.jbs.split)); }
     if (this.sub === 'mind') parts.push('리허설 ' + this.left('rehearsal', c.mind.rehearsal));
+    if (this.sub === 'hanu') { parts.push('손님 방 ' + this.rooms.filter(function (r) { return r.state; }).length + '/' + this.rooms.length); if (this.rooms.some(function (r) { return r.fire; })) parts.push('납치 ' + Math.max(0, Math.ceil(this.grillT))); }
     if (this.sub === 'hall') { parts.push('쓰레기 ' + this.trash.length); if (this.pc.broken > 0) parts.push('컴퓨터 고장'); else if (this.pc.off) parts.push('컴퓨터 꺼짐'); }
     var txt = '🗺 ' + parts.join('  ·  ');
     ctx.font = '700 26px "Malgun Gothic",sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
@@ -686,9 +780,234 @@ function drawChair(ctx, s, black) {   // black: 디바 자세의 검은 의자
   ctx.restore();
 }
 
+// ---------- 안성마춤 한우촌 ----------
+// 배치: 위쪽 가운데 출입구 · 가운데 우물 · 왼쪽 2 / 오른쪽 3 / 아래 2 방 (문은 마당 쪽) · 왼쪽 아래 고기 가판대
+function hanuGeo(A) {
+  var k = A.w / 1000, d = 120 * k, W = A.w, H = A.h, rooms = [];
+  function room(x, y, w, h, nx, ny) { rooms.push({ x: x, y: y, w: w, h: h, nx: nx, ny: ny, door: { x: x + w / 2 + nx * (w / 2 + 45 * k), y: y + h / 2 + ny * (h / 2 + 45 * k) } }); }
+  [[0.13, 0.33], [0.35, 0.55]].forEach(function (q) { room(A.x, A.y + H * q[0], d, H * (q[1] - q[0]), 1, 0); });
+  [[0.13, 0.33], [0.35, 0.55], [0.57, 0.77]].forEach(function (q) { room(A.x + W - d, A.y + H * q[0], d, H * (q[1] - q[0]), -1, 0); });
+  [[0.30, 0.53], [0.55, 0.78]].forEach(function (q) { room(A.x + W * q[0], A.y + H - d, W * (q[1] - q[0]), d, 0, -1); });
+  var stand = { x: A.x, y: A.y + H * 0.79, w: W * 0.24, h: H * 0.21 };
+  return { k: k, d: d, A: A, rooms: rooms, stand: stand, standDoor: { x: stand.x + stand.w + 45 * k, y: stand.y + stand.h * 0.45 },
+    well: { x: A.x + W / 2, y: A.y + H * 0.47, r: 80 * k }, gate: { x: A.x + W / 2, y: A.y + 50 * k }, gateW: 240 * k };
+}
+function _inRect(p, R, m) { return p.x > R.x - m && p.x < R.x + R.w + m && p.y > R.y - m && p.y < R.y + R.h + m; }
+function hanuBad(G, p) {
+  var k = G.k;
+  return G.rooms.some(function (R) { return _inRect(p, R, 70 * k); }) || _inRect(p, G.stand, 70 * k) ||
+    Math.hypot(p.x - G.well.x, p.y - G.well.y) < G.well.r + 90 * k || (p.y < G.A.y + 140 * k && Math.abs(p.x - G.gate.x) < 170 * k);
+}
+// 방은 가장자리에 붙어 있어서, 안에 박히면 마당 쪽(문 방향)으로만 밀어냄
+function _pushRoom(b, R, nx, ny) {
+  if (b.x > R.x && b.x < R.x + R.w && b.y > R.y && b.y < R.y + R.h) {
+    if (nx) { b.x = nx > 0 ? R.x + R.w + b.r : R.x - b.r; if (b.vx * nx < 0) b.vx = -b.vx; }
+    else { b.y = ny > 0 ? R.y + R.h + b.r : R.y - b.r; if (b.vy * ny < 0) b.vy = -b.vy; }
+    return true;
+  }
+  return _pushRect(b, R);
+}
+function _pushCircle(b, C) {
+  var dx = b.x - C.x, dy = b.y - C.y, d = Math.hypot(dx, dy), m = C.r + b.r;
+  if (d >= m) return false;
+  if (d < 0.001) { dx = 0; dy = 1; d = 1; }
+  var nx = dx / d, ny = dy / d, vn = b.vx * nx + b.vy * ny;
+  b.x = C.x + nx * m; b.y = C.y + ny * m;
+  if (vn < 0) { b.vx -= 2 * vn * nx; b.vy -= 2 * vn * ny; }
+  return true;
+}
+function hanuWalls(G, b) {
+  var hit = false;
+  G.rooms.forEach(function (R) { if (_pushRoom(b, R, R.nx, R.ny)) hit = true; });
+  if (_pushRoom(b, G.stand, 1, 0)) hit = true;
+  if (_pushCircle(b, G.well)) hit = true;
+  return hit;
+}
+// 사람들이 걷는 길: 우물에 걸리면 옆으로 돌아감
+function hanuRoute(G, p, q) {
+  var W = G.well, dx = q.x - p.x, dy = q.y - p.y, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+  var t = _mapClamp((W.x - p.x) * ux + (W.y - p.y) * uy, 0, L);
+  if (Math.hypot(W.x - p.x - ux * t, W.y - p.y - uy * t) > W.r + 70 * G.k) return [{ x: q.x, y: q.y }];
+  var px = -uy, py = ux, sd = (W.x - p.x) * px + (W.y - p.y) * py >= 0 ? -1 : 1, R = W.r + 120 * G.k;
+  return [{ x: W.x + px * sd * R, y: W.y + py * sd * R }, { x: q.x, y: q.y }];
+}
+// 할머니가 갈 마당 안 아무 곳 (방 · 우물 피해서)
+function hanuInner(G) {
+  var A = G.A, k = G.k, p;
+  for (var i = 0; i < 20; i++) {
+    p = { x: _rnd(A.x + G.d + 80 * k, A.x + A.w - G.d - 80 * k), y: _rnd(A.y + A.h * 0.15, A.y + A.h - G.d - 80 * k) };
+    if (!hanuBad(G, p)) break;
+  }
+  return p;
+}
+// 손님 · 삼촌 · 휠체어 할머니: 길 따라 걷고, 닿은 공을 밀어냄
+var HANU_FACES = ['🧑', '👨', '👩', '🧔', '👱', '👴', '👨‍🦳', '👩‍🦰'], HANU_CLOTHES = ['#3a5a9a', '#7a3a3a', '#3a6a4a', '#5a4a7a', '#6a6a6a', '#9a6a2a'];
+class HanuPerson {
+  constructor(bt, kind, p, path, o) {
+    var c = CONFIG.maps.hanu[kind];
+    this.bt = bt; this.kind = kind; this.x = p.x; this.y = p.y; this.path = path; this.wait = o.wait || 0; this.onArrive = o.onArrive; this.carry = !!o.carry;
+    this.r = c.r; this.speed = c.speed; this.t = 0; this.z = 0; this.cd = {}; this.dir = Math.PI / 2;
+    this.face = HANU_FACES[Math.floor(Math.random() * HANU_FACES.length)]; this.cloth = HANU_CLOTHES[Math.floor(Math.random() * HANU_CLOTHES.length)];
+  }
+  update(dt) {
+    if (this.wait > 0) { this.wait -= dt; return; }
+    var bt = this.bt, self = this, c = CONFIG.maps.hanu[this.kind], q = this.path[0];
+    this.t += dt;
+    if (q) {
+      var dx = q.x - this.x, dy = q.y - this.y, d = Math.hypot(dx, dy), st = this.speed * dt;
+      if (d <= st) { this.x = q.x; this.y = q.y; this.path.shift(); if (!this.path.length && this.onArrive) this.onArrive(this); }
+      else { this.x += dx / d * st; this.y += dy / d * st; this.dir = Math.atan2(dy, dx); }
+    }
+    if (this.dead) return;
+    if (this.kind === 'uncle' && this.carry && Math.random() < dt * 14) FX.particle({ x: this.x + Math.cos(this.dir) * this.r, y: this.y + Math.sin(this.dir) * this.r - 10, vx: _rnd(-30, 30), vy: _rnd(-120, -60), life: 0.5, size: _rnd(6, 11), color: Math.random() < 0.5 ? '#ff7a2a' : '#ffd400', shape: 'square' });
+    bt.balls.forEach(function (b) {
+      if (!b.targetable || b.air || b.isBoss) return;
+      var dx = b.x - self.x, dy = b.y - self.y, d = Math.hypot(dx, dy), m = b.r + self.r;
+      if (d >= m) return;
+      if (d < 0.001) { dx = 1; dy = 0; d = 1; }
+      var nx = dx / d, ny = dy / d;
+      b.x = self.x + nx * m; b.y = self.y + ny * m;
+      if (self.cd[b.id] > bt.time) return;
+      self.cd[b.id] = bt.time + 0.7;
+      b.vx += nx * c.knock; b.vy += ny * c.knock;
+      if (self.kind === 'guest') { bt.damage(b, c.damage, null, { color: '#ffcf9a', kind: 'guest' }); FX.sfx('thump'); }
+      else if (self.kind === 'uncle' && self.carry) {
+        bt.damage(b, c.damage, null, { color: '#ff7a2a', kind: 'charcoal' });
+        b.status.burn = Math.max(b.status.burn, c.burnTime); b.status.burnDps = c.burnDps; b.status.burnSrc = null;
+        FX.text(b.x, b.y - b.r - 50, '앗 뜨거! 숯이다 🔥', '#ff9a5a', 40, 0.9); FX.burst(b.x, b.y, '#ff7a2a', 12, 400, 7, 0.4, 'spark'); FX.sfx('fire');
+      } else if (self.kind === 'granny' && !(b.data.grannyMsg > bt.time)) { b.data.grannyMsg = bt.time + 2; FX.text(b.x, b.y - b.r - 50, '어이쿠 할머니!', '#ffe2b0', 36, 0.8); FX.sfx('thump'); }
+      bt.emit('hanuHit', { who: b.def.id, by: self.kind });
+    });
+  }
+  draw(ctx) {
+    if (this.wait > 0) return;
+    var x = this.x, y = this.y + Math.sin(this.t * 10) * 2, r = this.r, k = this.kind;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x + 4, this.y + r * 0.7, r * 1.05, r * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+    if (k === 'granny') {   // 휠체어: 양옆 큰 바퀴 + 등받이
+      ctx.save(); ctx.translate(x, y); ctx.rotate(this.dir - Math.PI / 2);
+      ctx.fillStyle = '#5a5a66'; ctx.fillRect(-r * 0.8, -r * 1.05, r * 1.6, r * 0.35);
+      [-1, 1].forEach(function (s) {
+        ctx.fillStyle = '#22222a'; ctx.fillRect(s * r * 1.02 - r * 0.16, -r * 0.75, r * 0.32, r * 1.5);
+        ctx.strokeStyle = '#b8b8c8'; ctx.lineWidth = 3; ctx.strokeRect(s * r * 1.02 - r * 0.16, -r * 0.75, r * 0.32, r * 1.5);
+      });
+      ctx.restore();
+    }
+    ctx.fillStyle = k === 'uncle' ? '#f4f4f0' : k === 'granny' ? '#b07aa8' : this.cloth;
+    ctx.strokeStyle = 'rgba(20,10,5,0.75)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.font = Math.round(r * 1.25) + 'px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(k === 'uncle' ? '👨‍🍳' : k === 'granny' ? '👵' : this.face, x, y + 2);
+    if (k === 'uncle' && this.carry) {   // 숯불 화로
+      var hx = x + Math.cos(this.dir) * r * 1.05, hy = y + Math.sin(this.dir) * r * 1.05;
+      ctx.fillStyle = '#3a3a40'; ctx.beginPath(); ctx.arc(hx, hy, 20, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#8a8a90'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.shadowColor = '#ff7a2a'; ctx.shadowBlur = 22;
+      for (var i = 0; i < 5; i++) { ctx.fillStyle = Math.sin(this.t * 9 + i * 2) > 0 ? '#ff7a2a' : '#ffb000'; ctx.beginPath(); ctx.arc(hx + Math.cos(i * 1.3) * 9, hy + Math.sin(i * 1.3) * 9, 6, 0, Math.PI * 2); ctx.fill(); }
+      ctx.shadowBlur = 0;
+    }
+    if (k !== 'guest') FX.outlined(ctx, k === 'uncle' ? '삼촌' : '할머니', x, y + r + 18, 20, k === 'uncle' ? '#ffcf9a' : '#f0c8ff');
+    ctx.restore();
+  }
+  light() { return { x: this.x, y: this.y, r: this.kind === 'uncle' && this.carry ? 150 : 90 }; }
+}
+// 방 상태: 손님 있으면 창호지에 불빛, 숯이 들어갔으면 붉게 일렁 + 연기
+function drawHanuRooms(ctx, G, rooms, time) {
+  ctx.save();
+  rooms.forEach(function (r, i) {
+    if (!r.state) return;
+    var R = G.rooms[i], lit = r.fire ? 0.35 + Math.sin(time * 7 + i) * 0.08 : r.state === 'eating' || r.state === 'leaving' ? 0.22 : 0.08;
+    ctx.fillStyle = r.fire ? 'rgba(255,120,40,' + lit + ')' : 'rgba(255,220,140,' + lit + ')'; ctx.fillRect(R.x, R.y, R.w, R.h);
+    ctx.font = '34px "Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (r.fire) {
+      ctx.fillText('🥩', R.x + R.w / 2, R.y + R.h / 2);
+      ctx.globalAlpha = 0.5;
+      for (var j = 0; j < 3; j++) { var f = (time * 0.6 + j / 3) % 1; ctx.fillStyle = '#d8d8d8'; ctx.beginPath(); ctx.arc(R.x + R.w / 2 + Math.sin(time * 2 + j) * 10, R.y + R.h / 2 - 20 - f * 50, 8 + f * 10, 0, Math.PI * 2); ctx.fill(); }
+      ctx.globalAlpha = 1;
+    } else if (r.state === 'eating') ctx.fillText('🍽', R.x + R.w / 2, R.y + R.h / 2);
+  });
+  ctx.restore();
+}
+// 바닥: 붉은빛 갈색 마루 + 방(창호지 문 · 기와) + 우물 + 출입구 + 고기 가판대
+MAP_FLOORS.hanu = function (ctx, A, t) {
+  var G = hanuGeo(A), k = G.k, ph = 46 * k;
+  ctx.save(); ctx.beginPath(); ctx.rect(A.x, A.y, A.w, A.h); ctx.clip();
+  ctx.fillStyle = '#6a3222'; ctx.fillRect(A.x, A.y, A.w, A.h);
+  for (var y = 0, j = 0; y < A.h; y += ph, j++) {
+    ctx.fillStyle = j % 2 ? '#74382a' : '#683022'; ctx.fillRect(A.x, A.y + y, A.w, ph);
+    ctx.fillStyle = '#3e1a10'; ctx.fillRect(A.x, A.y + y, A.w, 3 * k);
+    for (var x = ((j * 211) % 380) * k; x < A.w; x += 380 * k) ctx.fillRect(A.x + x, A.y + y, 3 * k, ph);
+    ctx.fillStyle = 'rgba(255,190,150,0.05)';
+    for (var gx = ((j * 67) % 110) * k; gx < A.w; gx += 110 * k) ctx.fillRect(A.x + gx, A.y + y + ph * (0.3 + (j % 3) * 0.17), 60 * k, 2 * k);
+  }
+  var g = ctx.createRadialGradient(G.well.x, G.well.y, 0, G.well.x, G.well.y, A.w * 0.7);
+  g.addColorStop(0, 'rgba(255,200,140,0.14)'); g.addColorStop(1, 'rgba(255,160,90,0)');
+  ctx.fillStyle = g; ctx.fillRect(A.x, A.y, A.w, A.h);
+  _logo(ctx, { x: A.x, y: A.y + A.h * 0.66, w: A.w, h: 10 }, '한우촌', '#ffcf9a', 0.07);
+  // 방
+  G.rooms.forEach(function (R) {
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(R.x + R.nx * 8, R.y + R.ny * 8, R.w, R.h);
+    ctx.fillStyle = '#3a2214'; ctx.fillRect(R.x, R.y, R.w, R.h);
+    var tile = 26 * k, ins = 10 * k;   // 바깥쪽 기와 띠
+    ctx.fillStyle = '#2c2f36';
+    if (R.nx) ctx.fillRect(R.nx > 0 ? R.x : R.x + R.w - tile, R.y, tile, R.h); else ctx.fillRect(R.x, R.y + R.h - tile, R.w, tile);
+    ctx.fillStyle = '#efe2c0';   // 창호지 문
+    var px = R.x + (R.nx < 0 ? ins : R.nx > 0 ? tile + 4 * k : ins), py = R.y + (R.ny ? ins : ins), pw = R.w - ins - (R.nx ? tile + 4 * k : ins), phh = R.h - ins - (R.ny ? tile + 4 * k : ins);
+    ctx.fillRect(px, py, pw, phh);
+    ctx.strokeStyle = '#5a3418'; ctx.lineWidth = 2.5 * k; ctx.beginPath();
+    for (var lx = px + 16 * k; lx < px + pw; lx += 16 * k) { ctx.moveTo(lx, py); ctx.lineTo(lx, py + phh); }
+    for (var ly = py + 20 * k; ly < py + phh; ly += 20 * k) { ctx.moveTo(px, ly); ctx.lineTo(px + pw, ly); }
+    ctx.stroke();
+    ctx.strokeStyle = '#2a160a'; ctx.lineWidth = 6 * k; ctx.strokeRect(R.x, R.y, R.w, R.h);
+    ctx.lineWidth = 5 * k; ctx.beginPath();   // 가운데 문틀
+    if (R.nx) { ctx.moveTo(px, py + phh / 2); ctx.lineTo(px + pw, py + phh / 2); } else { ctx.moveTo(px + pw / 2, py); ctx.lineTo(px + pw / 2, py + phh); }
+    ctx.stroke();
+    ctx.fillStyle = '#4a2c18'; ctx.fillRect(R.door.x - (R.nx ? 22 : 40) * k, R.door.y - (R.nx ? 40 : 22) * k, (R.nx ? 44 : 80) * k, (R.nx ? 80 : 44) * k);   // 댓돌
+    ctx.fillStyle = '#8a8a86'; ctx.fillRect(R.door.x - (R.nx ? 16 : 32) * k, R.door.y - (R.nx ? 32 : 16) * k, (R.nx ? 32 : 64) * k, (R.nx ? 64 : 32) * k);
+  });
+  // 우물: 돌 테두리 + 물 + 도르래 나무
+  var W = G.well;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(W.x + 8 * k, W.y + 10 * k, W.r, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#8c8a84'; ctx.beginPath(); ctx.arc(W.x, W.y, W.r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#5a5852'; ctx.lineWidth = 3 * k;
+  for (var a = 0; a < 12; a++) { var aa = a / 12 * Math.PI * 2; ctx.beginPath(); ctx.moveTo(W.x + Math.cos(aa) * W.r * 0.68, W.y + Math.sin(aa) * W.r * 0.68); ctx.lineTo(W.x + Math.cos(aa) * W.r, W.y + Math.sin(aa) * W.r); ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(W.x, W.y, W.r, 0, Math.PI * 2); ctx.stroke();
+  var wg = ctx.createRadialGradient(W.x, W.y, 0, W.x, W.y, W.r * 0.68); wg.addColorStop(0, '#0a1a22'); wg.addColorStop(1, '#1d3e4a');
+  ctx.fillStyle = wg; ctx.beginPath(); ctx.arc(W.x, W.y, W.r * 0.66, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(180,230,255,0.25)'; ctx.lineWidth = 2 * k; ctx.beginPath(); ctx.arc(W.x, W.y, W.r * (0.3 + (t * 0.15) % 0.3), 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#5a3418'; ctx.fillRect(W.x - W.r * 1.15, W.y - 7 * k, W.r * 2.3, 14 * k);   // 도르래 막대
+  ctx.fillRect(W.x - W.r * 1.2, W.y - 14 * k, 14 * k, 28 * k); ctx.fillRect(W.x + W.r * 1.2 - 14 * k, W.y - 14 * k, 14 * k, 28 * k);
+  ctx.fillStyle = '#8a5a30'; ctx.beginPath(); ctx.arc(W.x + W.r * 0.25, W.y + W.r * 0.3, 13 * k, 0, Math.PI * 2); ctx.fill();   // 두레박
+  // 출입구 (위쪽 가운데): 기와 지붕 + 열린 대문 + 현판
+  var gw = G.gateW, gx = G.gate.x - gw / 2;
+  ctx.fillStyle = '#2c2f36'; ctx.fillRect(gx - 20 * k, A.y, gw + 40 * k, 34 * k);
+  ctx.fillStyle = '#3c4048'; for (var tx = gx - 20 * k; tx < gx + gw + 20 * k; tx += 20 * k) ctx.fillRect(tx, A.y, 10 * k, 34 * k);
+  ctx.fillStyle = '#7a2a1a'; ctx.fillRect(gx, A.y + 34 * k, 22 * k, 54 * k); ctx.fillRect(gx + gw - 22 * k, A.y + 34 * k, 22 * k, 54 * k);   // 열린 문짝
+  ctx.fillStyle = '#2a1a10'; Battle.roundRect(ctx, G.gate.x - 120 * k, A.y + 64 * k, 240 * k, 40 * k, 6 * k); ctx.fill();   // 현판은 맵 이름 표시에 안 가리게 조금 아래
+  ctx.strokeStyle = '#c8a050'; ctx.lineWidth = 3 * k; ctx.stroke();
+  ctx.fillStyle = '#ffd98a'; ctx.font = '700 ' + Math.round(26 * k) + 'px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('안성마춤 한우촌', G.gate.x, A.y + 85 * k);
+  // 고기 가판대 (왼쪽 아래)
+  var S = G.stand;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(S.x + 8 * k, S.y - 8 * k, S.w, S.h);
+  ctx.fillStyle = '#5a3a22'; ctx.fillRect(S.x, S.y, S.w, S.h);
+  ctx.strokeStyle = '#2a160a'; ctx.lineWidth = 6 * k; ctx.strokeRect(S.x, S.y, S.w, S.h);
+  var cx0 = S.x + 16 * k, cy0 = S.y + 50 * k, cw = S.w - 32 * k, chh = S.h * 0.45;
+  ctx.fillStyle = '#e8f4f6'; ctx.fillRect(cx0, cy0, cw, chh);   // 냉장 진열대
+  for (var m = 0; m < 6; m++) {
+    var mx = cx0 + 22 * k + (m % 3) * (cw - 30 * k) / 3, my = cy0 + 20 * k + Math.floor(m / 3) * chh * 0.48;
+    ctx.fillStyle = '#c4122e'; ctx.beginPath(); ctx.ellipse(mx + 14 * k, my + 10 * k, 22 * k, 13 * k, 0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,240,240,0.8)'; ctx.lineWidth = 2 * k; ctx.beginPath(); ctx.moveTo(mx, my + 6 * k); ctx.quadraticCurveTo(mx + 14 * k, my + 16 * k, mx + 28 * k, my + 4 * k); ctx.stroke();   // 마블링
+  }
+  ctx.fillStyle = 'rgba(200,240,255,0.25)'; ctx.fillRect(cx0, cy0, cw, chh * 0.3);
+  ctx.fillStyle = '#b8122a'; Battle.roundRect(ctx, S.x + S.w * 0.18, S.y + 8 * k, S.w * 0.64, 34 * k, 6 * k); ctx.fill();
+  ctx.fillStyle = '#ffffff'; ctx.font = '700 ' + Math.round(24 * k) + 'px "Do Hyeon","Malgun Gothic",sans-serif'; ctx.fillText('한우 정육', S.x + S.w / 2, S.y + 26 * k);
+  ctx.fillStyle = '#ffd98a'; ctx.font = '700 ' + Math.round(18 * k) + 'px "Malgun Gothic",sans-serif'; ctx.fillText('1++ 등심', S.x + S.w / 2, cy0 + chh + 26 * k);
+  ctx.restore();
+};
+
 // ---------- 맵 아이템 ----------
-var ITEM_COLOR = { blanket: '#7fa8ff', pizza: '#ffb000', chair: '#c08a5a', king: '#ffd400', soju: '#4fd18b', joo: '#ff8fc8', ramen: '#ff5a3c', yuk: '#d2321e' };
-var ITEM_R = { blanket: 34, pizza: 32, chair: 34, king: 40, soju: 30, joo: 46, ramen: 32, yuk: 32 };
+var ITEM_COLOR = { blanket: '#7fa8ff', pizza: '#ffb000', chair: '#c08a5a', king: '#ffd400', soju: '#4fd18b', joo: '#ff8fc8', ramen: '#ff5a3c', yuk: '#d2321e', sando: '#f2c879', yukhoe: '#ff3b5a' };
+var ITEM_R = { blanket: 34, pizza: 32, chair: 34, king: 40, soju: 30, joo: 46, ramen: 32, yuk: 32, sando: 34, yukhoe: 36 };
 var ITEM_DRAW = {
   blanket: function (ctx) {   // 개켜 놓은 체크무늬 담요
     ctx.rotate(-0.12);
@@ -730,6 +1049,25 @@ var ITEM_DRAW = {
     ctx.fillStyle = '#2f8a58'; ctx.font = '700 10px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('소주', 0, 7);
   },
   yuk: function (ctx, t) { cupRamen(ctx, t, '육개장', '#8a1a10', '#ffe0a0'); },
+  sando: function (ctx, t) {   // 산도할매의 간식: 소쿠리에 담긴 약과 · 떡
+    ctx.shadowColor = '#f2c879'; ctx.shadowBlur = 18;
+    ctx.fillStyle = '#b8844a'; ctx.beginPath(); ctx.ellipse(0, 6, 34, 20, 0, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#7a5428'; ctx.lineWidth = 2; for (var i = -28; i <= 28; i += 8) { ctx.beginPath(); ctx.moveTo(i, -6); ctx.lineTo(i * 0.8, 22); ctx.stroke(); }
+    [[-12, -2], [10, -4]].forEach(function (p) { ctx.fillStyle = '#c86a1e'; ctx.beginPath(); ctx.arc(p[0], p[1], 10, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#8a3e0a'; ctx.stroke(); });
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(0, 6, 10, 7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#9be37a'; ctx.beginPath(); ctx.ellipse(18, 8, 8, 6, 0, 0, Math.PI * 2); ctx.fill();
+    FX.outlined(ctx, '산도할매', 0, 36, 16, '#ffe2b0');
+  },
+  yukhoe: function (ctx, t) {   // 서비스 육회: 접시 위 육회 + 노른자 + 배
+    ctx.rotate(Math.sin(t * 2) * 0.08); ctx.shadowColor = '#ff3b5a'; ctx.shadowBlur = 24;
+    ctx.fillStyle = '#f4f4f0'; ctx.beginPath(); ctx.arc(0, 0, 34, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#2f4f9a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#e8e0b0'; for (var i = 0; i < 7; i++) { var a = i / 7 * Math.PI * 2; ctx.fillRect(Math.cos(a) * 22 - 2, Math.sin(a) * 22 - 4, 4, 8); }
+    ctx.fillStyle = '#c4122e'; ctx.beginPath(); ctx.arc(0, 0, 17, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#8a0a1e'; ctx.lineWidth = 2; for (var j = -12; j <= 12; j += 6) { ctx.beginPath(); ctx.moveTo(j, -12); ctx.lineTo(j + 4, 12); ctx.stroke(); }
+    ctx.fillStyle = '#ffb000'; ctx.beginPath(); ctx.arc(0, -2, 7, 0, Math.PI * 2); ctx.fill();
+    FX.outlined(ctx, 'SERVICE', 0, -44 - Math.sin(t * 3) * 2, 15, '#ffd0d8');
+  },
   ramen: function (ctx, t) { cupRamen(ctx, t, '라면', '#e8321e', '#ffffff'); },
   joo: function (ctx, t, r) {   // 주현지 누나: 캐릭터와 같은 공
     var g = ctx.createRadialGradient(0, 0, r * 0.8, 0, 0, r * 1.7);
@@ -769,6 +1107,11 @@ var ITEM_EAT = {
   },
   ramen: function (bt, b) { eatRamen(bt, b, 'ramen', '편의점 라면! 🍜'); },
   yuk: function (bt, b) { eatRamen(bt, b, 'yuk', '육개장 컵라면! 🍜'); },
+  sando: function (bt, b) { bt.heal(b, CONFIG.maps.hanu.snack.heal); FX.text(b.x, b.y - b.r - 90, '산도할매 간식 냠냠', '#ffe2b0', 42, 1.0); FX.sfx('powerup'); },
+  yukhoe: function (bt, b) {
+    bt.heal(b, CONFIG.maps.hanu.snack.yukHeal);
+    FX.text(b.x, b.y - b.r - 90, '서비스 육회!! 🥩', '#ff6b80', 48, 1.2); FX.sfx('happy'); FX.burst(b.x, b.y, '#ff3b5a', 20, 600, 9, 0.5);
+  },
   joo: function (bt, b) {
     b.data.joo = true;
     FX.text(b.x, b.y - b.r - 60, '주현지 누나의 가호! 🎀', '#ff8fc8', 46, 1.2); FX.sfx('happy');
@@ -826,7 +1169,21 @@ var PC_MODES = {
   rb:    { start: '로블록스 접속! 🧱', color: '#ff4a4a', icon: '🧱' },
   code:  { start: '코딩 중… 💻', color: '#9cff57', icon: '💻' },
   stock: { start: '주식 차트 확인 📈', color: '#ff3b3b', icon: '📈' },
+  lol:   { start: '롤 한 판만… 협곡 간다 ⚔️', color: '#c8aa6e', icon: '⚔️' },
 };
+// 원요섭 롤 하는 모션: 손이 바빠서 몸이 덜덜 + 머리 위로 스킬 키 · 우클릭 표시 · 가끔 채팅
+var LOL_KEYS = ['Q', 'W', 'E', 'R', 'D', 'F', 'Q', 'E'], LOL_CHAT = ['갱 와요!!', '정글 뭐함?', '미드 미아!', '한타 가자', '아 점멸 없음', 'ㅈㅈ 치지 마'];
+function lolMotion(bt, b, dt) {
+  var d = b.data;
+  d.lolJ = true; b.jx = Math.sin(bt.time * 45) * 4 + _rnd(-2, 2); b.jy = _rnd(-2, 2);
+  if ((d.lolKey = (d.lolKey || 0) - dt) <= 0) {
+    d.lolKey = _rnd(0.12, 0.28);
+    var a = _rnd(-2.4, -0.7), k = LOL_KEYS[Math.floor(Math.random() * LOL_KEYS.length)];
+    FX.text(b.x + Math.cos(a) * b.r * 1.1, b.y + Math.sin(a) * b.r * 1.1, k, k === 'R' ? '#ff5a5a' : k === 'D' || k === 'F' ? '#ffd400' : '#c8aa6e', k === 'R' ? 40 : 30, 0.45);
+    if (Math.random() < 0.35) FX.ring(b.x + _rnd(-b.r, b.r), b.y + _rnd(-b.r, b.r) * 0.5, 4, 22, 0.25, '#7dff9a', 4);
+  }
+  if ((d.lolChat = (d.lolChat || 0) - dt) <= 0) { d.lolChat = _rnd(1.1, 1.8); FX.text(b.x, b.y - b.r - 95, LOL_CHAT[Math.floor(Math.random() * LOL_CHAT.length)], '#ffffff', 34, 0.9); }
+}
 // 컴퓨터에 닿았을 때 할 일 (없으면 그냥 지나감)
 function pcMode(b) {
   var n = b.def.name, c = CONFIG.maps.hall;
@@ -835,6 +1192,7 @@ function pcMode(b) {
   if (n === '서리') return 'smash';
   if (c.ow.indexOf(n) >= 0) return 'ow';
   if (c.roblox.indexOf(n) >= 0) return 'rb';
+  if (c.lol.indexOf(n) >= 0) return 'lol';
   return null;
 }
 // 컴퓨터 앞 자리: 담배 창문처럼 점선 반원, 가운데 의자는 drawTable이 그림 (고장 나면 흐리게)
@@ -898,6 +1256,15 @@ function drawTable(ctx, T, pc, time) {
   } else if (mode === 'rb') {
     ctx.fillStyle = '#7ec8ff'; ctx.fillRect(mx, my, mw, mh); ctx.fillStyle = '#4caf50'; ctx.fillRect(mx, my + mh * 0.65, mw, mh * 0.35);
     for (var j = 0; j < 4; j++) { ctx.fillStyle = ['#ff4a4a', '#ffd400', '#2f9bff', '#ffffff'][j]; ctx.fillRect(mx + mw * (0.12 + j * 0.2), my + mh * (0.45 - (j % 2) * 0.12), mw * 0.12, mh * 0.2); }
+  } else if (mode === 'lol') {   // 롤: 미니맵 (초록 숲 + 세 갈래 길 + 양 끝 기지)
+    ctx.fillStyle = '#1f4a2a'; ctx.fillRect(mx, my, mw, mh);
+    ctx.strokeStyle = '#c9b27a'; ctx.lineWidth = 3; ctx.beginPath();
+    ctx.moveTo(mx + 4, my + mh - 4); ctx.lineTo(mx + 4, my + 4); ctx.lineTo(mx + mw - 4, my + 4);
+    ctx.moveTo(mx + 4, my + mh - 4); ctx.lineTo(mx + mw - 4, my + mh - 4); ctx.lineTo(mx + mw - 4, my + 4);
+    ctx.moveTo(mx + 4, my + mh - 4); ctx.lineTo(mx + mw - 4, my + 4); ctx.stroke();
+    ctx.strokeStyle = '#3a7ad8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(mx + mw - 6, my + mh * 0.2); ctx.lineTo(mx + mw * 0.2, my + mh - 6); ctx.stroke();
+    ctx.fillStyle = '#4aa8ff'; ctx.fillRect(mx + 2, my + mh - 12, 10, 10); ctx.fillStyle = '#ff4a4a'; ctx.fillRect(mx + mw - 12, my + 2, 10, 10);
+    var f = (time * 0.35) % 1; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(mx + 8 + (mw - 16) * f, my + mh - 8 - (mh - 16) * f, 3, 0, Math.PI * 2); ctx.fill();
   } else if (mode === 'code') {
     ctx.fillStyle = '#0d1a10'; ctx.fillRect(mx, my, mw, mh); ctx.fillStyle = '#9cff57';
     for (var l = 0; l < 6; l++) ctx.fillRect(mx + 6 + (l % 3) * 8, my + 6 + l * mh / 7, mw * (0.3 + ((l * 37 + Math.floor(time * 4)) % 5) * 0.1), 3);

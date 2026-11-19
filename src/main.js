@@ -1261,7 +1261,7 @@
   var bgm = { ctx: null, tracks: {} };
   function bgmPick() {
     if (FX.muted) return null;
-    if (G.scene === 'battle') { var bt = G.battle, mid = bt && bt.map && bt.map.id; return !bt ? null : bt.bossMode ? 'bossFight' : mid === 'workroom' ? 'work' : mid ? mid : 'field'; }
+    if (G.scene === 'battle') { var bt = G.battle, mid = bt && bt.map && bt.map.id; return !bt ? null : bt.bossMode ? 'bossFight' : mid === 'workroom' ? 'work' : BGM_FILES[mid] ? mid : 'field'; }
     if (G.scene === 'result' && G.battle) {   // 이기면 winner, 보스에게 지면 패배음만 잠깐 뒤 로비 곡, 무승부는 로비 곡
       var rb = G.battle, won = (rb.winner || rb.winnerTeam != null) && !(rb.bossMode && rb.winnerTeam === 0);
       if (won) return 'winner';
